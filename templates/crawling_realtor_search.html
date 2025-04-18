@@ -28,7 +28,6 @@
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      /*width: 80%;*/
       max-width: 900px;
       display: flex;
       flex-direction: column;
@@ -42,17 +41,16 @@
       position: relative;
     }
     .search-input-group label {
-          font-weight: bold;
-          display: flex;
-          align-items: center; /* 수직 가운데 정렬 */
-          text-align: left;    /* 텍스트 왼쪽 정렬 */
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      text-align: left;
     }
     .search-input-group input {
       padding: 8px;
       border: 1px solid #ddd;
       border-radius: 4px;
     }
-
     #locatadd_nm { flex: 7; }
     .search-btn, .message-btn, .excel-btn {
       padding: 10px 16px;
@@ -67,22 +65,20 @@
     .search-btn:hover, .message-btn:hover, .excel-btn:hover {
       background-color: #0056b3;
     }
-    /* result-count 를 년도와 비슷하게 스타일 적용 */
     #result-count {
-        width: 40px;
-        font-weight: bold;
-        padding: 5px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background-color: #fff;
-        margin-left: auto;
-        margin-right: auto;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 30px; /* Adjust the height as needed */
+      width: 40px;
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      margin-left: auto;
+      margin-right: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 30px;
     }
-    /* 헤더 컨테이너 */
     #header-container {
       width: 95%;
       max-width: 940px;
@@ -101,7 +97,6 @@
       border-right: 1px solid #ddd;
     }
     #header-container span:last-child { border-right: none; }
-    /* 테이블 컨테이너: 화면 크기를 넘어가면 자동 스크롤 */
     .table-container {
       width: 95%;
       max-width: 940px;
@@ -109,8 +104,8 @@
       background-color: #fff;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      padding: 0px;
-      margin-top: 1px; /* 검색창 아래 위치 */
+      padding: 0;
+      margin-top: 1px;
       overflow: auto;
     }
     table {
@@ -129,7 +124,6 @@
     .right-align { text-align: right; }
     .left-align { text-align: left; }
     .center-align { text-align: center; }
-    /* 메시지, 로딩, 오류 메시지 */
     .no-data-message, .loading-message {
       text-align: center;
       font-size: 18px;
@@ -142,7 +136,6 @@
       margin-top: 10px;
       text-align: center;
     }
-    /* 메시지 팝업: 테이블 컨테이너 내부 중앙 */
     #message-popup {
       position: absolute;
       top: 50%;
@@ -158,7 +151,6 @@
       display: none;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
-    /* 팝업 헤더: 제목 중앙, 위/아래 간격 10px, 건수 표시 오른쪽 */
     .popup-header {
       display: flex;
       justify-content: center;
@@ -184,7 +176,6 @@
       font-size: 24px;
       cursor: pointer;
     }
-    /* 선택 목록: 순번, 대표자, 휴대전화 (목록이 5개 넘으면 세로 스크롤) */
     #selected-list-container {
       border: 1px solid #ddd;
       border-radius: 4px;
@@ -194,11 +185,8 @@
     }
     .selected-list-header, .selected-list-item {
       display: flex;
+      align-items: center;
       padding: 8px;
-    }
-    .selected-list-header {
-      background-color: #f2f2f2;
-      font-weight: bold;
     }
     .selected-list-header span,
     .selected-list-item span {
@@ -206,16 +194,18 @@
       border-right: 1px solid #ddd;
     }
     .selected-list-header span:nth-child(1),
-    .selected-list-item span:nth-child(1) { width: 30px; } /* 순번 */
+    .selected-list-item span:nth-child(1) { width: 30px; }
     .selected-list-header span:nth-child(2),
-    .selected-list-item span:nth-child(2) { flex: 2; } /* 대표자 */
+    .selected-list-item span:nth-child(2) { flex: 2; }
     .selected-list-header span:nth-child(3),
-    .selected-list-item span:nth-child(3) { flex: 2; } /* 휴대전화 */
-    .selected-list-header span:last-child,
-    .selected-list-item span:last-child {
-      border-right: none;
+    .selected-list-item span:nth-child(3) { flex: 2; }
+    .selected-list-item .delete-btn {
+      margin-left: auto;
+      cursor: pointer;
+      color: red;
+      font-weight: bold;
+      padding: 0 8px;
     }
-    /* 메시지 입력 영역 */
     #message-popup textarea {
       width: 100%;
       height: 200px;
@@ -225,7 +215,6 @@
       border-radius: 4px;
       resize: vertical;
     }
-    /* 첨부파일 영역 */
     .attachment-container {
       margin-top: 10px;
     }
@@ -233,7 +222,6 @@
       display: block;
       margin-bottom: 10px;
     }
-    /* 썸네일 슬라이더: 메시지 팝업의 전체 너비에 맞게 100% 적용 */
     .thumbnail-slider {
       width: 100%;
       overflow: hidden;
@@ -245,7 +233,6 @@
       display: flex;
       transition: transform 0.3s ease;
     }
-    /* 각 썸네일 아이템: 기본 4개 보이도록 계산 (4개 사이 3개 간격 5px) */
     .thumbnail-item {
       width: calc((100% - 15px) / 4);
       height: 80px;
@@ -260,7 +247,6 @@
       object-fit: contain;
       border-radius: 4px;
     }
-    /* 슬라이더 좌우 네비 버튼 */
     .thumb-nav {
       position: absolute;
       top: 50%;
@@ -278,19 +264,6 @@
     }
     .thumb-nav.left { left: 5px; }
     .thumb-nav.right { right: 5px; }
-    #message-popup button {
-      margin-top: 10px;
-      padding: 10px 16px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: background-color 0.3s ease;
-    }
-    #message-popup button:hover { background-color: #0056b3; }
-    /* 이미지 팝업 (썸네일 클릭 시) */
     #image-popup {
       position: fixed;
       top: 0;
@@ -309,17 +282,33 @@
       border: 5px solid #fff;
       border-radius: 8px;
     }
-    /* 기존 스타일 유지 및 수정 */
-    tbody tr:nth-child(odd) {
-      background-color: #ffffff; /* 홀수행: 흰색 */
+    tbody tr:nth-child(odd) { background-color: #ffffff; }
+    tbody tr:nth-child(even) { background-color: azure; }
+    tbody tr:hover { background-color: #d9d9d9; }
+    /* 메시지 팝업 추가 입력 영역 */
+    .add-entry {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
     }
-    tbody tr:nth-child(even) {
-      /* background-color: #f0f0f0; /* 짝수행: 연한 회색 */
-        background-color: azure;
+    .add-entry label {
+      font-weight: bold;
     }
-    tbody tr:hover {
-      background-color: #d9d9d9; /* 마우스 오버 시 약간 진한 회색 */
+    .add-entry input {
+      padding: 4px 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
     }
+    #add-entry-btn {
+      padding: 6px 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #add-entry-btn:hover { background-color: #218838; }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="/static/js/address_autocomplete.js"></script>
@@ -486,30 +475,51 @@
          //
          document.getElementById('message-content').value = "";
          //
-         let send_message = "안녕하세요. 로그인닙 입니다.\n";
+         let send_message = "";
          if (this.value === "sms") {
            send_message += "일반문자를 전송합니다.\n"
            document.getElementById('message-title').value = "";
            document.getElementById('message-content').value = send_message;
          } else if (this.value === "house") {
-           send_message += "주택매도 의뢰합니다.\n";
-           send_message += "2018년식, 25평, 방3-욕실2, 4층입니다.\n";
-           send_message += "매매금액은 2억 5천에 내놓겟습니다. 잘부탁드립니다.\n";
-           send_message += "제연락처는 010-2222-9090입니다.";
-           document.getElementById('message-title').value = "주택매매 의뢰합니다.";
+           send_message += "1.주소: 강북구 수유동 100-1번지\n";
+           send_message += "2.년식: 2018\n";
+           send_message += "3.평수: 20평(전용)\n";
+           send_message += "4.방수: 방3-욕실2\n";
+           send_message += "5.층향: 4층,남향\n";
+           send_message += "6.엘베: 있슴\n";
+           send_message += "7.주차: 1대무료\n";
+           send_message += "8.관리비: 5만원\n";
+           send_message += "9.금액: 2.5억\n";
+           send_message += "10.번호: 010-2270-9085\n";
+           send_message += "11.비고: 지하철5분거리, 초.중.고 2개존재함.";
+           document.getElementById('message-title').value = "주택매매 의뢰";
            document.getElementById('message-content').value = send_message;
          } else {
-           send_message += "상가임대 의뢰합니다.\n";
-           send_message += "계약평수 120평, 전용평수 90평에 네오프라자 6층입니다. \n";
-           send_message += "관리비는 전용평당 1만원에 주차대수는 기본1대 손님은 3시간 무료입니다.\n";
-           send_message += "매매금액은 7억 5천에 내놓겟습니다. 잘부탁드립니다.\n";
-           send_message += "제연락처는 010-2222-9090입니다.";
-           document.getElementById('message-title').value = "상가임대(매매)의뢰합니다.";
+           send_message += "1.주소: 강북구 수유동 100-1번지\n";
+           send_message += "2.년식: 2018\n";
+           send_message += "3.평수: 50평(전용)\n";
+           send_message += "4.층향: 4층,남향\n";
+           send_message += "5.엘베: 있슴\n";
+           send_message += "6.주차: 1대무료(총50대),고객 2시간무료\n";
+           send_message += "6.관리비: 전용 1만원\n";
+           send_message += "7.금액: 3.5억\n";
+           send_message += "8.번호: 010-2270-9085\n";
+           send_message += "9.비고: 에어컨및 데코타일";
+           document.getElementById('message-title').value = "상가임대(매매)의뢰";
            document.getElementById('message-content').value = send_message;
          }
       });
 
-      // 문자 전송방식 처리(알림톡,문자)
+      // 알림톡,문자 선택처리
+      // document.getElementById('send_tool_type').addEventListener('change', function () {
+      //    const loginInfoDiv = document.getElementById("login-info");
+      //    alert(this.value);
+      //    if (this.value === "kakao") {
+      //       loginInfoDiv.style.display = "none";
+      //    } else {
+      //       loginInfoDiv.style.display = "flex";
+      //    }
+      // });
       const sendTypeRadios = document.getElementsByName("send-type");
       const loginInfoDiv = document.getElementById("login-info");
       sendTypeRadios.forEach(radio => {
@@ -552,6 +562,7 @@
                   <span>순번</span>
                   <span>대표자</span>
                   <span>휴대전화</span>
+                  <span>삭제</span>
                 </div>
                 <div id="selected-list">
             `;
@@ -560,14 +571,11 @@
                              <span>${index + 1}</span>
                              <span>${item.rep}</span>
                              <span>${item.mobile}</span>
+                             <span class="delete-btn">×</span>
                            </div>`;
             });
             listHtml += `</div></div>`;
             document.getElementById('selected-list-container').innerHTML = listHtml;
-
-            // 선택된 휴대전화 번호들을 전역변수에 저장
-            //window.selectedPhoneNumbers = selectedItems.map(item => item.mobile).join(",");
-            window.selectedPhoneNumbers = "010-2270-9085"
 
             // 첨부파일 영역 초기화
             let thumbnailList = document.querySelector('.thumbnail-list');
@@ -580,6 +588,8 @@
             document.getElementById('message-content').value = "";
             document.getElementById('message-popup').style.display = 'block';
           });
+
+
 
           // #send-message-btn 클릭 이벤트
           document.getElementById('send-message-btn').addEventListener('click', function() {
@@ -607,6 +617,18 @@
               alert("메시지를 작성해주세요.");
               return;
             }
+
+            // 선택된 항목들의 이름:휴대번호 쌍을 전역변수에 저장
+            const pairs = Array.from(
+              document.querySelectorAll('.selected-list-item')
+            ).map(div => {
+              const name   = div.querySelectorAll('span')[1].textContent.trim(); // 두 번째 span: 이름
+              const mobile = div.querySelectorAll('span')[2].textContent.trim(); // 세 번째 span: 휴대번호
+              return `${name}:${mobile}`;
+            });
+            window.selectedPhoneNumbers = pairs.join(',');
+            console.log('현재 선택된 이름:전화번호 목록:', window.selectedPhoneNumbers);
+
             // 선택된 휴대전화 목록 (메시지 버튼 클릭 이벤트에서 전역변수로 저장)
             if (!window.selectedPhoneNumbers || window.selectedPhoneNumbers.length === 0) {
               alert("전송할 휴대전화 목록이 없습니다.");
@@ -664,6 +686,56 @@
                   document.getElementById('message-popup').style.display = 'none';
                 });
           });
+
+          // default 라디오 설정
+          $('input[name="send-type"][value="kakao"]').prop('checked', true);
+
+          // 삭제(X) 버튼 처리 (이벤트 위임)
+          $('#selected-list-container').on('click', '.delete-btn', function() {
+            $(this).closest('.selected-list-item').remove();
+            updatePopupCount();
+          });
+
+          // 추가 입력 area: 이름/전화번호 포맷팅
+          $('#new-phone').on('input', function() {
+            let num = $(this).val().replace(/\D/g, '');
+            if (num.startsWith('010')) {
+              if (num.length > 3 && num.length <= 7)
+                num = num.replace(/(\d{3})(\d+)/, '$1-$2');
+              else if (num.length > 7)
+                num = num.replace(/(\d{3})(\d{4})(\d+)/, '$1-$2-$3');
+            }
+            $(this).val(num);
+          });
+
+          // 추가 버튼 클릭
+          $('#add-entry-btn').on('click', function() {
+            const name = $('#new-name').val().trim();
+            const phone = $('#new-phone').val().trim();
+            if (!name) { alert('이름을 입력하세요.'); return; }
+            const phonePattern = /^010-\d{4}-\d{4}$/;
+            if (!phonePattern.test(phone)) { alert('전화번호를 형식에 맞게 입력하세요 (010-xxxx-xxxx).'); return; }
+            // 리스트에 추가
+            const itemCount = $('#selected-list-container .selected-list-item').length + 1;
+            const $item = $(`
+              <div class="selected-list-item">
+                <span>${itemCount}</span>
+                <span>${name}</span>
+                <span>${phone}</span>
+                <span class="delete-btn">×</span>
+              </div>
+            `);
+            $('#selected-list-container').append($item);
+            updatePopupCount();
+            // 초기화
+            $('#new-name, #new-phone').val('');
+          });
+
+          function updatePopupCount() {
+            const cnt = $('#selected-list-container .selected-list-item').length;
+            $('.popup-count').text(`(${cnt}건)`);
+            // update global phone list if needed...
+          }
 
           // 파일 첨부 (이미지 썸네일 미리보기) - 최대 7개 첨부
           document.getElementById('file-input').addEventListener('change', function(event) {
@@ -886,6 +958,12 @@
       <div class="login-info" id="login-info" style="display: none; margin-bottom: 10px;">
         <input type="text" id="login-id" placeholder="로그인 ID" style="flex: 1; margin-right: 4%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="logphone">
         <input type="password" id="login-password" placeholder="패스워드" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="ekqkek#$0">
+      </div>
+      <!-- 추가 입력 폼 -->
+      <div class="add-entry">
+        <label>이름: <input type="text" id="new-name"></label>
+        <label>전화번호: <input type="text" id="new-phone" placeholder="010-1234-5678"></label>
+        <button id="add-entry-btn">추가</button>
       </div>
       <!-- 제목 입력 -->
       <div class="title-input" style="margin-bottom: 10px;">

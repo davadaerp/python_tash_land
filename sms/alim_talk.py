@@ -45,26 +45,33 @@ def alimtalk_send(data):
 
     # 메시지 본문 생성
     servie_date = datetime.now().strftime("%Y-%m-%d")
-    content_template = (
-        f"안녕하세요. 다바다입니다.\n"
-        f"{message}\n"
-        f"님에 서비스신청이 {servie_date}일부로 승인완료 되었습니다.\n"
-        f"앞으로 많은 이용부탁드립니다.\n\n감사합니다."
-    )
+    item_name = title   #"부동사매도의뢰"
+    item_spec = message
 
     # 메시지 리스트 구성
     messages = []
-    for phone_number in phone_list:
+    for entry in phone_list:
+        # entry 형식: "이름:전화번호"
+        name, phone_number = entry.split(":", 1)
+        # 알림톡 0002 탬플릿 구조임.
+        content_template = (
+            f"안녀하세요. {name}님\n"
+            f"물건 {item_name} 요청합니다.\n"
+            f"{item_spec}\n"
+            f"잘 부탁드립니다.\n\n감사합니다."
+        )
         messages.append({
             "countryCode": "82",
             "to": phone_number,
             "content": content_template
+            # 첨부 파일 ID 리스트
+            #"imageIdList": [file_id]
         })
 
     # 페이로드 구성
     payload = {
         "plusFriendId": "@davada",
-        "templateCode": "0001",
+        "templateCode": "0002",
         "messages": messages
     }
 
