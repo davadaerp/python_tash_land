@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>로그인</title>
+  <style>
+  </style>
+  <!-- jQuery CDN 추가 -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+  <h2>시작화</h2>
+  <script>
+    $(document).ready(function(){
+
+      $('#login-form').submit(function(e) {
+        e.preventDefault(); // 기본 폼 제출 방지
+        //
+        window.location.href = '/login_token.html';
+    });
+  </script>
+</body>
+</html>

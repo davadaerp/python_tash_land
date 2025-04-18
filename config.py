@@ -1,0 +1,46 @@
+# config.py
+import os
+
+BASE_PATH = "/Users/wfight/IdeaProjects/PythonProject/Auction"
+#BASE_PATH = "/home/ubuntu/tash"
+
+# 환경변수 SANGA_DB_PATH가 설정되어 있으면 사용하고, 없으면 기본 경로를 사용
+PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/persistence")
+SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
+AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
+REALTOR_DB_PATH = os.environ.get("REALTOR_DB_PATH", BASE_PATH + "/realtor")
+#
+PAST_APT_BASE_PATH = os.environ.get("PAST_APT_BASE_PATH", BASE_PATH + "/pastapt")
+
+# SANGA_BASE_PATH 디렉토리 경로라면 마지막에 os.sep (예: '/')를 추가하여 안전하게 사용
+if not PERSISTENCE_DB_PATH.endswith(os.sep):
+    PERSISTENCE_DB_PATH += os.sep
+
+if not SANGA_BASE_PATH.endswith(os.sep):
+    SANGA_BASE_PATH += os.sep
+
+if not AUCTION_DB_PATH.endswith(os.sep):
+    AUCTION_DB_PATH += os.sep
+
+if not REALTOR_DB_PATH.endswith(os.sep):
+    REALTOR_DB_PATH += os.sep
+
+if not PAST_APT_BASE_PATH.endswith(os.sep):
+    PAST_APT_BASE_PATH += os.sep
+
+TEMPLATES_NAME = "templates"
+
+# 파일들이 위치한 디렉터리 경로 (예: 'downloads' 폴더)
+FORM_DIRECTORY = 'forms'
+
+# 저장 방식 선택: "csv" 또는 "sqlite"
+SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
+
+# 사용자 계정 정보 (예제용)
+USER_CREDENTIALS = {
+    "admin": "1",
+    "smile": "0080"
+}
+
+# JWT 서명에 사용할 비밀키
+SECRET_KEY = '7987f7cb05cb1992'

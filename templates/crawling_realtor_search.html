@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* 전체 페이지 중앙 정렬 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 15px;
+    }
+    /* 검색 컨테이너 스타일 */
+    .search-container {
+      margin-bottom: 5px;
+      background-color: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      /*width: 80%;*/
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      position: relative;
+    }
+    .search-input-group label {
+          font-weight: bold;
+          display: flex;
+          align-items: center; /* 수직 가운데 정렬 */
+          text-align: left;    /* 텍스트 왼쪽 정렬 */
+    }
+    .search-input-group input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    #locatadd_nm { flex: 7; }
+    .search-btn, .message-btn, .excel-btn {
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    .search-btn:hover, .message-btn:hover, .excel-btn:hover {
+      background-color: #0056b3;
+    }
+    /* result-count 를 년도와 비슷하게 스타일 적용 */
+    #result-count {
+        width: 40px;
+        font-weight: bold;
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: #fff;
+        margin-left: auto;
+        margin-right: auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 30px; /* Adjust the height as needed */
+    }
+    /* 헤더 컨테이너 */
+    #header-container {
+      width: 95%;
+      max-width: 940px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 0;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 1px;
+    }
+    #header-container span {
+      text-align: center;
+      padding: 0 5px;
+      flex: 1;
+      border-right: 1px solid #ddd;
+    }
+    #header-container span:last-child { border-right: none; }
+    /* 테이블 컨테이너: 화면 크기를 넘어가면 자동 스크롤 */
+    .table-container {
+      width: 95%;
+      max-width: 940px;
+      max-height: 980px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 0px;
+      margin-top: 1px; /* 검색창 아래 위치 */
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+      font-size: 14px;
+    }
+    th { background-color: #f2f2f2; font-weight: bold; }
+    .highlight { color: red; font-weight: bold; }
+    .right-align { text-align: right; }
+    .left-align { text-align: left; }
+    .center-align { text-align: center; }
+    /* 메시지, 로딩, 오류 메시지 */
+    .no-data-message, .loading-message {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+      margin: 50px auto;
+    }
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+    /* 메시지 팝업: 테이블 컨테이너 내부 중앙 */
+    #message-popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      z-index: 2000;
+      width: 90%;
+      max-width: 500px;
+      padding: 20px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    /* 팝업 헤더: 제목 중앙, 위/아래 간격 10px, 건수 표시 오른쪽 */
+    .popup-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 10px 0;
+      position: relative;
+      text-align: center;
+    }
+    .popup-header h3 {
+      margin: 0;
+      flex: 1;
+    }
+    .popup-count {
+      position: absolute;
+      right: 0;
+      font-size: 14px;
+      color: #555;
+    }
+    #message-popup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    /* 선택 목록: 순번, 대표자, 휴대전화 (목록이 5개 넘으면 세로 스크롤) */
+    #selected-list-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .selected-list-header, .selected-list-item {
+      display: flex;
+      padding: 8px;
+    }
+    .selected-list-header {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .selected-list-header span,
+    .selected-list-item span {
+      text-align: center;
+      border-right: 1px solid #ddd;
+    }
+    .selected-list-header span:nth-child(1),
+    .selected-list-item span:nth-child(1) { width: 30px; } /* 순번 */
+    .selected-list-header span:nth-child(2),
+    .selected-list-item span:nth-child(2) { flex: 2; } /* 대표자 */
+    .selected-list-header span:nth-child(3),
+    .selected-list-item span:nth-child(3) { flex: 2; } /* 휴대전화 */
+    .selected-list-header span:last-child,
+    .selected-list-item span:last-child {
+      border-right: none;
+    }
+    /* 메시지 입력 영역 */
+    #message-popup textarea {
+      width: 100%;
+      height: 200px;
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    /* 첨부파일 영역 */
+    .attachment-container {
+      margin-top: 10px;
+    }
+    .attachment-container input[type="file"] {
+      display: block;
+      margin-bottom: 10px;
+    }
+    /* 썸네일 슬라이더: 메시지 팝업의 전체 너비에 맞게 100% 적용 */
+    .thumbnail-slider {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .thumbnail-list {
+      display: flex;
+      transition: transform 0.3s ease;
+    }
+    /* 각 썸네일 아이템: 기본 4개 보이도록 계산 (4개 사이 3개 간격 5px) */
+    .thumbnail-item {
+      width: calc((100% - 15px) / 4);
+      height: 80px;
+      margin-right: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .thumbnail-item:last-child { margin-right: 0; }
+    .thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    /* 슬라이더 좌우 네비 버튼 */
+    .thumb-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 25px;
+      height: 25px;
+      background-color: rgba(0,0,0,0.5);
+      color: #fff;
+      text-align: center;
+      line-height: 25px;
+      cursor: pointer;
+      border-radius: 50%;
+      user-select: none;
+      z-index: 1;
+    }
+    .thumb-nav.left { left: 5px; }
+    .thumb-nav.right { right: 5px; }
+    #message-popup button {
+      margin-top: 10px;
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    #message-popup button:hover { background-color: #0056b3; }
+    /* 이미지 팝업 (썸네일 클릭 시) */
+    #image-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      border: 5px solid #fff;
+      border-radius: 8px;
+    }
+    /* 기존 스타일 유지 및 수정 */
+    tbody tr:nth-child(odd) {
+      background-color: #ffffff; /* 홀수행: 흰색 */
+    }
+    tbody tr:nth-child(even) {
+      /* background-color: #f0f0f0; /* 짝수행: 연한 회색 */
+        background-color: azure;
+    }
+    tbody tr:hover {
+      background-color: #d9d9d9; /* 마우스 오버 시 약간 진한 회색 */
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/address_autocomplete.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script>
+
+    // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
+    window.onload = function() {
+        var lawName = "{{ lawName }}";
+        var umdNm = "{{ umdNm }}";
+        var lawCd = "{{ law_cd }}";
+        //alert(lawName + ',' + umdNm + ',' + lawCd);
+        // 확장툴실행여부
+        if (lawCd && lawCd.trim() !== '') {
+            // selectedLawdCd = '4157010900';
+            // selectedUmdNm = '구래동';
+            selectedLawdCd = lawCd;
+            selectedUmdNm = umdNm;
+            document.getElementById("dangiName").value = umdNm;
+
+            // 0.5초 후 버튼 클릭 이벤트 강제 실행
+            setTimeout(() => {
+                document.getElementById("search-btn").click();
+                //document.getElementById("search-btn").dispatchEvent(new Event('click'));
+            }, 500);
+        }
+    };
+
+    // 슬라이더 관련 변수
+    let currentSlide = 0;
+    let totalThumbnails = 0;
+    const visibleCount = 4; // 기본 4개 보임
+    //
+    function fetchData() {
+      const selType = $('#sel_type').val();
+      let searchTitle = $('#locatadd_nm').val();
+      let dangiName = $('#dangiName').val();
+      $('#loading').show();
+      $('#noData').hide();
+      $('table').hide();
+      $.ajax({
+        url:  BASE_URL + '/api/realtor',
+        //url: 'https://erp-dev.bacchuserp.com/api'
+        method: 'GET',
+        data: { lawdCd: selectedLawdCd, selType:selType, searchTitle: searchTitle, dangiName: dangiName },
+        dataType: 'json',
+        timeout: 5000,
+        beforeSend: function () {
+          $('#loading').show();
+          $('#noData').hide();
+          $('#errorMessage').hide();
+          $('table').hide();
+        },
+        success: function (data) {
+          $('#loading').hide();
+          if (data.length === 0) {
+            $('#noData').show();
+            $('#errorMessage').hide();
+          } else {
+            $('#noData').hide();
+            $('#errorMessage').hide();
+            $('table').show();
+            renderTable(data);
+          }
+          // 업데이트: 검색 결과 건수를 #search-count에 출력
+          $("#result-count").text(data.length);
+        },
+        error: function (xhr, status, error) {
+          $('#loading').hide();
+          if (status === "timeout") {
+            $('#errorMessage').text("서버 응답이 없습니다. 서버가 실행 중인지 확인하세요.").show();
+          } else {
+            $('#errorMessage').text("데이터를 가져오는 중 오류가 발생했습니다: " + error).show();
+          }
+        }
+      });
+    }
+
+    function renderTable(data) {
+      let tableBody = $('#dataBody');
+      tableBody.empty();
+      data.forEach((item, index) => {
+        tableBody.append(`
+          <tr>
+            <td class="center-align"><input type="checkbox" class="row-checkbox"></td>
+            <td class="center-align">${index}</td>
+            <td class="center-align">${item.title.length > 10 ? item.title.substring(0, 10) + '...' : item.title}</td>
+            <td class="center-align">${item.representative.replace(/\s/g, "")}</td>
+            <td class="left-align">${item.address2.length > 25 ? item.address2.substring(0, 25) + '...' : item.address2}</td>
+            <td class="center-align">${item.landline_phone}</td>
+            <td class="center-align">${item.mobile_phone}</td>
+            <td><button class="map-btn" data-map="${item.address1}">위치</button></td>
+          </tr>
+        `);
+      });
+      document.querySelectorAll('.map-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          let address = this.getAttribute('data-map');
+          openMap(address);
+        });
+      });
+    }
+
+    function updateThumbnailSlider() {
+      const slider = document.querySelector('.thumbnail-list');
+      if(slider) {
+        slider.style.transform = `translateX(-${currentSlide * 85}px)`;
+      }
+    }
+
+   document.addEventListener("DOMContentLoaded", function() {
+      // #search-btn 클릭 이벤트
+      document.getElementById('search-btn').addEventListener('click', function() {
+        // let searchTerm = document.getElementById('locatadd_nm').value.trim();
+        // if (!searchTerm) {
+        //   alert("법정동명을 입력하세요.");
+        //   document.getElementById('locatadd_nm').focus();
+        //   return;
+        // }
+        // let dangiName = document.getElementById('dangiName').value.trim();
+        // if (!dangiName) {
+        //   alert("읍면동을 입력하세요.");
+        //   document.getElementById('dangiName').focus();
+        //   return;
+        // }
+        fetchData();
+      });
+      // 중개사 검색
+      document.getElementById('dangiName').addEventListener('keyup', function(event) {
+        if (event.keyCode === 13) {
+            let dangiName = document.getElementById('dangiName').value.trim();
+            if (!dangiName) {
+              alert("중개사 읍명동을 입력하세요.");
+              document.getElementById('dangiName').focus();
+              return;
+            }
+            fetchData();
+        }
+      });
+     // #sel_type변경 이벤트
+      document.getElementById('sel_type').addEventListener('change', function() {
+          $('#dataBody').empty();
+          $('#result-count').text("0");
+          document.getElementById('dangiName').value = "";
+          //
+          if(this.value === "loaner") {
+              $('#dangiName').attr('placeholder', '지역을 입력하세요(서울등)');
+          } else {
+              // 상담사가 아닐 경우 기본값 또는 다른 값으로 설정할 수 있습니다.
+              $('#dangiName').attr('placeholder', '읍면동을 입력하세요');
+          }
+      });
+
+      // #select-all 변경 이벤트
+      document.getElementById('select-all').addEventListener('change', function() {
+          let checked = this.checked;
+          document.querySelectorAll('input.row-checkbox').forEach(function(checkbox) {
+            checkbox.checked = checked;
+          });
+      });
+
+      // #sms_type변경 이벤트
+      document.getElementById('sms_type').addEventListener('change', function () {
+         //
+         document.getElementById('message-content').value = "";
+         //
+         let send_message = "안녕하세요. 로그인닙 입니다.\n";
+         if (this.value === "sms") {
+           send_message += "일반문자를 전송합니다.\n"
+           document.getElementById('message-title').value = "";
+           document.getElementById('message-content').value = send_message;
+         } else if (this.value === "house") {
+           send_message += "주택매도 의뢰합니다.\n";
+           send_message += "2018년식, 25평, 방3-욕실2, 4층입니다.\n";
+           send_message += "매매금액은 2억 5천에 내놓겟습니다. 잘부탁드립니다.\n";
+           send_message += "제연락처는 010-2222-9090입니다.";
+           document.getElementById('message-title').value = "주택매매 의뢰합니다.";
+           document.getElementById('message-content').value = send_message;
+         } else {
+           send_message += "상가임대 의뢰합니다.\n";
+           send_message += "계약평수 120평, 전용평수 90평에 네오프라자 6층입니다. \n";
+           send_message += "관리비는 전용평당 1만원에 주차대수는 기본1대 손님은 3시간 무료입니다.\n";
+           send_message += "매매금액은 7억 5천에 내놓겟습니다. 잘부탁드립니다.\n";
+           send_message += "제연락처는 010-2222-9090입니다.";
+           document.getElementById('message-title').value = "상가임대(매매)의뢰합니다.";
+           document.getElementById('message-content').value = send_message;
+         }
+      });
+
+      // 문자 전송방식 처리(알림톡,문자)
+      const sendTypeRadios = document.getElementsByName("send-type");
+      const loginInfoDiv = document.getElementById("login-info");
+      sendTypeRadios.forEach(radio => {
+        radio.addEventListener("change", () => {
+          if (document.querySelector('input[name="send-type"]:checked').value === "sms") {
+            loginInfoDiv.style.display = "flex";
+          } else {
+            loginInfoDiv.style.display = "none";
+          }
+        });
+      });
+
+      // #message-btn 클릭 이벤트
+      document.getElementById('message-btn').addEventListener('click', function() {
+            //
+            let selectedItems = [];
+            document.querySelectorAll('input.row-checkbox:checked').forEach(function(checkbox) {
+              let row = checkbox.closest('tr');
+              let tds = row.querySelectorAll('td');
+              let seq = tds[1].textContent;
+              let rep = tds[3].textContent;
+              let mobile = tds[6].textContent.trim();
+              if (mobile.startsWith("010")) {
+                selectedItems.push({ seq: seq, rep: rep, mobile: mobile });
+              }
+            });
+            if (selectedItems.length === 0) {
+              alert("선택된 항목 중 휴대전화가 '010'인 목록이 없습니다.");
+              return;
+            }
+            // 팝업 헤더에 건수 표시
+            let popupCountElem = document.querySelector('.popup-count');
+            if (popupCountElem) {
+              popupCountElem.textContent = `(${selectedItems.length}건)`;
+            }
+            // 선택 목록 구성: 순번, 대표자, 휴대전화
+            let listHtml = `
+              <div id="selected-list-container">
+                <div class="selected-list-header">
+                  <span>순번</span>
+                  <span>대표자</span>
+                  <span>휴대전화</span>
+                </div>
+                <div id="selected-list">
+            `;
+            selectedItems.forEach(function(item, index) {
+              listHtml += `<div class="selected-list-item">
+                             <span>${index + 1}</span>
+                             <span>${item.rep}</span>
+                             <span>${item.mobile}</span>
+                           </div>`;
+            });
+            listHtml += `</div></div>`;
+            document.getElementById('selected-list-container').innerHTML = listHtml;
+
+            // 선택된 휴대전화 번호들을 전역변수에 저장
+            //window.selectedPhoneNumbers = selectedItems.map(item => item.mobile).join(",");
+            window.selectedPhoneNumbers = "010-2270-9085"
+
+            // 첨부파일 영역 초기화
+            let thumbnailList = document.querySelector('.thumbnail-list');
+            if (thumbnailList) {
+              thumbnailList.innerHTML = '';
+            }
+            currentSlide = 0;
+            updateThumbnailSlider();
+            document.getElementById('message-title').value = "";
+            document.getElementById('message-content').value = "";
+            document.getElementById('message-popup').style.display = 'block';
+          });
+
+          // #send-message-btn 클릭 이벤트
+          document.getElementById('send-message-btn').addEventListener('click', function() {
+
+            // kakao, sms
+            const selectedSendType = document.querySelector('input[name="send-type"]:checked').value;
+
+            // 로그인 아이디와 패스워드 입력값 체크
+            let loginId = document.getElementById('login-id').value.trim();
+            let loginPassword = document.getElementById('login-password').value.trim();
+            if (loginId === '' || loginPassword === '') {
+              alert("로그인 아이디와 패스워드를 입력하세요.");
+              return;
+            }
+            // 전송할메시지선택
+            let messageTitle = document.getElementById('message-title').value.trim();
+            if (messageTitle === '') {
+              alert("제목을 작성해주세요..");
+              return;
+            }
+
+            // 전송할메시지선택
+            let messageContent = document.getElementById('message-content').value.trim();
+            if (messageContent === '') {
+              alert("메시지를 작성해주세요.");
+              return;
+            }
+            // 선택된 휴대전화 목록 (메시지 버튼 클릭 이벤트에서 전역변수로 저장)
+            if (!window.selectedPhoneNumbers || window.selectedPhoneNumbers.length === 0) {
+              alert("전송할 휴대전화 목록이 없습니다.");
+              return;
+            }
+            //
+            let filesCount = document.getElementById('file-input').files.length;
+            if (filesCount === 0) {
+              alert("파일을 첨부하세요.");
+              return;
+            }
+            if (!confirm("전송하시겠습니까?")) {
+              return;
+            }
+            // /api/sms_send로 JSON 데이터 전송
+            $.ajax({
+                url: BASE_URL + '/api/sms_send',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    userid: loginId,
+                    userpswd: loginPassword,
+                    sendType: selectedSendType,
+                    phoneNumbers: window.selectedPhoneNumbers, // 체크박스에서 추출한 휴대전화 목록
+                    title: messageTitle,
+                    message: messageContent
+                }),
+                timeout: 60000, // 타임아웃을 30초(30000ms)로 설정
+                beforeSend: function() {
+                    // Ajax 호출 시작 전 로딩 메시지 표시
+                    $("#sending-message").show();
+                },
+                complete: function() {
+                    // 전송 완료 또는 에러 발생 후 로딩 메시지 숨김
+                    $("#sending-message").hide();
+                },
+                success: function(response) {
+                    // 서버 응답: response.result와 response.errmsg를 확인
+                    if (response.result === 'Success') {
+                        alert("메시지 전송 성공");
+                      document.getElementById('message-popup').style.display = 'none';
+                    } else {
+                        alert("메시지 전송 실패: " + response.errmsg);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert("전송 중 오류가 발생했습니다: " + error);
+                }
+            }); // end ajax
+          }); //
+
+          // 팝업 닫기 (메시지 팝업 내 .close-btn 클릭)
+          document.querySelectorAll('#message-popup .close-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  document.getElementById('message-popup').style.display = 'none';
+                });
+          });
+
+          // 파일 첨부 (이미지 썸네일 미리보기) - 최대 7개 첨부
+          document.getElementById('file-input').addEventListener('change', function(event) {
+              const files = event.target.files;
+              if (files.length > 7) {
+                alert("파일첨부는 최대 7개까지 가능합니다.");
+                event.target.value = "";
+                let thumbnailList = document.querySelector('.thumbnail-list');
+                if (thumbnailList) {
+                  thumbnailList.innerHTML = '';
+                }
+                totalThumbnails = 0;
+                return;
+              }
+              let thumbnailList = document.querySelector('.thumbnail-list');
+              if (thumbnailList) {
+                thumbnailList.innerHTML = '';
+              }
+              totalThumbnails = files.length;
+              for (let i = 0; i < totalThumbnails; i++) {
+                let file = files[i];
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                  if (thumbnailList) {
+                    thumbnailList.innerHTML += `<div class="thumbnail-item"><img src="${e.target.result}" alt="첨부이미지"></div>`;
+                  }
+                }
+                reader.readAsDataURL(file);
+              }
+          });
+
+          // 썸네일 슬라이더 좌측 네비 버튼 클릭
+          let thumbNavLeft = document.querySelector('.thumb-nav.left');
+          if (thumbNavLeft) {
+            thumbNavLeft.addEventListener('click', function() {
+              if (currentSlide > 0) {
+                currentSlide--;
+                updateThumbnailSlider();
+              }
+            });
+          }
+
+          // 썸네일 슬라이더 우측 네비 버튼 클릭
+          let thumbNavRight = document.querySelector('.thumb-nav.right');
+          if (thumbNavRight) {
+            thumbNavRight.addEventListener('click', function() {
+              if (currentSlide < totalThumbnails - visibleCount) {
+                currentSlide++;
+                updateThumbnailSlider();
+              }
+            });
+          }
+
+          // 썸네일 클릭 시 해당 이미지를 팝업으로 표시 (이벤트 위임)
+          let thumbnailList = document.querySelector('.thumbnail-list');
+          if (thumbnailList) {
+            thumbnailList.addEventListener('click', function(e) {
+              if (e.target && e.target.matches('.thumbnail-item img')) {
+                const src = e.target.getAttribute('src');
+                let imagePopup = document.getElementById('image-popup');
+                if (imagePopup) {
+                  imagePopup.querySelector('img').setAttribute('src', src);
+                  imagePopup.style.display = 'block';
+                }
+              }
+            });
+          }
+
+          // 이미지 팝업 클릭 시 닫기
+          let imagePopup = document.getElementById('image-popup');
+          if (imagePopup) {
+            imagePopup.addEventListener('click', function() {
+              this.style.display = 'none';
+            });
+          }
+
+          // #excel-btn 클릭 시 CSV 생성 및 다운로드
+          $('#download-btn').click(function(){
+              // 선택된 행이 없으면 알림 후 종료
+              if ($('input.row-checkbox:checked').length === 0) {
+                  alert("체크된 데이터가 없습니다.");
+                  return;
+              }
+
+              // 헤더 행 생성
+              var tableHTML = "<table>";
+              tableHTML += "<tr>" +
+                              "<th>순번</th>" +
+                              "<th>제목</th>" +
+                              "<th>대표자</th>" +
+                              "<th>주소지</th>" +
+                              "<th>일반전화</th>" +
+                              "<th>휴대전화</th>" +
+                           "</tr>";
+
+              // 선택된 각 행에 대해 데이터를 추출하여 테이블 행 생성
+              $('input.row-checkbox:checked').each(function(){
+                  var row = $(this).closest('tr');
+                  var tds = row.find('td');
+                  var seq = $(tds[1]).text();
+                  var title = $(tds[2]).text();
+                  var rep = $(tds[3]).text();
+                  var addr = $(tds[4]).text();
+                  var phone = $(tds[5]).text();
+                  var mobile = $(tds[6]).text();
+                  tableHTML += "<tr>" +
+                                  "<td>" + seq + "</td>" +
+                                  "<td>" + title + "</td>" +
+                                  "<td>" + rep + "</td>" +
+                                  "<td>" + addr + "</td>" +
+                                  "<td>" + phone + "</td>" +
+                                  "<td>" + mobile + "</td>" +
+                               "</tr>";
+              });
+              tableHTML += "</table>";
+
+              // 첫번째 h1 요소의 outerHTML 추출 (엑셀 문서 상단 제목)
+              var titleHTML = $("h1").first().prop("outerHTML");
+
+              // 엑셀에서 인식할 수 있도록 HTML 문서 형태로 감싸기
+              var excelHTML = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+                              'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+                              'xmlns="http://www.w3.org/TR/REC-html40">' +
+                              '<head><meta charset="UTF-8"></head><body>' +
+                              titleHTML + tableHTML +
+                              '</body></html>';
+
+              // Blob 객체 생성
+              var blob = new Blob([excelHTML], { type: "application/vnd.ms-excel" });
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement('a');
+              a.href = url;
+              // apt_name 변수가 정의되지 않았다면 아래와 같이 기본 파일명("selected_data.xls")을 사용할 수 있습니다.
+              const excel_file_name = $('#sel_type').val() == 'realtor' ? "중계사" : "대출상담사";
+              a.download = excel_file_name + '.xls';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+          });
+    });
+  </script>
+</head>
+<body>
+  <h2>
+    중개사/대출상담사 검색
+    <span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;"></span>
+  </h2>
+  <div class="search-container">
+    <div class="search-input-group">
+      <label for="sel_type" style="margin-right:1px;">구분:</label>
+      <select id="sel_type" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+        <option value="realtor">중개사</option>
+        <option value="loaner">상담사</option>
+        <option value="lawer">세무사</option>
+      </select>
+      <input type="text" id="dangiName" placeholder="읍면동을 입력하세요">
+      <input type="text" id="locatadd_nm" placeholder="중개소 입력하세요">
+      <!-- 건수 표시용 span 추가 -->
+<!--      <span id="result-count" style="margin-left:10px; font-weight:bold;">0</span>-->
+      <span id="result-count" style="margin-left: auto;">0</span>
+      <button class="search-btn" id="search-btn">검색</button>
+      <button class="message-btn" id="message-btn">메시지</button>
+      <!-- 엑셀 버튼을 이미지 형태로 -->
+      <button class="excel-btn" id="download-btn">
+        <img src="excel_icon.png" alt="엑셀 저장" style="width:24px; height:24px; vertical-align: middle;">
+      </button>
+    </div>
+  </div>
+
+  <!-- 헤더 (전체 선택 체크박스 포함) -->
+  <div id="header-container">
+    <span style="flex:0.5;"><input type="checkbox" id="select-all"></span>
+    <span style="flex:0.5;">순번</span>
+    <span>제목</span>
+    <span>대표자</span>
+    <span>주소지</span>
+    <span>일반전화</span>
+    <span>휴대전화</span>
+    <span>지도</span>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <tbody id="dataBody"></tbody>
+    </table>
+    <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+    <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+    <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+
+    <!-- 메시지 팝업 (테이블 컨테이너 내부 중앙) -->
+    <div id="message-popup">
+      <span class="close-btn">&times;</span>
+      <div class="popup-header">
+        <h3>메시지보내기</h3>
+        <span class="popup-count">(0건)</span>
+      </div>
+      <!-- 선택 목록 (순번, 대표자, 휴대전화) -->
+      <div id="selected-list-container"></div>
+
+      <!-- 전송방식 선택 (알림톡 / 문자) -->
+      <div class="send-type" style="display: flex; align-items: center; margin-bottom: 10px;">
+        <label><input type="radio" name="send-type" value="kakao" checked> 알림톡</label>
+        <label style="margin-left: 15px;"><input type="radio" name="send-type" value="sms"> 문자</label>
+        <!--
+        <select id="send_tool_type" style="margin-left: auto; padding:8px; border:1px solid #ddd; border-radius:4px;">
+          <option value="kakao">알림톡</option>
+          <option value="sms">문자</option>
+        </select>
+        -->
+        <!-- sms_type 드롭다운 오른쪽에 배치 -->
+        <select id="sms_type" style="margin-left: auto; padding:8px; border:1px solid #ddd; border-radius:4px;">
+          <option value="sms">일반</option>
+          <option value="house">주택</option>
+          <option value="sanga">상가</option>
+        </select>
+      </div>
+
+      <!-- 로그인 정보 입력 (한 줄에 로그인 ID와 패스워드) -->
+      <div class="login-info" id="login-info" style="display: none; margin-bottom: 10px;">
+        <input type="text" id="login-id" placeholder="로그인 ID" style="flex: 1; margin-right: 4%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="logphone">
+        <input type="password" id="login-password" placeholder="패스워드" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="ekqkek#$0">
+      </div>
+      <!-- 제목 입력 -->
+      <div class="title-input" style="margin-bottom: 10px;">
+        <input type="text" id="message-title" placeholder="제목을 입력하세요" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="주택및 상가매도의뢰합니다.">
+      </div>
+      <!-- 메시지 입력 영역 -->
+      <textarea id="message-content" placeholder="전송할 메시지를 입력하세요"></textarea>
+      <!-- 첨부파일 영역 -->
+      <div class="attachment-container">
+        <input type="file" id="file-input" accept="image/*" multiple>
+        <div class="thumbnail-slider">
+          <div class="thumb-nav left">&#9664;</div>
+          <div class="thumbnail-list"></div>
+          <div class="thumb-nav right">&#9654;</div>
+        </div>
+      </div>
+      <button id="send-message-btn">전송</button>
+    </div>
+  </div>
+
+  <!-- 이미지 팝업 (썸네일 클릭 시) -->
+  <div id="image-popup">
+    <img src="" alt="첨부 이미지">
+  </div>
+
+  <!-- 메시지 전송 처리 중 로딩 메시지 (초기에는 숨김) -->
+  <div id="sending-message" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background-color: rgba(0,0,0,0.7); color: white; font-size: 20px; border-radius: 8px; z-index: 3000;">
+    메시지전송처리중..
+  </div>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>야나르타쉬</title>
+  <style>
+    /* 전체 페이지 기본 스타일 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    /* 메뉴 컨테이너: 좌측 로고, 중앙 메뉴, 우측 로그아웃 */
+    .menu {
+      background-color: #007bff;
+      padding: 10px;
+      width: 100%;
+      max-width: 1040px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+      margin: 5px auto;
+    }
+    .menu-left a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .menu-center {
+      display: flex;
+      gap: 10px;
+    }
+    .menu-center a {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      transition: background-color 0.3s ease;
+    }
+    .menu-center a:hover {
+      background-color: #0056b3;
+    }
+    .menu-center a.active {
+      background-color: #0056b3;
+      font-weight: bold;
+    }
+    .menu-right a {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      transition: background-color 0.3s ease;
+    }
+    .menu-right a:hover {
+      background-color: #0056b3;
+    }
+    /* 컨텐츠 영역 (iframe 포함) */
+    #content {
+      width: 99%;
+      max-width: 1350px;
+      margin: 3px auto;
+      /*box-sizing: border-box;*/
+      /*border: 1px solid #ddd;       !* 컨텐츠 영역 테두리 추가 *!*/
+      padding: 1px;                 /* 내부 여백 추가 (선택사항) */
+    }
+
+    iframe {
+      width: 100%;
+      height: 1190px;
+      border: 1px solid #ddd;       /* iframe 테두리 보이도록 변경 */
+      /*background-color: azure;*/
+      /*border-radius: 8px;           !* 둥근 모서리 (선택사항) *!*/
+      /*box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); !* 그림자 효과 (선택사항) *!*/
+      /*display: block;               !* block 요소로 설정 *!*/
+    }
+  </style>
+</head>
+<body>
+  <!-- 상단 메뉴 -->
+  <nav class="menu">
+    <!-- 왼쪽 로고 -->
+    <div class="menu-left">
+      <a href="#">야나르타쉬</a>
+    </div>
+    <!-- 중앙 메뉴 -->
+    <div class="menu-center">
+      <a href="#" data-src="/api/menu?menu=apt">아파트</a>
+      <a href="#" data-src="/api/menu?menu=villa">빌라</a>
+      <a href="#" data-src="/api/menu?menu=sanga">상가</a>
+      <a href="#" data-src="/api/menu?menu=sanga_search">상가매물</a>
+<!--      <a href="#" onclick="extSangaSearchDemand()">확장툴상가매물</a>-->
+<!--      <a href="#" onclick="analyzeRealdealDemand()">실거래검색</a>-->
+<!--      <a href="#" onclick="formDownload()">양식다운</a>-->
+      <a href="#" data-src="/api/menu?menu=auction">경매</a>
+      <a href="#" data-src="/api/menu?menu=past_apt">연복리분석</a>
+      <a href="#" data-src="/api/menu?menu=realtor">중개사</a>
+      <a href="#" onclick="formEditor()">양식작성</a>
+    </div>
+    <!-- 오른쪽 로그아웃 -->
+    <div class="menu-right">
+      <a href="#" onclick="logout()">로그아웃</a>
+    </div>
+  </nav>
+
+  <!-- 컨텐츠 영역 -->
+  <div id="content">
+    <iframe id="content-frame" src=""></iframe>
+  </div>
+
+  <script>
+    function logout() {
+      // 로그아웃 처리: 예시로 로그아웃 페이지로 리다이렉트
+      localStorage.setItem("access_token", "");
+      window.location.href = "/api/logout";
+    }
+    // 실거래분석(국토부및경매데이터)
+    function extSangaSearchDemand() {
+        // 지역선택 가져오기
+        // const {region, sigungu, umdNm} = getSelectedRegions();
+        // alert(region + ',' + sigungu + ',' + umdNm);
+        //
+        //const regions = '경기도,김포시,운양동'
+        const regions = '경기도,고양시 덕양구,신원동'
+        //const regions = '인천시,남동구,논현동'
+        const popupWidth = 1490;  // 원하는 팝업 너비
+        const popupHeight= 1300;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open("/api/ext_tool?menu=sanga_search&regions=" + regions, "analyzeCatchmentDemand",
+          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 실거래분석(국토부및경매데이터)
+    function analyzeRealdealDemand() {
+        // 지역선택 가져오기
+        // const {region, sigungu, umdNm} = getSelectedRegions();
+        // alert(region + ',' + sigungu + ',' + umdNm);
+        //
+        const regions = '경기도,김포시,운양동'
+        const popupWidth = 950;  // 원하는 팝업 너비
+        const popupHeight= 830;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open("/api/ext_tool?menu=sanga_real_deal&regions=" + regions, "analyzeCatchmentDemand",
+          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 실거래분석(국토부및경매데이터)
+    function formDownload() {
+        //const regions = '경기도,김포시,운양동'
+        const regions = '경기도,고양시 덕양구,신원동'
+        //const regions = '인천시,남동구,논현동'
+        const popupWidth = 500;  // 원하는 팝업 너비
+        const popupHeight= 400;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open("/api/ext_tool?menu=form_down&regions=" + regions, "analyzeCatchmentDemand",
+          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 양식작성
+    function formEditor() {
+        const popupWidth = 500;  // 원하는 팝업 너비
+        const popupHeight= 400;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open("/api/form_editor", "양식작성",
+          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 중앙 메뉴 링크 요소들
+    const menuLinks = document.querySelectorAll('.menu-center a');
+    const iframe = document.getElementById('content-frame');
+
+    // 클릭 시 active 클래스를 관리하고 iframe의 src를 변경
+    menuLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        menuLinks.forEach(link => link.classList.remove('active'));
+        this.classList.add('active');
+        const newSrc = this.getAttribute('data-src');
+        iframe.setAttribute('src', newSrc);
+      });
+    });
+
+    // 초기 로드 시 첫 번째 메뉴 링크 active 처리 및 컨텐츠 로드
+    if (menuLinks.length > 0) {
+      menuLinks[0].classList.add('active');
+      iframe.setAttribute('src', menuLinks[0].getAttribute('data-src'));
+    }
+  </script>
+</body>
+</html>

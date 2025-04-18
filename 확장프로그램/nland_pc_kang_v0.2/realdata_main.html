@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>탭 네비게이션</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .tab-container {
+            display: flex;
+            border-bottom: 2px solid #ccc;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s, color 0.3s;
+        }
+        .tab.active {
+            background-color: blue;
+            color: white;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+    <script nonce="randomString" src="realdata_main.js"></script>
+</head>
+<body>
+    <div class="tab-container">
+        <div class="tab active" data-target="realdata_sanga">국토부</div>
+        <div class="tab" data-target="realdata_auction">경매</div>
+    </div>
+    <div id="realdata_sanga" class="tab-content active">
+        <iframe src="realdata_sanga.html" width="100%" height="10301px" frameborder="0"></iframe>
+    </div>
+    <div id="realdata_auction" class="tab-content">
+        <iframe src="realdata_auction.html" width="100%" height="1031px" frameborder="0"></iframe>
+    </div>
+</body>
+</html>

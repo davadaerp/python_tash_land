@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "SanGa_Mobile",
+  "description": "전용면적당 평단가를 구하는 확장 프로그램",
+  "version": "1.0",
+  "permissions":["activeTab"],
+  "action": {
+    "default_icon": "icon.png"
+  },
+  "content_scripts": [
+  	{
+		"matches" : [
+			"https://m.land.naver.com/*",
+			"https://m.auction1.co.kr/*"
+		],
+		"js": [
+			"contents.js"
+		]
+	}
+  ],
+  "background": {
+	"service_worker": "background.js"
+  }
+}

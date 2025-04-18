@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>로그인</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start; /* 상단에 정렬 */
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding-top: 15%; /* 콘텐츠를 약간 아래로 이동 */
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    form {
+      text-align: left;
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    label {
+      display: inline-block;
+      width: 50px; /* 라벨의 고정 너비 */
+      text-align: right;
+      margin-right: 10px;
+    }
+    input[type="text"], input[type="password"] {
+      width: 200px;
+      padding: 8px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      display: block;
+      margin: 0 auto; /* 가로 중앙 정렬 */
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+  <!-- jQuery CDN 추가 -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <h2>분석로그인</h2>
+  <form id="login-form" method="POST">
+    <label>ID:</label>
+    <input type="text" id="userid" required>
+    <br><br>
+    <label>PSWD:</label>
+    <input type="password" id="password" required>
+    <br><br>
+    <button type="submit">로그인</button>
+    <p class="error" id="error-message"></p>
+  </form>
+
+  <script>
+
+    // 전역 함수로 login_auth와 login을 정의합니다.
+    function login_auth() {
+        // 이전 에러 메시지 초기화
+        $('#error-message').text('');
+
+        const userid = document.getElementById("userid").value.trim();
+        const password = document.getElementById("password").value.trim();
+        if (!userid || !password) {
+          document.getElementById("error-message").textContent = "아이디와 비밀번호를 입력하세요.";
+          return;
+        }
+
+        // base64 인코딩: "userid:password"
+        const credential = btoa(userid + ":" + password);
+        const cs = '7987f7cb05cb1992';
+
+        const data = {
+          credential: credential,
+          grant_type: 'access_token',
+          client_id: 'dp',
+          client_secret: cs
+        };
+        console.log(data);
+        // AJAX로 /api/token 호출
+        $.ajax({
+          url: BASE_URL + '/api/token',
+          method: 'POST',
+          headers: {
+              "Content-Type": "application/json"
+          },
+          data: JSON.stringify(data),
+          dataType: 'json',
+          success: function(response) {
+            console.log(response);
+            // 서버 응답 예시: { 'access_token': token, 'expires_in': 3600 }
+            const access_token = response.access_token;
+            console.log(access_token);
+            localStorage.setItem("access_token", access_token.trim());
+            //
+            const apt_key = response.apt_key;
+            const villa_key = response.villa_key;
+            const sanga_key = response.sanga_key;
+            //
+            localStorage.setItem("apt_key", apt_key);
+            localStorage.setItem("villa_key", villa_key);
+            localStorage.setItem("sanga_key", sanga_key);
+            //
+            login(access_token);
+          },
+          error: function(xhr, status, error) {
+            let errorMsg = '오류가 발생했습니다.';
+            try {
+              const responseJson = JSON.parse(xhr.responseText);
+              if (responseJson.error) {
+                errorMsg = responseJson.error;
+              }
+            } catch (e) {
+              errorMsg += ' (서버 응답을 파싱할 수 없습니다)';
+            }
+            $('#error-message').text(errorMsg);
+          }
+        });
+    }
+
+    function login(access_token) {
+        // AJAX로 /api/login 호출
+        $.ajax({
+          url: BASE_URL + '/api/login_token',
+          method: 'GET',
+          headers: {
+            "Authorization": "Bearer " + access_token
+          },
+          success: function(response) {
+            console.log(JSON.stringify(response));
+            if (response.result == "Success") {
+              // 쿠키에 access_token 저장 (예: path=/, 필요시 secure, HttpOnly 옵션 추가)
+              document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
+              window.location.href = BASE_URL + '/api/main';
+            } else {
+              $('#error-message').text(response.errmsg);
+              //alert(response.errmsg);
+              login_auth();
+            }
+          },
+          error: function(xhr, status, error) {
+            $('#error-message').text('오류가 발생했습니다: ' + error);
+          }
+        });
+    }
+
+    // window.onload에서 전역 함수를 호출합니다.
+    window.onload = function() {
+        const accessToken = localStorage.getItem("access_token");
+        console.log('=== access_token: ', accessToken);
+        if (accessToken === null || accessToken === '') {
+          login_auth();
+        } else {
+          login(accessToken);
+        }
+    };
+
+    $(document).ready(function(){
+      $('#login-form').submit(function(e) {
+          e.preventDefault(); // 기본 폼 제출 방지
+          login("accessToken");
+      });
+    });
+
+  </script>
+</body>
+</html>

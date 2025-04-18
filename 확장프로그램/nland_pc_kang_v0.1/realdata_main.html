@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>탭 네비게이션</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .tab-container {
+            display: flex;
+            border-bottom: 2px solid #ccc;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold; /* 볼드 추가 */
+            transition: background 0.3s, color 0.3s;
+            position: relative;
+        }
+        .tab.active {
+            background-color: blue;
+            color: white;
+        }
+        .tab:not(:last-child)::after {
+            content: "|";
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            color: gray;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+    <script src="./comm/realdata_main.js"></script>
+</head>
+<body>
+    <div class="tab-container">
+        <div class="tab active" data-target="realdata_apt">아파트</div>
+        <div class="tab" data-target="realdata_villa">빌라</div>
+        <div class="tab" data-target="realdata_sanga">상가</div>
+        <div class="tab" data-target="realsale_sanga">상가매물</div>
+        <div class="tab" data-target="realdata_auction">경매</div>
+        <div class="tab" data-target="realdata_broker">중개사</div>
+    </div>
+
+    <div id="realdata_apt" class="tab-content">
+        <iframe src="realdata_apt.html" width="100%" height="10301px" frameborder="0"></iframe>
+    </div>
+    <div id="realdata_villa" class="tab-content">
+        <iframe src="realdata_villa.html" width="100%" height="10301px" frameborder="0"></iframe>
+    </div>
+    <div id="realdata_sanga" class="tab-content">
+        <iframe src="realdata_sanga.html" width="100%" height="10301px" frameborder="0"></iframe>
+    </div>
+    <div id="realsale_sanga" class="tab-content">
+        <iframe src="realcrawling_sanga.html" width="100%" height="10301px" frameborder="0"></iframe>
+    </div>
+    <div id="realdata_auction" class="tab-content active">
+        <iframe src="realcrawling_auction.html" width="100%" height="1031px" frameborder="0"></iframe>
+    </div>
+    <div id="realdata_broker" class="tab-content active">
+        <iframe src="realcrawling_broker.html" width="100%" height="1031px" frameborder="0"></iframe>
+    </div>
+
+</body>
+</html>

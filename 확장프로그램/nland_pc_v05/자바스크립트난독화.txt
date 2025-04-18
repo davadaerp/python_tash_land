@@ -1,0 +1,24 @@
+javascript-obfuscator contents.js --output contents.obf.js
+
+-- 평형분석, 옥션원 동적dom처리
+
+
+# 네이버지도 지역변경 체크 (filter_region_inner, area is-selected) 로 체크함 될듯.
+<div class="filter_region_inner" role="region" aria-live="assertive" aria-label="선택된 지역">
+<a href="javascript:void(0)" role="button" class="filter_btn_region" aria-haspopup="true" aria-expanded="false" aria-pressed="false" aria-label="지역선택" data-nclk="FAS.faselect"><i class="icon icon_map_position" aria-hidden="true"></i>
+<span class="area is-selected">인천시<i class="icon icon_step" aria-hidden="true"></i></span>
+<span class="area is-selected">연수구<i class="icon icon_step" aria-hidden="true"></i></span>
+<span class="area is-selected">청학동</span></a>
+<div class="filter_popup filter_popup--area" aria-hidden="true"><h4 class="blind">지역 선택 팝업</h4>
+<div class="area_select_wrap"><div class="area_select_inner">
+<a href="javascript:void(0);" class="area_select_item is-disabled">시/도</a><i class="icon icon_arrow_right" aria-hidden="true"></i>
+<a href="javascript:void(0);" class="area_select_item is-disabled">읍/면/동</a><i class="icon icon_arrow_right" aria-hidden="true"></i>
+<a href="javascript:void(0);" class="area_select_item is-disabled">읍/면/동</a></div></div><div class="area_list_filter">
+
+<div class="sorting">
+<a href="javascript:void(0);" class="sorting_type" role="button" aria-pressed="true" data-nclk="FAS.ganada">가나다순</a>
+<a href="javascript:void(0);" class="sorting_type" role="button" aria-pressed="false" data-nclk="FAS.size">세대수순</a>
+<a href="javascript:void(0);" class="sorting_type" role="button" aria-pressed="false" data-nclk="FAS.live">최근입주순</a>
+<a href="javascript:void(0);" class="sorting_type" role="button" aria-pressed="false" data-nclk="FAS.m2price">평당가순</a>
+</div></div><div class="area_list_wrap "><ul class="area_list--district"></ul><ul class="area_list--complex" role="listbox"></ul>
+</div></div></div>

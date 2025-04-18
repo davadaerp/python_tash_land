@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>경매 데이터 검색</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.min.css">
+    <style>
+        /* 전체 페이지 중앙 정렬 */
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          min-height: 100vh;
+          background-color: #f9f9f9;
+        }
+        h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        /* 검색 컨테이너 스타일 */
+        .search-container {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            width: 90%;
+            max-width: 1024px;
+            margin-top: 10px; /* 상단 여백 추가 */
+        }
+        .search-input-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            position: relative; /* 부모 요소를 relative로 설정: 자동완성시 입력필드 바로아래 오게함.. 중요 */
+        }
+        .search-input-group input {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        #locatadd_nm {
+          flex: 7;
+        }
+        #aptNm {
+          flex: 3;
+        }
+        #suggestions {
+            width: calc(100% - 10px);
+            font-family: inherit;
+            font-size: inherit;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            position: absolute;
+            top: 100%; /* 입력 필드 바로 아래 */
+            left: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #suggestions li {
+          padding: 8px;
+          cursor: pointer;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        #suggestions li:hover {
+          background-color: #f0f8ff;
+        }
+        #suggestions li.selected {
+          background-color: #007bff;
+          color: #fff;
+        }
+        .filter-group {
+          display: flex;
+          gap: 15px;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        .filter-group label {
+          font-weight: bold;
+        }
+        .filter-group select {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        /*select, input {*/
+        /*    padding: 10px;*/
+        /*    border: 1px solid #ddd;*/
+        /*    border-radius: 4px;*/
+        /*    font-size: 14px;*/
+        /*}*/
+        .search-btn {
+            padding: 10px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .search-btn:hover {
+            background-color: #0056b3;
+        }
+        /* result-count 를 년도와 비슷하게 스타일 적용 */
+        #result-count {
+          font-weight: bold;
+          padding: 5px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          background-color: #fff;
+          margin-left: auto;
+        }
+        /* result-count 를 년도와 비슷하게 스타일 적용 */
+        #result-amt {
+          font-weight: bold;
+          padding: 5px;
+          background-color: #fff;
+          margin-left: auto;
+        }
+        /* 테이블 컨테이너 */
+        .table-container {
+            width: 90%;
+            max-width: 1200px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            padding: 10px;
+            margin-top: 15px; /* 검색창 아래 위치 */
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .highlight { color: red; font-weight: bold; }
+        .right-align { text-align: right; }
+        .center-align { text-align: center; }
+
+        /* 메시지 중앙 정렬 */
+        .no-data-message, .loading-message {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 50px auto;
+        }
+        /* 상세 정보 팝업 */
+        #detailPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: #fff;
+            padding: 20px;
+            width: 400px;
+            height: 700px;
+            border-radius: 8px;
+            overflow-y: auto;
+            border: 2px solid #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #detailPopup .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+        }
+    </style>
+    <script src="./libs/jquery-3.6.4.min.js"></script>
+    <script src="./comm/address_autocomplete.js"></script>
+    <script src="./comm/common.js"></script>
+    <script src="./comm/realcrawling_auction.js"></script>
+</head>
+<body>
+    <h2>경매 데이터 검색<span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;"></span>
+    </h2>
+    <div class="search-container">
+        <div class="search-input-group">
+            <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
+            <ul id="suggestions"></ul>
+            <input type="text" id="aptNm" placeholder="단지명을 입력하세요">
+        </div>
+        <div class="filter-group">
+            <label for="main-category">물건종류:</label>
+            <select id="main-category">
+                <option value="">전체</option>
+            </select>
+            <label for="main-category">상세:</label>
+            <select id="category">
+                <option value="">전체</option>
+            </select>
+            <label for="sale_year">매각년:</label>
+            <select id="sale_year"><option value="">전체</option></select>
+            <label for="sale_month">월:</label>
+            <select id="sale_month">
+                <option value="">전체</option>
+                <option value="01">1월</option>
+                <option value="02">2월</option>
+                <option value="03">3월</option>
+                <option value="04">4월</option>
+                <option value="05">5월</option>
+                <option value="06">6월</option>
+                <option value="07">7월</option>
+                <option value="08">8월</option>
+                <option value="09">9월</option>
+                <option value="10">10월</option>
+                <option value="11">11월</option>
+                <option value="12">12월</option>
+            </select>
+            <button class="search-btn" id="search-btn">검색</button>
+            <!-- 평규단가 표시 요소 -->
+            <span id="result-amt">평균단가/금액: 0/0</span>
+            <span id="result-count" style="margin-left: auto;">건수: 0</span>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>일자</th>
+                    <th>사건번호</th>
+                    <th id="sortHouse" style="cursor: pointer;">구분 ▼</th>
+                    <th id="sortBuilding" style="cursor: pointer;">동 ▼</th>
+                    <th id="sortFloor" style="cursor: pointer;">층 ▼</th>
+                    <th id="sortBuildingArea" style="cursor: pointer;">건물평수 ▼</th>
+                    <th>대지평수</th>
+                    <th>감정금액</th>
+                    <th>최저금액</th>
+                     <th id="sortPrice" style="cursor: pointer;">매각금액 ▼</th>
+                    <th>단지명</th>
+                    <th>지도</th>
+                    <th>상세</th>
+                </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+        </table>
+        <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+        <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+        <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+    </div>
+
+    <!-- 상세 정보 팝업 -->
+    <div id="detailPopup">
+        <button class="close-btn">×</button>
+        <h2>상세 정보</h2>
+        <div id="detailContent"></div>
+    </div>
+</body>
+</html>

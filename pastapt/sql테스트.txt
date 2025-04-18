@@ -1,0 +1,51 @@
+WITH min_max_month AS (
+    SELECT
+        apt_id,
+        MIN(month) AS min_month,
+        MAX(month) AS max_month
+    FROM
+        past_apt_price
+    WHERE 1=1
+    AND region_name = '제주특별자치도'
+    AND mcode_name = '제주시'
+    AND sname = '화북동'
+--     AND apt_name like '%제주삼화%'
+    GROUP BY
+        apt_id
+),
+min_month_data AS (
+    SELECT
+        a.apt_id,
+        a.region_name,
+        a.mcode_name,
+        a.sname,
+        a.apt_name,
+        a.size,
+        ROUND(CAST(REPLACE(a.size, '㎡', '') AS REAL) / 3.3, 2)||'평' AS size_py,
+        pa.move_in_date,
+        a.month,
+        m.min_month,
+        m.max_month,
+        CAST(REPLACE(a.sale_high, ',', '') AS INTEGER) AS sale_high,
+        CAST(REPLACE(a.rent_high, ',', '') AS INTEGER) AS rent_high
+    FROM
+        past_apt_price a
+        JOIN min_max_month m ON a.apt_id = m.apt_id AND a.month = m.min_month
+        LEFT JOIN past_apt pa on pa.id = a.apt_id
+)
+SELECT
+    apt_id,
+    region_name,
+    mcode_name,
+    sname,
+    apt_name,
+    size,
+    size_py,
+    move_in_date,
+    min_month,
+    max_month,
+    sale_high,
+    rent_high,
+    (sale_high - rent_high) AS sale_rent_diff
+FROM
+    min_month_data;

@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>세금계산서</title>
+    <style>
+        /* 전체 기본 스타일 */
+        body {
+            font-family: "Segoe UI", Calibri, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .footer {
+            text-align: right;
+            margin-top: 20px;
+        }
+        /* 컨테이너 레이아웃 */
+        .container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .left-column, .right-column {
+            width: 48%;
+        }
+        /* 공통 테이블 스타일 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        th, td {
+            border: 1px solid #d0d0d0;
+            padding: 8px;
+            text-align: left;
+            font-size: 14px;
+        }
+        /* 헤더 스타일: 엑셀 느낌의 연한 파란색 */
+        th {
+            background-color: #e8f1ff;
+            font-weight: bold;
+        }
+        /* 홀수/짝수 행 배경색 */
+        table tr:nth-child(odd) {
+            background-color: #fbfbfb;
+        }
+        table tr:nth-child(even) {
+            background-color: #fefefe;
+        }
+        /* input 스타일: 깔끔한 테두리와 약간의 둥근 모서리 */
+        input {
+            width: 100%;
+            padding: 6px;
+            font-size: 14px;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            box-sizing: border-box;
+            text-align: right;
+            background-color: #fff;
+        }
+        input[readonly] {
+            background-color: #f9f9f9;
+            color: #555;
+        }
+        /* 특정 셀(엑셀 필드 느낌) - 기존 ID 선택자들은 유지하되, 색상을 부드러운 톤으로 조정 */
+        #legal_fees_table_1_field_3, #legal_fees_table_1_field_4,
+        #legal_fees_table_1_field_2_1,
+        #legal_fees_table_3_field_3,
+        #legal_fees_table_4_field_1, #legal_fees_table_4_field_1_1, #legal_fees_table_4_field_2, #legal_fees_table_4_field_3,
+        #legal_fees_table_5_field_3, #legal_fees_table_5_field_4,
+        #legal_fees_table_6_field_1, #legal_fees_table_6_field_2, #legal_fees_table_6_field_3, #legal_fees_table_6_field_4,
+        #legal_fees_table_6_field_5_1, #legal_fees_table_6_field_6,
+        #records_table_1_field_5, #records_table_1_field_6, #records_table_1_field_7, #records_table_3_field_6,
+        #records_table_3_field_3, #records_table_3_field_4, #records_table_3_field_5 {
+            background-color: #6c757d;
+            color: #fff;
+        }
+        #legal_fees_table_2 input {
+            background-color: #fff3cd; /* 노란색 톤 */
+            color: #333;
+        }
+        #legal_fees_table_1_field_1, #legal_fees_table_1_field_2, #legal_fees_table_1_field_3_1, #legal_fees_table_1_field_4_1,
+        #legal_fees_table_3_field_1, #legal_fees_table_3_field_2,
+        #legal_fees_table_4_field_2_2,
+        #legal_fees_table_5_field_1, #legal_fees_table_5_field_2,
+        #legal_fees_table_6_field_5,
+        #records_table_1_field_1, #records_table_1_field_2,  #records_table_1_field_3, #records_table_1_field_4,
+        #records_table_3_field_9, #records_table_3_field_10,  #records_table_3_field_11 {
+            background-color: #fff3cd;
+            color: #333;
+        }
+        #records_table_3_field_9_1, #records_table_3_field_10_1, #records_table_3_field_11_1 {
+            background-color: #fff8e1;
+            color: #d32f2f;
+        }
+        /* 제안 목록 스타일 (자동완성) */
+        #search-container {
+            position: relative;
+        }
+        #suggestions {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            border: 1px solid #d0d0d0;
+            position: absolute;
+            top: 38px;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #suggestions li {
+            padding: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #suggestions li.selected {
+            background-color: #007bff;
+            color: #fff;
+        }
+    </style>
+    <!-- jQuery 라이브러리 추가 -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        // 천단위 콤마 처리 함수
+        function formatNumber(num) {
+            return num.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        let ValuationAmount = 0; // 감정가
+        let BidAmount = 0; // 입찰가
+
+        // 감정가, 입찰가 비율 계산 및 표시
+        function calculatePercentage() {
+            var field1 = parseFloat(document.getElementById('legal_fees_table_1_field_1').value.replace(/,/g, ''));
+            var field2 = parseFloat(document.getElementById('legal_fees_table_1_field_2').value.replace(/,/g, ''));
+            var percentage = (field2 / field1) * 100;
+            document.getElementById('legal_fees_table_1_field_2_1').value = formatNumber(percentage.toFixed(1)) + '%';
+            ValuationAmount = field1;
+            BidAmount = field2;
+            대출이자();
+        }
+
+        // 취등록세 계산
+        function 취등록세() {
+            var field3_1 = parseFloat(document.getElementById('legal_fees_table_1_field_3_1').value.replace(/,/g, ''));
+            var percentage = BidAmount * (field3_1 / 100);
+            document.getElementById('legal_fees_table_1_field_3').value = formatNumber(percentage.toFixed(0));
+        }
+
+        // 법무비 계산
+        function 법무비() {
+            var field4_1 = parseFloat(document.getElementById('legal_fees_table_1_field_4_1').value.replace(/,/g, ''));
+            var percentage = BidAmount * (field4_1 / 100);
+            document.getElementById('legal_fees_table_1_field_4').value = formatNumber(percentage.toFixed(0));
+        }
+
+        // 대출이자 계산
+        function 대출이자() {
+            var field4_1 = parseFloat(document.getElementById('legal_fees_table_1_field_4_1').value.replace(/,/g, ''));
+            var LoanAmount = Math.floor(Math.min(ValuationAmount * 0.6, BidAmount * 0.85) / 1000000) * 1000000 + 2000000;
+            document.getElementById('legal_fees_table_4_field_1').value = formatNumber(LoanAmount.toFixed(0));
+            var LoanInterest = (LoanAmount / BidAmount) * 100;
+            document.getElementById('legal_fees_table_4_field_1_1').value = LoanInterest.toFixed(1) + '%';
+            var LoanInterestYear = parseFloat(document.getElementById('legal_fees_table_4_field_2_2').value.replace(/,/g, ''));
+            var LoanInterestYearAmount = LoanAmount * (LoanInterestYear / 100);
+            var LoanInterestMonAmount = LoanInterestYearAmount / 12;
+            document.getElementById('legal_fees_table_4_field_2').value = formatNumber(LoanInterestYearAmount.toFixed(0));
+            document.getElementById('legal_fees_table_4_field_3').value = formatNumber(LoanInterestMonAmount.toFixed(0));
+            document.getElementById('records_table_1_field_5').value = formatNumber(LoanInterestYearAmount.toFixed(0));
+        }
+
+        // 수익 계산
+        function 수익() {
+            var LoanInterestYearAmount = parseFloat(document.getElementById('legal_fees_table_4_field_2').value.replace(/,/g, ''));
+            var LoanInterestMonAmount = parseFloat(document.getElementById('legal_fees_table_4_field_3').value.replace(/,/g, ''));
+            var MonRentFee = parseFloat(document.getElementById('legal_fees_table_5_field_2').value.replace(/,/g, ''));
+            var MonProfit = MonRentFee - LoanInterestMonAmount;
+            var YearProfit = (MonRentFee * 12) - LoanInterestYearAmount;
+            document.getElementById('legal_fees_table_5_field_3').value = formatNumber(MonProfit.toFixed(0));
+            document.getElementById('legal_fees_table_5_field_4').value = formatNumber(YearProfit.toFixed(0));
+        }
+
+        // 총투자금 계산
+        function 총투자금() {
+            var 입찰가 = parseFloat(document.getElementById('legal_fees_table_1_field_2').value.replace(/,/g, ''));
+            var 취등록세 = parseFloat(document.getElementById('legal_fees_table_1_field_3').value.replace(/,/g, ''));
+            var 법무비등 = parseFloat(document.getElementById('legal_fees_table_1_field_4').value.replace(/,/g, ''));
+            var 미납관리비 = parseFloat(document.getElementById('legal_fees_table_2_field_1').value.replace(/,/g, ''));
+            var 미납세금 = parseFloat(document.getElementById('legal_fees_table_2_field_2').value.replace(/,/g, ''));
+            var 명도비 = parseFloat(document.getElementById('legal_fees_table_2_field_3').value.replace(/,/g, ''));
+            var 시설비 = parseFloat(document.getElementById('legal_fees_table_2_field_4').value.replace(/,/g, ''));
+            var 운영비 = parseFloat(document.getElementById('legal_fees_table_3_field_1').value.replace(/,/g, ''));
+            var 임대중개수수료 = parseFloat(document.getElementById('legal_fees_table_3_field_2').value.replace(/,/g, ''));
+            var 대출금액 = parseFloat(document.getElementById('legal_fees_table_4_field_1').value.replace(/,/g, ''));
+            var 보증금 = parseFloat(document.getElementById('legal_fees_table_5_field_1').value.replace(/,/g, ''));
+            var 총투자금  = (입찰가 + 취등록세 + 법무비등 + 미납관리비 + 미납세금 + 명도비 + 시설비 + 운영비 + 임대중개수수료) - 대출금액;
+            var 총투자금_보증금미포함 = 총투자금;
+            var 총투자금_보증금포함 = 총투자금 - 보증금;
+            document.getElementById('legal_fees_table_6_field_1').value = formatNumber(총투자금_보증금미포함.toFixed(0));
+            document.getElementById('legal_fees_table_6_field_2').value = formatNumber(총투자금_보증금포함.toFixed(0));
+            var 월임대료 = parseFloat(document.getElementById('legal_fees_table_5_field_2').value.replace(/,/g, ''));
+            var 월순수익 = parseFloat(document.getElementById('legal_fees_table_5_field_3').value.replace(/,/g, ''));
+            var 절대수익율 = ((월임대료 * 12) / BidAmount) * 100;
+            var 레버리지수익율 = ((월순수익 * 12) / 총투자금_보증금포함) * 100;
+            document.getElementById('legal_fees_table_6_field_3').value = formatNumber(절대수익율.toFixed(0)) + '%';
+            document.getElementById('legal_fees_table_6_field_4').value = formatNumber(레버리지수익율.toFixed(0)) + '%';
+        }
+
+        // 예상매도가 계산
+        function 예상매도가() {
+            var 입찰가 = parseFloat(document.getElementById('legal_fees_table_1_field_2').value.replace(/,/g, ''));
+            var 취등록세 = parseFloat(document.getElementById('legal_fees_table_1_field_3').value.replace(/,/g, ''));
+            var 법무비등 = parseFloat(document.getElementById('legal_fees_table_1_field_4').value.replace(/,/g, ''));
+            var 미납관리비 = parseFloat(document.getElementById('legal_fees_table_2_field_1').value.replace(/,/g, ''));
+            var 미납세금 = parseFloat(document.getElementById('legal_fees_table_2_field_2').value.replace(/,/g, ''));
+            var 명도비 = parseFloat(document.getElementById('legal_fees_table_2_field_3').value.replace(/,/g, ''));
+            var 시설비 = parseFloat(document.getElementById('legal_fees_table_2_field_4').value.replace(/,/g, ''));
+            var 운영비 = parseFloat(document.getElementById('legal_fees_table_3_field_1').value.replace(/,/g, ''));
+            var 임대중개수수료 = parseFloat(document.getElementById('legal_fees_table_3_field_2').value.replace(/,/g, ''));
+            var 대출금액 = parseFloat(document.getElementById('legal_fees_table_4_field_1').value.replace(/,/g, ''));
+            var 보증금 = parseFloat(document.getElementById('legal_fees_table_5_field_1').value.replace(/,/g, ''));
+            var 월임대료 = parseFloat(document.getElementById('legal_fees_table_5_field_2').value.replace(/,/g, ''));
+            var 년순수익 = parseFloat(document.getElementById('legal_fees_table_5_field_4').value.replace(/,/g, ''));
+            var 예상매도가 = parseFloat(document.getElementById('legal_fees_table_6_field_5').value.replace(/,/g, ''));
+            var 매도중개수수료 = 예상매도가 * (0.9 / 100);
+            document.getElementById('legal_fees_table_3_field_3').value = formatNumber(매도중개수수료.toFixed(0));
+            var 양도차액 = 예상매도가 - (입찰가 + 취등록세 + 법무비등);
+            var 과세표준 = 양도차액 + 년순수익 - 미납관리비 - 미납세금 - 명도비 - 시설비 - 운영비 - 임대중개수수료 - 매도중개수수료;
+            var 법인세2억미만 = Math.floor(Math.min(19800000, (과세표준 * 0.09) * 1.1));
+            var 법인세2억초과 = Math.floor(Math.max(0, (((과세표준 - 200000000) * 0.19) * 1.1)));
+            var 법인세합계 = 법인세2억미만 + 법인세2억초과;
+            var 세후수익 = 과세표준 - 법인세합계;
+            document.getElementById('records_table_3_field_1').value = formatNumber(양도차액.toFixed(0));
+            document.getElementById('records_table_3_field_2').value = formatNumber(과세표준.toFixed(0));
+            document.getElementById('records_table_3_field_3').value = formatNumber(법인세2억미만.toFixed(0));
+            document.getElementById('records_table_3_field_4').value = formatNumber(법인세2억초과.toFixed(0));
+            document.getElementById('records_table_3_field_5').value = formatNumber(법인세합계.toFixed(0));
+            document.getElementById('records_table_3_field_6').value = formatNumber(세후수익.toFixed(0));
+            document.getElementById('legal_fees_table_6_field_5_1').value = formatNumber(세후수익.toFixed(0));
+            var 분양평수 = parseFloat(document.getElementById('records_table_1_field_1').value.replace(/,/g, ''));
+            var 전용평수 = parseFloat(document.getElementById('records_table_1_field_2').value.replace(/,/g, ''));
+            var 평당매수단가 = (전용평수 === 0) ? 0 : (입찰가 + 시설비 + 미납관리비 + 미납세금+ 명도비) / 전용평수;
+            var 전용평단가 = (전용평수 === 0) ? 0 : 입찰가 / 전용평수;
+            document.getElementById('records_table_3_field_7').value = formatNumber(평당매수단가.toFixed(0));
+            document.getElementById('records_table_3_field_8').value = formatNumber(전용평단가.toFixed(0));
+            var profit5 = parseFloat(document.getElementById('records_table_3_field_9').value.replace(/,/g, ''));
+            var profit6 = parseFloat(document.getElementById('records_table_3_field_10').value.replace(/,/g, ''));
+            var profit7 = parseFloat(document.getElementById('records_table_3_field_11').value.replace(/,/g, ''));
+            var 매도수익율5 = (월임대료 * 12) / (profit5 / 100) + 보증금;
+            var 매도수익율6 = (월임대료 * 12) / (profit6 / 100) + 보증금;
+            var 매도수익율7 = (월임대료 * 12) / (profit7 / 100) + 보증금;
+            document.getElementById('records_table_3_field_9_1').value = formatNumber(매도수익율5.toFixed(0));
+            document.getElementById('records_table_3_field_10_1').value = formatNumber(매도수익율6.toFixed(0));
+            document.getElementById('records_table_3_field_11_1').value = formatNumber(매도수익율7.toFixed(0));
+            var 부가세 = parseFloat(document.getElementById('records_table_1_field_3').value.replace(/,/g, ''));
+            var 관리비 = parseFloat(document.getElementById('records_table_1_field_4').value.replace(/,/g, ''));
+            var 년이자 = parseFloat(document.getElementById('records_table_1_field_5').value.replace(/,/g, ''));
+            var 년관리비 = 분양평수 * 관리비 * 12;
+            var 초기필요자금 = 취등록세 + 법무비등 + 미납관리비 + 미납세금 + 명도비 + 시설비 - 대출금액 + 부가세 + 년이자 + 년관리비 + 운영비 + 임대중개수수료 + 입찰가;
+            document.getElementById('records_table_1_field_6').value = formatNumber(년관리비.toFixed(0));
+            document.getElementById('records_table_1_field_7').value = formatNumber(초기필요자금.toFixed(0));
+        }
+
+        // input 이벤트에서 콤마 처리 및 계산 실행
+        function onInput(event) {
+            var input = event.target;
+            var value = input.value.replace(/,/g, '');
+            if (isNaN(value) || value == 0) {
+                return;
+            }
+            var formattedValue = formatNumber(value);
+            input.value = formattedValue;
+            if (input.id === 'legal_fees_table_1_field_1' || input.id === 'legal_fees_table_1_field_2') {
+                calculatePercentage();
+            }
+            if (input.id === 'legal_fees_table_1_field_3_1') {
+                취등록세();
+            }
+            if (input.id === 'legal_fees_table_1_field_4_1') {
+                법무비();
+            }
+            if (input.id === 'legal_fees_table_4_field_2_2') {
+                대출이자();
+            }
+            if (input.id === 'legal_fees_table_5_field_2') {
+                수익();
+            }
+            if (input.id === 'legal_fees_table_6_field_5' ||
+                input.id === 'records_table_3_field_9' || input.id === 'records_table_3_field_10' || input.id === 'records_table_3_field_11') {
+                예상매도가();
+            }
+            if (input.id === 'records_table_1_field_1' || input.id === 'records_table_1_field_2' || input.id === 'records_table_1_field_4') {
+                예상매도가();
+            }
+            총투자금();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('legal_fees_table_1_field_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_1_field_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_1_field_3_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_1_field_4_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_2_field_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_2_field_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_2_field_3').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_2_field_4').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_3_field_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_3_field_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_4_field_2_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_5_field_1').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_5_field_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_6_field_5').addEventListener('input', onInput);
+            document.getElementById('records_table_1_field_1').addEventListener('input', onInput);
+            document.getElementById('records_table_1_field_2').addEventListener('input', onInput);
+            document.getElementById('records_table_1_field_4').addEventListener('input', onInput);
+            document.getElementById('records_table_3_field_9').addEventListener('input', onInput);
+            document.getElementById('records_table_3_field_10').addEventListener('input', onInput);
+            document.getElementById('records_table_3_field_11').addEventListener('input', onInput);
+        });
+
+        // 자동완성(법정동 검색) 관련 코드
+        $('#locatadd_nm').on('input', function() {
+            const locatadd_nm = $('#locatadd_nm').val().trim();
+            if (locatadd_nm) {
+                selectedIndex = -1;
+                searchRegionData(locatadd_nm, 1);
+            } else {
+                $('#suggestions').empty().hide();
+            }
+        });
+        function searchRegionData(locatadd_nm, pageNo) {
+            $.ajax({
+                url: 'http://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList',
+                type: 'GET',
+                dataType: 'xml',
+                data: {
+                    ServiceKey: 'B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==',
+                    type: 'xml',
+                    pageNo: pageNo,
+                    numOfRows: 10,
+                    flag: 'Y',
+                    locatadd_nm: locatadd_nm
+                },
+                success: function(response) {
+                    $('#suggestions').empty();
+                    const rows = $(response).find('row');
+                    if (rows.length > 0) {
+                        rows.each(function(index, item) {
+                            const region_cd = $(item).find('region_cd').text() || '';
+                            const locatadd_nm = $(item).find('locatadd_nm').text() || '';
+                            const listItem = $('<li></li>').text(locatadd_nm);
+                            listItem.data('region_cd', region_cd);
+                            listItem.on('click', function() {
+                                selectItem(index);
+                            });
+                            $('#suggestions').append(listItem);
+                        });
+                        $('#suggestions').show();
+                    } else {
+                        $('#suggestions').append('<li>검색 결과가 없습니다.</li>').show();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('오류 발생: ' + error);
+                }
+            });
+        }
+        $('#locatadd_nm').on('keydown', function(e) {
+            const items = $('#suggestions li');
+            if (e.key === 'ArrowDown') {
+                if (selectedIndex < items.length - 1) {
+                    selectedIndex++;
+                    updateSelectedItem(items);
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                if (selectedIndex > 0) {
+                    selectedIndex--;
+                    updateSelectedItem(items);
+                }
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                selectItem(selectedIndex);
+            }
+        });
+        function updateSelectedItem(items) {
+            items.removeClass('selected');
+            if (selectedIndex >= 0 && selectedIndex < items.length) {
+                items.eq(selectedIndex).addClass('selected');
+            }
+        }
+        function selectItem(index) {
+            const items = $('#suggestions li');
+            if (index >= 0 && index < items.length) {
+                const selectedItem = items.eq(index);
+                const fullName = selectedItem.text();
+                const region_cd = selectedItem.data('region_cd');
+                const spaceIndex = fullName.lastIndexOf(' ');
+                if (spaceIndex === -1) {
+                    alert('올바른 형식의 법정동명이 아닙니다.');
+                    return;
+                }
+                const name = fullName.substring(0, spaceIndex);
+                const district = fullName.substring(spaceIndex + 1);
+                const formattedName = `법정코드: ${name}(${region_cd.slice(0, 5)})`;
+                const formattedDistrict = `동명: ${district}`;
+                $('#locatadd_nm').val(name + ' ' + district);
+                selectedLawdCd = region_cd.slice(0, 5);
+                selectedUmdNm = district;
+                document.getElementById("umdNm").value = selectedUmdNm;
+                alert(`${formattedName}\n${formattedDistrict}`);
+                fetchData();
+                $('#suggestions').hide();
+                selectedIndex = -1;
+            }
+        }
+        $(document).on('click', function(event) {
+            if (!$(event.target).closest('#search-container').length) {
+                $('#suggestions').empty().hide();
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="header">
+        <h1>수익율분석기</h1>
+    </div>
+    <div class="container">
+        <!-- 왼쪽 열: legal_fees_table -->
+        <div class="left-column">
+            <!-- 취득비용 -->
+            <table id="legal_fees_table_1">
+                <tr>
+                    <th>항목</th>
+                    <th>세부 항목</th>
+                    <th>금액</th>
+                    <th>비고</th>
+                </tr>
+                <tr>
+                    <th rowspan="4">취득비용</th>
+                    <td>감정가</td>
+                    <td><input type="text" id="legal_fees_table_1_field_1" value="0"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>입찰가/매수가</td>
+                    <td><input type="text" id="legal_fees_table_1_field_2" value="0"></td>
+                    <td><input type="text" id="legal_fees_table_1_field_2_1" value="0%" readonly></td>
+                </tr>
+                <tr>
+                    <td>취등록세</td>
+                    <td><input type="text" id="legal_fees_table_1_field_3" value="0" readonly></td>
+                    <td><input type="text" id="legal_fees_table_1_field_3_1" value="0%"></td>
+                </tr>
+                <tr>
+                    <td>법무비등</td>
+                    <td><input type="text" id="legal_fees_table_1_field_4" value="0" readonly></td>
+                    <td><input type="text" id="legal_fees_table_1_field_4_1" value="0%"></td>
+                </tr>
+            </table>
+            <!-- 최득시 필요경비 -->
+            <table id="legal_fees_table_2">
+                <tr>
+                     <th rowspan="4">취득시 필요경비</th>
+                    <td>미납관리비</td>
+                    <td><input type="text" id="legal_fees_table_2_field_1" value="0"></td>
+                    <td>필수 조사후 입력</td>
+                </tr>
+                <tr>
+                    <td>미납세금</td>
+                    <td><input type="text" id="legal_fees_table_2_field_2" value="0"></td>
+                    <td>공매,신탁 확인필수</td>
+                </tr>
+                <tr>
+                    <td>명도비</td>
+                    <td><input type="text" id="legal_fees_table_2_field_3" value="0"></td>
+                    <td>강제집행,이사비</td>
+                </tr>
+                <tr>
+                    <td>시설비</td>
+                    <td><input type="text" id="legal_fees_table_2_field_4" value="0"></td>
+                    <td>철거+인테리어비(@100만)</td>
+                </tr>
+            </table>
+            <!-- 운영시 필요경비 -->
+            <table id="legal_fees_table_3">
+                <tr>
+                    <th rowspan="3">운영시 필요경비</th>
+                    <td>운영비</td>
+                    <td><input type="text" id="legal_fees_table_3_field_1" value="0"></td>
+                    <td>광고비,식대,이자등등</td>
+                </tr>
+                <tr>
+                    <td>임대중개수수료</td>
+                    <td><input type="text" id="legal_fees_table_3_field_2" value="0"></td>
+                    <td>보증금+(월세*100)*0.9</td>
+                </tr>
+                <tr>
+                    <td>매도중개수수료</td>
+                    <td><input type="text" id="legal_fees_table_3_field_3" value="0" readonly></td>
+                    <td>매도금액*0.9</td>
+                </tr>
+            </table>
+            <!-- 이자 -->
+            <table id="legal_fees_table_4">
+                <tr>
+                    <th rowspan="3">이자</th>
+                    <td>대출 금액</td>
+                    <td><input type="text" id="legal_fees_table_4_field_1" value="0" readonly></td>
+                    <td><input type="text" id="legal_fees_table_4_field_1_1" value="0%" readonly></td>
+                </tr>
+                <tr>
+                    <td>대출 이자(년)</td>
+                    <td><input type="text" id="legal_fees_table_4_field_2" value="0" readonly></td>
+                    <td><input type="text" id="legal_fees_table_4_field_2_2" value="5%"></td>
+                </tr>
+                <tr>
+                    <td>대출 이자(월)</td>
+                    <td><input type="text" id="legal_fees_table_4_field_3" value="0" readonly></td>
+                    <td></td>
+                </tr>
+            </table>
+            <!-- 수익 -->
+            <table id="legal_fees_table_5">
+                <tr>
+                    <th rowspan="4">수익</th>
+                    <td>임대 보증금</td>
+                    <td><input type="text" id="legal_fees_table_5_field_1" value="0"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>월 임대료</td>
+                    <td><input type="text" id="legal_fees_table_5_field_2" value="0"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>월 수순익</td>
+                    <td><input type="text" id="legal_fees_table_5_field_3" value="0"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>년 순수익</td>
+                    <td><input type="text" id="legal_fees_table_5_field_4" value="0"></td>
+                    <td></td>
+                </tr>
+            </table>
+            <!-- 투자금 & 투자수익 -->
+            <table id="legal_fees_table_6">
+                <tr>
+                    <th rowspan="6">투자금 and 투자수익</th>
+                    <td rowspan="2">총 투자금</td>
+                    <td><input type="text" id="legal_fees_table_6_field_1" value="0" readonly></td>
+                    <td>보증금 미포함</td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="legal_fees_table_6_field_2" value="0" readonly></td>
+                    <td>보증금 포함</td>
+                </tr>
+                <tr>
+                    <td>절대 수익율</td>
+                    <td><input type="text" id="legal_fees_table_6_field_3" value="0" readonly></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>레버리지 수익율</td>
+                    <td><input type="text" id="legal_fees_table_6_field_4" value="0" readonly></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>예상 매도가</td>
+                    <td><input type="text" id="legal_fees_table_6_field_5" value="0"></td>
+                    <td><input type="text" id="legal_fees_table_6_field_5_1" value="0%" readonly></td>
+                </tr>
+                <tr>
+                    <td>ROI</td>
+                    <td><input type="text" id="legal_fees_table_6_field_6" value="0"></td>
+                    <td></td>
+                </tr>
+            </table>
+        </div>
+        <!-- 오른쪽 열: records_table -->
+        <div class="right-column">
+            <table id="records_table_1">
+                <tr>
+                    <th colspan="3">레코드 목록</th>
+                </tr>
+                <tr>
+                    <th>항목</th>
+                    <th>내용</th>
+                    <th>비고</th>
+                </tr>
+                <tr>
+                    <td>분양평수</td>
+                    <td><input type="text" id="records_table_1_field_1" value="0"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>전용평수</td>
+                    <td><input type="text" id="records_table_1_field_2" value="0"></td>
+                    <td><input type="text" id="records_table_1_field_2_1" value="67%"></td>
+                </tr>
+                <tr>
+                    <td>부가세</td>
+                    <td><input type="text" id="records_table_1_field_3" value="0"></td>
+                    <td>공매,신탁</td>
+                </tr>
+                <tr>
+                    <td>관리비</td>
+                    <td><input type="text" id="records_table_1_field_4" value="0"></td>
+                    <td>예산</td>
+                </tr>
+                <tr>
+                    <td>1년치이자</td>
+                    <td><input type="text" id="records_table_1_field_5" value="0" readonly></td>
+                    <td>예산</td>
+                </tr>
+                <tr>
+                    <td>1년치관리비</td>
+                    <td><input type="text" id="records_table_1_field_6" value="0" readonly></td>
+                    <td>예산</td>
+                </tr>
+                <tr>
+                    <td>초기필요자금</td>
+                    <td><input type="text" id="records_table_1_field_7" value="0" readonly></td>
+                    <td>순간필요비</td>
+                </tr>
+            </table>
+            <table id="records_table_2">
+                <tr>
+                    <th colspan="3">경고! 절대 공격적으로 입력하지 마세요</th>
+                </tr>
+            </table>
+            <table id="records_table_3">
+                <tr>
+                    <th colspan="3">법인 사업자 세금계산기</th>
+                </tr>
+                <tr>
+                    <td>양도차액</td>
+                    <td><input type="text" id="records_table_3_field_1" value="0"></td>
+                    <td>예상매도가-취득비용</td>
+                </tr>
+                <tr>
+                    <td>과세표준</td>
+                    <td><input type="text" id="records_table_3_field_2" value="0"></td>
+                    <td>양도차액+년순수익-필요경비</td>
+                </tr>
+                <tr>
+                    <td>법인세(2억미만)</td>
+                    <td><input type="text" id="records_table_3_field_3" value="0" readonly></td>
+                    <td rowspan="3">주민세포함</td>
+                </tr>
+                <tr>
+                    <td>법인세(2억초과)</td>
+                    <td><input type="text" id="records_table_3_field_4" value="0" readonly></td>
+                </tr>
+                <tr>
+                    <td>법인세합계</td>
+                    <td><input type="text" id="records_table_3_field_5" value="0" readonly></td>
+                </tr>
+                <tr>
+                    <td>세후수익</td>
+                    <td><input type="text" id="records_table_3_field_6" value="0" readonly></td>
+                    <td>과세표준-법인세</td>
+                </tr>
+                <tr>
+                    <td>평당매수가</td>
+                    <td><input type="text" id="records_table_3_field_7" value="0"></td>
+                    <td>매가*최득시 필요경비</td>
+                </tr>
+                <tr>
+                    <td>전용평단가</td>
+                    <td><input type="text" id="records_table_3_field_8" value="0"></td>
+                    <td>매가/전용평수</td>
+                </tr>
+                <tr>
+                    <td>예상매도수익율</td>
+                    <td>예상매도가</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="records_table_3_field_9" value="5.5%"></td>
+                    <td><input type="text" id="records_table_3_field_9_1" value="0" readonly></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="records_table_3_field_10" value="6%"></td>
+                    <td><input type="text" id="records_table_3_field_10_1" value="0" readonly></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="records_table_3_field_11" value="7%"></td>
+                    <td><input type="text" id="records_table_3_field_11_1" value="0" readonly></td>
+                    <td></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

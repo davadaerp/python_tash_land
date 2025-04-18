@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>상가매물 데이터 검색</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.min.css">
+    <style>
+        /* 전체 페이지 중앙 정렬 */
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          min-height: 100vh;
+          background-color: #f9f9f9;
+        }
+        h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        #suggestions li {
+          padding: 8px;
+          cursor: pointer;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        #suggestions li:hover {
+          background-color: #f0f8ff;
+        }
+        #suggestions li.selected {
+          background-color: #007bff;
+          color: #fff;
+        }
+        .filter-group {
+          display: flex;
+          gap: 15px;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        /*.filter-group label {*/
+        /*  font-weight: bold;*/
+        /*}*/
+        .filter-group select {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        .filter-group label {
+          font-weight: bold;
+          display: flex;
+          align-items: center; /* 수직 가운데 정렬 */
+          text-align: left;    /* 텍스트 왼쪽 정렬 */
+        }
+        .filter-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        /* 테이블 헤더 고정 */
+        .table-container thead th {
+          position: sticky;
+          top: 0;
+          background-color: #f2f2f2; /* 헤더 배경색, 헤더와 동일하게 */
+          z-index: 10; /* 다른 내용보다 위에 표시 */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .highlight { color: red; font-weight: bold; }
+        .right-align { text-align: right; }
+        .center-align { text-align: center; }
+
+        /* 상세 정보 팝업 */
+        #detailPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: #fff;
+            padding: 20px;
+            width: 400px;
+            height: 800px;
+            border-radius: 8px;
+            overflow-y: auto;
+            border: 2px solid #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #detailPopup .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+        }
+
+        /* Add a style for the selected row */
+        #data-container tr.selected {
+            background-color: #cce5ff !important; /* A light blue shade */
+        }
+        #data-container tr.hoverd {
+            background-color: #cce5ff !important; /* A light blue shade */
+        }
+
+        /* 기존 스타일 유지 및 수정 */
+        tbody tr:nth-child(odd) {
+          background-color: #ffffff; /* 홀수행: 흰색 */
+        }
+        tbody tr:nth-child(even) {
+          /* background-color: #f0f0f0; /* 짝수행: 연한 회색 */
+            background-color: azure;
+        }
+        tbody tr:hover {
+          background-color: #d9d9d9; /* 마우스 오버 시 약간 진한 회색 */
+        }
+
+        /* detailPopup 안의 table tr 높이를 1/3로 줄이기 */
+        #detailPopup table thead tr th,
+        #detailPopup table tbody tr td {
+            padding: 2px 8px; /* 패딩 조정으로 높이 축소 */
+            font-size: 14px; /* 글자 크기 조정 */
+            line-height: 1.2; /* 줄 간격 조정 */
+        }
+        /* detailPopup 내부의 search-container의 위/아래 마진 제거 */
+        #detailPopup .search-container {
+          margin-top: 0px !important;
+          margin-bottom: 0px !important;
+          /* 필요시 패딩도 제거 */
+          padding-top: 3px !important;
+          padding-bottom: 2px !important;
+        }
+
+        /* detailPopup 내부의 filter-group은 flex 컨테이너로 하고, 내부 요소를 양 끝으로 배치 */
+        #detailPopup .filter-group {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* detailPopup 내의 popup-deal 및 popup-auction 영역에서 결과 스팬(right-align 적용) */
+        #detailPopup .filter-group #deal-result-amt,
+        #detailPopup .filter-group #deal-result-count,
+        #detailPopup .filter-group #auction-result-amt,
+        #detailPopup .filter-group #auction-result-count {
+          margin-left: auto !important;
+          text-align: right !important;
+          display: inline-block;
+          /*font-family: Arial, sans-serif;*/
+          font-size: 15px;
+          font-weight: bold;
+        }
+
+        #popup-rent tr.selected {
+            background-color: #cce5ff !important; /* 밝은 파란색 배경 */
+            font-weight: bold; /* 글씨를 굵게 */
+        }
+        #popup-deal tr.selected {
+            background-color: #cce5ff !important; /* 밝은 파란색 배경 */
+            font-weight: bold; /* 글씨를 굵게 */
+        }
+        #popup-auction tr.selected {
+            background-color: #cce5ff !important; /* 밝은 파란색 배경 */
+            font-weight: bold; /* 글씨를 굵게 */
+        }
+
+        /* 화면중앙에 메시지 표시 */
+        .loading-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            z-index: 1000;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="/static/js/address_autocomplete.js"></script>
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/indexed_db_utils.js"></script>
+    <script>
+        //
+        let sortPriceAscending = false;
+        let sortAuctionPriceAscending = false;
+        window.currentDealFilteredItems = [];
+        window.currentAuctionFetchedItems = [];
+
+        $(document).ready(function() {
+
+            // Attach mouseenter and mouseleave events to rows in #data-container
+            $(document).on('mouseenter', '#data-container tr', function () {
+                $(this).addClass('hovered');
+            });
+            $(document).on('mouseleave', '#data-container tr', function () {
+                $(this).removeClass('hovered');
+            });
+
+            // $(window).on('load', function() {
+            //     const locatadd_nm = '경기도 김포시 구래동';
+            //     getRegionData(locatadd_nm, 1, function() {
+            //       console.log('selectedLawdCd:' + selectedLawdCd + ', selectedUmdNm:' + selectedUmdNm);
+            //       // 주변월세 팝업목록 실행
+            //       openRentPricePopup(null);
+            //     });
+            // });
+
+            //
+            openRentPricePopup(null);
+
+            // 지도위치
+            function openMap(item) {
+                const article_no = item.article_no;
+                var url = "https://m.land.naver.com/near/article/" + article_no + "?poi=SCHOOLPOI";
+                var width = 1400;
+                var height = 1200;
+
+                // 전체 화면 기준 중앙 좌표 계산 (iframe 내부여도 상관없음)
+                const left = (screen.width - width) / 2 + 50;
+                const top = (screen.height - height) / 2 - 50;
+
+                // 새 창 열기 (팝업 창)
+                var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+                // 포커스 이동
+                if (popupWindow) {
+                    popupWindow.focus();
+                }
+            }
+
+            // 네이버 상세창 위치로 바로가기
+            function openMapNaverDetailDirect(item) {
+                const article_no = item.article_no;
+                const latitude = item.latitude;
+                const longitute = item.longitude;
+
+                //var url = "https://new.land.naver.com/offices?ms=37.797903,127.1068791,17&a=SG&b=B2&e=RETAIL&articleNo=2513349404";
+                var url = "https://new.land.naver.com/offices?ms=" + latitude + "," + longitute + ",17&a=SG&b=B2&e=RETAIL&articleNo=" + article_no;
+
+                        // 새 탭에서 열기
+                var newTab = window.open(url, "_blank");
+
+                // 포커스 이동
+                if (newTab) {
+                    newTab.focus();
+                }
+            }
+
+            // 현재 월세조회및 실거래로 필터되어진 화면에 평수별 그룹을 보여줌..
+            function pyengRentRealPopupView(filteredItems, type) {
+              // 평형분석: 월세인 경우 중복 제거
+              if (type === 'rent') {
+                let seenKeys = new Set();
+                filteredItems = filteredItems.filter(item => {
+                  if (item.cfloor == null || item.tfloor == null) {
+                    return false;
+                  }
+                  let key = `${item.article_name}_${item.cfloor}_${item.tfloor}_${item.exclusive_area_pyeong}_${item.price}_${item.rentPrc}`;
+                  if (seenKeys.has(key)) {
+                    return false;
+                  } else {
+                    seenKeys.add(key);
+                    return true;
+                  }
+                });
+              }
+
+              // 현재 선택된 거래유형에 따른 헤더 텍스트
+              const headerText = type === 'rent' ? `월세-평형분석` : '실거래-평형분석';
+
+              // 그룹화: 층(floorGroup) 및 전용면적 그룹(areaGroup)별 평당가 집계 (건수, 합계, 최소, 최대)
+              let groups = {};       // groups[floorGroup][areaGroup] = { count, sum, min, max }
+              let floorTotals = {};  // floorTotals[floorGroup] = { count, sum, min, max }
+              filteredItems.forEach(item => {
+                if (!item.cfloor) return;
+                let floorNum = Number(item.cfloor);
+                let floorGroup;
+                if (floorNum === 1) floorGroup = "1층";
+                else if (floorNum === 2) floorGroup = "2층";
+                else if (floorNum >= 3) floorGroup = "상층";
+                else floorGroup = item.cfloor;
+
+                // 전용면적 그룹 계산 (10평 미만은 "9평대", 그 이상은 10평 단위)
+                let areaVal = parseFloat(item.exclusive_area_pyeong);
+                let areaGroup;
+                if (isNaN(areaVal)) {
+                  areaGroup = "미정";
+                } else if (areaVal < 10) {
+                  areaGroup = "9평대";
+                } else {
+                  areaGroup = `${Math.floor(areaVal / 10) * 10}평대`;
+                }
+
+                if (!groups[floorGroup]) {
+                  groups[floorGroup] = {};
+                  floorTotals[floorGroup] = { count: 0, sum: 0, min: null, max: null };
+                }
+                if (!groups[floorGroup][areaGroup]) {
+                  groups[floorGroup][areaGroup] = { count: 0, sum: 0, min: null, max: null };
+                }
+                let unitPrice = parseFloat(item.sortPyeongPrice);
+                if (!isNaN(unitPrice)) {
+                  // 각 area 그룹 업데이트
+                  groups[floorGroup][areaGroup].count += 1;
+                  groups[floorGroup][areaGroup].sum += unitPrice;
+                  if (groups[floorGroup][areaGroup].min === null || unitPrice < groups[floorGroup][areaGroup].min) {
+                    groups[floorGroup][areaGroup].min = unitPrice;
+                  }
+                  if (groups[floorGroup][areaGroup].max === null || unitPrice > groups[floorGroup][areaGroup].max) {
+                    groups[floorGroup][areaGroup].max = unitPrice;
+                  }
+                  // floorTotals 업데이트
+                  floorTotals[floorGroup].count += 1;
+                  floorTotals[floorGroup].sum += unitPrice;
+                  if (floorTotals[floorGroup].min === null || unitPrice < floorTotals[floorGroup].min) {
+                    floorTotals[floorGroup].min = unitPrice;
+                  }
+                  if (floorTotals[floorGroup].max === null || unitPrice > floorTotals[floorGroup].max) {
+                    floorTotals[floorGroup].max = unitPrice;
+                  }
+                }
+              });
+
+              // 각 floor 그룹별 정렬 및 테이블 행(html) 생성 (1층, 2층, 상층 순)
+              const floorOrderMap = {"1층": 1, "2층": 2, "상층": 3};
+              let floorGroupKeys = Object.keys(groups).sort((a, b) => {
+                return (floorOrderMap[a] || 99) - (floorOrderMap[b] || 99);
+              });
+
+              let tableRowsHtml = "";
+              // 각 floor 그룹별 배경색
+              const floorColors = {
+                "1층": "#ffe0e0",
+                "2층": "#e0f7ff",
+                "상층": "#e0ffe0"
+              };
+
+              floorGroupKeys.forEach(floorGroup => {
+                // areaGroup 키 정렬 ("미정"은 마지막)
+                let areaKeys = Object.keys(groups[floorGroup]).sort((a, b) => {
+                  if (a === "미정") return 1;
+                  if (b === "미정") return -1;
+                  return parseInt(a.replace("평대", ""), 10) - parseInt(b.replace("평대", ""), 10);
+                });
+                // rowspan: area그룹 수 + 합계 행
+                let rowspan = areaKeys.length + 1;
+                let floorColor = floorColors[floorGroup] || "#f0f0f0";
+                let floorRows = "";
+                areaKeys.forEach((areaGroup, index) => {
+                  let groupData = groups[floorGroup][areaGroup];
+                  let count = groupData.count;
+                  let avg = count > 0 ? (groupData.sum / count).toFixed(1) : "0";
+                  let min = count > 0 ? groupData.min.toFixed(1) : "0";
+                  let max = count > 0 ? groupData.max.toFixed(1) : "0";
+                  if (index === 0) {
+                    floorRows += `
+                      <tr style="background-color: ${floorColor}; text-align: center;">
+                        <td rowspan="${rowspan}" style="border: 1px solid #ddd; padding: 5px; font-weight: bold;">${floorGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${areaGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${count}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${min}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${avg}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${max}</td>
+                      </tr>
+                    `;
+                  } else {
+                    floorRows += `
+                      <tr style="background-color: ${floorColor}; text-align: center;">
+                        <td style="border: 1px solid #ddd; padding: 5px;">${areaGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${count}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${min}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${avg}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${max}</td>
+                      </tr>
+                    `;
+                  }
+                });
+                // floor 그룹별 합계 행 처리
+                let ft = floorTotals[floorGroup];
+                let totalCount = ft.count;
+                let totalAvg = totalCount > 0 ? (ft.sum / totalCount).toFixed(1) : "0";
+                let totalMin = totalCount > 0 ? ft.min.toFixed(1) : "0";
+                let totalMax = totalCount > 0 ? ft.max.toFixed(1) : "0";
+                floorRows += `
+                  <tr style="background-color: #f9f9f9; text-align: center; font-weight: bold;">
+                    <td style="border: 1px solid #ddd; padding: 5px;">합계</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${totalCount}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${totalMin}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${totalAvg}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${totalMax}</td>
+                  </tr>
+                `;
+                tableRowsHtml += floorRows;
+              });
+
+              // 팝업 HTML 구성 (헤더 및 테이블 생성)
+              let popupHtml = `
+                <div id="pyengRentPopup" style="
+                  position: fixed;
+                  top: 50%; left: 50%;
+                  transform: translate(-50%, -50%);
+                  background: #fff;
+                  padding: 20px;
+                  border: 2px solid #007bff;
+                  border-radius: 8px;
+                  z-index: 3000;
+                  max-width: 400px;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                ">
+                  <h3 style="margin-top: 0; text-align: left;">${headerText}</h3>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                      <tr style="text-align: center; background: #f2f2f2;">
+                        <th style="border: 1px solid #ddd; padding: 5px;">구분</th>
+                        <th style="border: 1px solid #ddd; padding: 5px;">평형</th>
+                        <th style="border: 1px solid #ddd; padding: 5px;">건수</th>
+                        <th style="border: 1px solid #ddd; padding: 5px;">최소</th>
+                        <th style="border: 1px solid #ddd; padding: 5px;">평균</th>
+                        <th style="border: 1px solid #ddd; padding: 5px;">최대</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${tableRowsHtml}
+                    </tbody>
+                  </table>
+                  <button id="pyengRentPopupClose" style="
+                      display: block;
+                      margin: 10px auto;
+                      padding: 5px 10px;
+                      cursor: pointer;
+                      background: #007bff;
+                      color: #fff;
+                      border: none;
+                      border-radius: 4px;
+                  ">닫기</button>
+                </div>
+              `;
+
+              $("body").append(popupHtml);
+              $(document).on("click", "#pyengRentPopupClose", function () {
+                $("#pyengRentPopup").remove();
+              });
+            }
+
+            // 주변월세 팝업목록
+            function openRentPricePopup(item) {
+                $('#detailPopup').show();
+
+                var lawName = "{{ lawName }}";
+                var umdNm = "{{ umdNm }}";
+                var lawCd = "{{ law_cd }}";
+                //var apiKey = "{{ api_key }}";
+                //alert(lawName + ',' + umdNm + ',' + lawCd);
+                //localStorage.setItem("sanga_key", apiKey);
+
+                // selectedLawdCd = '4157010900';
+                // selectedUmdNm = '구래동';
+                selectedLawdCd = lawCd;
+                selectedUmdNm = umdNm;
+
+                // 팝업제목 바꿈, lawName 변수가 정의되어 있다고 가정합니다.
+                document.getElementById("popup-lawName").textContent = lawName;
+
+                // 실거래 데이타 팝업목록 함수
+                applyDealPricePopupList(item);
+
+                // 경매 데이터 팝업 목록 함수 실행
+                applyAuctionPricePopupList(item);
+            }
+
+            // 층,평형으로 필터
+            function getFloorAreaFilters(allItems, pgm_type) {
+                let selectedYear = 'all';
+                let selectedFloor = 'all';
+                let selectedArea = 'all';
+                if (pgm_type === 'rent') {
+                    selectedFloor = $("#rent_sel_floor").val();
+                    selectedArea = $("#rent_sel_area").val();
+                } else if (pgm_type === 'deal') {
+                    selectedYear = $("#deal_sel_year").val();
+                    selectedFloor = $("#deal_sel_floor").val();
+                    selectedArea = $("#deal_sel_area").val();
+                } else {
+                    selectedFloor = $("#auction_sel_floor").val();
+                    selectedArea = $("#auction_sel_area").val();
+                }
+                let filterItems = allItems.filter(item => {
+                    let floorOk = true, areaOk = true, yearOk = true;
+                    if (selectedFloor !== "all") {
+                        let p = item.cfloor ? item.cfloor.toString().trim() : "";
+                        if (selectedFloor === "low") {
+                            let floorNum = parseFloat(p);
+                            if (!isNaN(floorNum)) {
+                                floorOk = (floorNum <= 2);
+                            } else {
+                                let lower = p.toLowerCase();
+                                floorOk = (lower === "b1" || lower === "b2" || lower.includes("지하"));
+                            }
+                        } else if (selectedFloor === "high") {
+                            let floorNum = parseFloat(p);
+                            floorOk = !isNaN(floorNum) ? (floorNum >= 3) : false;
+                        } else {
+                            let floorNum = parseFloat(p);
+                            floorOk = !isNaN(floorNum) ? (floorNum === parseFloat(selectedFloor)) : (p === selectedFloor);
+                        }
+                    }
+                    if (selectedArea !== "all") {
+                        let areaVal = parseFloat(item.exclusive_area_pyeong);
+                        let groupVal = (areaVal < 10) ? 9 : Math.floor(areaVal / 10) * 10;
+                        areaOk = (groupVal == selectedArea);
+                    }
+                    //
+                    if (selectedYear !== "all") {
+                        let p = item.buildYear ? item.buildYear.toString().trim() : "";
+                        let yearNum = parseFloat(p);
+                        yearOk = !isNaN(yearNum) ? (yearNum === parseFloat(selectedYear)) : (p === selectedYear);
+                    }
+                    return floorOk && areaOk & yearOk;
+                });
+                 if (pgm_type === 'deal') {
+                     window.currentDealFilteredItems = filterItems;
+                 } else {
+                     window.currentAuctionFetchedItems = filterItems;
+                 }
+                return filterItems;
+            }
+
+            //================================================
+            // 실거래 데이타 팝업목록 함수
+            async function applyDealPricePopupList(selectedItem) {
+
+                const lawdCd = selectedLawdCd.slice(0,5);
+                const umdNm = selectedUmdNm;
+                let allItems = [];
+                const dataContainer = document.getElementById("data-container-deal");
+                dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
+                // indexedDB kland_sanga(국토부실거래-상가)에 조회및 저장
+                let storeName = 'kland_sanga';
+                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                if (exists) {
+                    allItems = await  getAllItems(lawdCd, umdNm, storeName);
+                    console.log("데이터가 존재합니다.", allItems);
+                    //
+                } else {
+                    // 상가,아파트,빌라 국토부 키체크
+                    const existingKey = localStorage.getItem(`sanga_key`);
+                    // 검색시작
+                    const url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade";
+                    //const serviceKey = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==";
+                    const serviceKey = existingKey;
+                    try {
+                        // 검색할년범위선택함(년월별로 검색을 때림)
+                        const selectedYearRange = 2;  // 2년치 기준
+                        const yearsToFetch = Array.from({length: selectedYearRange}, (_, i) => currentYear - i);
+                        for (const year of yearsToFetch) {
+                            const monthsToFetch = Array.from({length: currentMonth + 1}, (_, i) => (i + 1).toString().padStart(2, "0"));
+                            for (const month of monthsToFetch) {
+                                const params = {
+                                    serviceKey: serviceKey,
+                                    LAWD_CD: lawdCd,
+                                    DEAL_YMD: `${year}${month}`,
+                                    pageNo: 1,
+                                    numOfRows: 500
+                                };
+                                const response = await fetch(`${url}?${new URLSearchParams(params)}`);
+                                if (!response.ok) {
+                                    throw new Error(`API 요청 실패: ${response.status}`);
+                                }
+                                const text = await response.text();
+                                const parser = new DOMParser();
+                                const xmlDoc = parser.parseFromString(text, "text/xml");
+                                const items = xmlDoc.querySelectorAll("item");
+                                if (items.length === 0) {
+                                    console.log(`${year}년 ${month}월: 검색된 데이터가 없습니다.`);
+                                    continue;
+                                }
+                                items.forEach(item => {
+                                    const itemData = {};
+                                    item.childNodes.forEach(node => {
+                                        if (node.nodeType === 1) {
+                                            itemData[node.nodeName] = node.textContent;
+                                        }
+                                    });
+                                    if (!umdNm || itemData.umdNm === umdNm) {
+                                        itemData.dealDate = `${itemData.dealYear}-${itemData.dealMonth.padStart(2, "0")}-${itemData.dealDay.padStart(2, "0")}`;
+                                        itemData.buildingArPyeong = calcPyeong(itemData.buildingAr);
+                                        itemData.convertedDealAmount = convertToKoreanAmount(itemData.dealAmount);
+                                        //
+                                        // select설정위함(층및 전용면적)
+                                        itemData.cfloor = itemData.floor;
+                                        itemData.exclusive_area_pyeong = itemData.buildingArPyeong;
+                                        // 평단가 계산
+                                        let tradeAmountNum = parseFloat((itemData.dealAmount || "0").replace(/,/g, ""));
+                                        let areaNum = parseFloat((itemData.buildingArPyeong || "0").replace(/,/g, ""));
+                                        let unitPrice = tradeAmountNum / areaNum;
+                                        itemData.sortPyeongPrice = unitPrice.toFixed(1).toString();
+
+                                        // 주소를통한 위경도 가져오기
+                                        itemData.latitude = 0;
+                                        itemData.longitude = 0;
+                                        // const address = itemData.sggNm + ' ' + itemData.umdNm + ' ' + itemData.jibun;
+                                        // getLatLngFromAddress(address).then(coords => {
+                                        //   if (coords) {
+                                        //     // 여기서 지도 마커 찍기 등 처리 가능
+                                        //     console.log("리턴된 위경도:", coords.lat, coords.lon);
+                                        //     itemData.latitude = coords.lat;
+                                        //     itemData.longitude = coords.lon;
+                                        //   }
+                                        // });
+                                        //
+                                        itemData.lawdCD = lawdCd;
+                                        itemData.ymd = getCurrentDate();
+                                        //
+                                        allItems.push(itemData);
+                                    }
+                                });
+                            }
+                        }
+                        console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
+                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
+                        //
+                    } catch (error) {
+                        console.error("오류 발생:", error);
+                        dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
+                    }
+                } // end if
+                window.currentDealFilteredItems = allItems;
+
+                // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
+                set_rent_deal_auction_floor(allItems, 'deal');
+                // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
+                set_rent_deal_auction_area(allItems, 'deal');
+                //
+                renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
+
+                //
+                // 10. "평형분석" button click event
+                $("#real-pyeng-btn").on("click", function () {
+                    // 층,평형필터 처리
+                    let filteredItems = getFloorAreaFilters(allItems, 'deal');
+                    pyengRentRealPopupView(filteredItems, 'deal');
+                });
+
+                // 평단가금액 정렬
+                $('#sortPyeongPrice').click(function () {
+                    // 정렬
+                    const filteredItems = window.currentDealFilteredItems;
+                    filteredItems.sort((a, b) => {
+                        let priceA = parseFloat(a.pyeongPrice) || 0;
+                        let priceB = parseFloat(b.pyeongPrice) || 0;
+                        return sortPriceAscending ? priceA - priceB : priceB - priceA;
+                    });
+                    sortPriceAscending = !sortPriceAscending;
+                    $('#sortPyeongPrice').text(sortPriceAscending ? '평단가 ▲' : '평단가 ▼');
+                    renderDealTable(filteredItems);
+                });
+
+                // 실거래데이타 출력
+                function renderDealTable(allItems) {
+
+                    // 현재 선택로우 위경도를 기준으로 해당거리에 위치한 실거래데이타 목록 가져오기(실거래에서 위,경도를 못가져옴 ㅠ.ㅠ)
+                    // 차후 오픈맵api를 이용한 위경도 가져오기 처리후 비교해야 할듯.
+                    //let filteredItems = getRealDealDistanceFilterItems(allItems);
+
+                    // 층,평형필터 처리
+                    let filteredItems = getFloorAreaFilters(allItems, 'deal');
+                    //
+                    let tableBody = $('#data-container-deal');
+                    tableBody.empty();
+                    let newBodyHtml = "";
+                    filteredItems.forEach((item, index) => {
+                        let fullRowData = {
+                            "순번": index + 1,
+                            "시군구명": item.sggNm || "",
+                            "지번": item.jibun || "",
+                            "읍면동명": item.umdNm || ""
+                        };
+                        window.rowDataArray.push(fullRowData);
+                        const currentIndex = window.rowDataArray.length - 1;
+
+                        console.log(item.latitude, item.longitude);
+
+                        // 평단가 계산
+                        let computedUnitPrice = "";
+                        let tradeAmountNum = parseFloat((item.dealAmount || "0").replace(/,/g, ""));
+                        let areaNum = parseFloat((item.buildingArPyeong || "0").replace(/,/g, ""));
+                        if (!isNaN(tradeAmountNum) && !isNaN(areaNum) && areaNum > 0) {
+                            let unitPrice = tradeAmountNum / areaNum;
+                            computedUnitPrice = unitPrice.toFixed(0).toString();
+                            item.pyeongPrice = computedUnitPrice;
+                        } else {
+                            computedUnitPrice = "N/A";
+                        }
+
+                        let pyeongDisplay = `${item.buildingAr} / <span style="color: blue;">${item.buildingArPyeong || ""}</span>`;
+                        let priceValue = formatNumber(item.convertedDealAmount) + '/' +
+                            '<span style="color: green;">' + computedUnitPrice + '</span>';
+
+                        newBodyHtml +=
+                            `<tr data-index="${currentIndex}" style="border:none;">
+                                <td style="width:9.01%; border-left:none; border-right:none;">${index + 1}</td>
+                                <td style="width:10.01%; border-left:none; border-right:none;">${item.dealDate || ""}</td>
+                                <td style="width:7.88%; border-left:none; border-right:none;">${item.buildYear || ""}</td>
+                                <td style="width:9.00%; border-left:none; border-right:none;">${item.floor || ""}</td>
+                                <td style="width:11.40%; border-left:none; border-right:none;">${pyeongDisplay}</td>
+                                <td style="width:10.99%; border-left:none; border-right:none;">${priceValue || ""}</td>
+                                <td style="width:10.35%; border-left:none; border-right:none; color: red;">@${item.pyeongPrice || ""}</td>
+                                <td style="width:13.35%; border-left:none; border-right:none; text-align: left;">${item.buildingUse || ""}</td>
+                                <td style="width:16.28%; border-left:none; border-right:none;"><button class="map-btn-popup" data-index="${currentIndex}">위치가기</button></td>
+                            </tr>`;
+                    });
+                    tableBody.append(newBodyHtml);
+
+                    // 전체 거래금액과 전체 건물면적(평) 계산
+                    let totalDealAmount = 0;
+                    let totalArea = 0;
+                    filteredItems.forEach(item => {
+                        let amount = Number(item.dealAmount.replace(/,/g, ""));
+                        totalDealAmount += amount;
+                        let area = parseFloat(item.buildingArPyeong);
+                        if (!isNaN(area)) {
+                            totalArea += area;
+                        }
+                    });
+                    // 평균금액: 전체 거래금액 / 거래건수
+                    let avgDealAmount = filteredItems.length > 0 ? totalDealAmount / filteredItems.length : 0;
+                    // 평균단가: 전체 거래금액 / 전체 건물면적(평)
+                    let avgUnitPrice = totalArea > 0 ? totalDealAmount / totalArea : 0;
+
+                    // 평균금액은 한글 형식으로 변환, 평균단가는 천단위 콤마 처리
+                    let avgDealAmountFormatted = convertToKoreanAmount(avgDealAmount.toFixed(0));
+                    let avgUnitPriceFormatted = formatNumber(avgUnitPrice.toFixed(0));
+
+                    // result-amt 에 평균금액(총건수 기준) 및 평균단가(평 기준) 출력, result-count 에 건수를 출력
+                    document.getElementById("deal-result-amt").innerHTML = `평균금액/단가: ${avgDealAmountFormatted}/<span style="color: red;">@${avgUnitPriceFormatted}</span>`;
+                    document.getElementById("deal-result-count").textContent = `건수: ${filteredItems.length}`;
+
+                } // end renderDealTable()
+
+                // 층, 평형 select변경
+                $("#deal_sel_year, #deal_sel_floor, #deal_sel_area").on("change", function () {
+                    renderDealTable(allItems);
+                });
+
+                // 12. "위치가기" button click event (inside popup)
+                $("#popup-deal").on("click", ".map-btn-popup", function () {
+                    // ✅ 기존 선택된 행의 'selected' 클래스 제거 및 설정
+                    $("#popup-deal tr.selected").removeClass("selected");
+                    $(this).closest("tr").addClass("selected");
+
+                    let origIndex = $(this).data("index");
+                    let rowData = window.rowDataArray[origIndex];
+                    let mapAddress = (rowData["시군구명"] || "") + " " + (rowData["읍면동명"] || "") + " " + (rowData["지번"] || "");
+                    openDealMap(mapAddress);
+                });
+
+            }
+
+            //
+            // 거래데이타 오픈
+            function openDealMap(address) {
+                const width = 1900;
+                const height = 1280;
+                const left = (screen.width - width) / 2;
+                const top = (screen.height - height) / 2;
+                // 네이버맵 URL은 "https://map.naver.com/v5/search/" 뒤에 인코딩된 주소를 붙여서 사용합니다.
+                window.open('https://map.naver.com/v5/search/' + encodeURIComponent(address), '_blank', 'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top);
+            }
+
+            //================================================
+            // 경매 데이타 팝업목록 함수
+            async function applyAuctionPricePopupList(selectedItem) {
+                //
+                let searchTerm = "";
+                let yearRange = 2;
+                let mainCategory = "근린상가";
+                let dangiName = "";
+
+                $('#loading').show();
+                $('#noData').hide();
+                //$('#data-container-auction').hide();
+                // 경매데이타는 지역(5자리)과 동을 가지고 처리함.
+                const lawdCd = selectedLawdCd.slice(0,5);
+                const umdNm = selectedUmdNm;
+                // indexedDB auction_sanga(경매데이타-상가)에 조회및 저장
+                let allItems = [];
+                 let storeName = 'auction_sanga';
+                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                if (exists) {
+                    allItems = await getAllItems(lawdCd, umdNm, storeName);
+                    console.log("데이터가 존재합니다.", allItems);
+                } else {
+                     const data = await $.ajax({
+                        url: BASE_URL + '/api/auction',
+                        method: 'GET',
+                        data: {
+                            lawdCd: lawdCd,
+                            umdNm: umdNm,
+                            searchTerm: searchTerm,
+                            yearRange: yearRange,
+                            mainCategory: mainCategory,
+                            dangiName: dangiName
+                        },
+                        dataType: 'json',
+                        timeout: 5000
+                    });
+                    $('#loading').hide();
+                    if (data.length === 0) {
+                        $('#noData').show();
+                        $('#errorMessage').hide();
+                    } else {
+                        $('#noData').hide();
+                        $('#errorMessage').hide();
+                        $('table').show();
+                        //
+                        data.map(item => {
+                            // select설정위함
+                            item.cfloor = item.floor;
+                            item.exclusive_area_pyeong = item.building_py;
+                            //
+                            item.lawdCD = lawdCd;
+                            item.ymd = getCurrentDate();
+                            item.umdNm = umdNm;
+                            //
+                            allItems.push(item);
+                        });
+                        console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
+                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
+                    }
+                }
+                window.currentAuctionFetchedItems = allItems;
+
+                // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
+                set_rent_deal_auction_floor(allItems, 'auction');
+                // 월세, 실거래,경매 층수를 설정함(pgm_type: rent, deal, auction)
+                set_rent_deal_auction_area(allItems, 'auction');
+                //
+                renderAuctionTable(allItems); // ✅ API 데이터 가져온 후 렌더링
+
+                // 층, 평형 select변경
+                $("#auction_sel_floor, #auction_sel_area").on("change", function () {
+                    renderAuctionTable(allItems);
+                });
+
+                // 평단가금액 정렬
+                $('#sortAuctionPyeongPrice').click(function () {
+                    // 정렬
+                    const filteredItems = window.currentAuctionFetchedItems;
+                    filteredItems.sort((a, b) => {
+                        let priceA = parseFloat(a.pydanga_sale) || 0;
+                        let priceB = parseFloat(b.pydanga_sale) || 0;
+                        return sortAuctionPriceAscending ? priceA - priceB : priceB - priceA;
+                    });
+                    sortAuctionPriceAscending = !sortAuctionPriceAscending;
+                    $('#sortAuctionPyeongPrice').text(sortAuctionPriceAscending ? '평단가 ▲' : '평단가 ▼');
+                    renderAuctionTable(filteredItems);
+                });
+
+                function renderAuctionTable(allItems) {
+
+                    // 층,평형필터 처리
+                    let filteredItems = getFloorAreaFilters(allItems, 'auction');
+                    //
+                    let tableBody = $('#data-container-auction');
+                    tableBody.empty();
+                    filteredItems.forEach((item, index) => {
+                        tableBody.append(`<tr>
+                                <td class="center-align">${index + 1}</td>
+                                <td class="center-align">${item.sales_date}</td>
+                                <td class="center-align">${item.case_number}</td>
+                                <td class="center-align">${item.floor}</td>
+                                <td class="center-align">${parseFloat(item.building_py).toFixed(1)}</td>
+                                <td class="right-align">${convertToKoreanAmount(item.appraisal_price/10000)}/${convertToKoreanAmount(item.min_price/10000)}<span class="center-align">(${item.min_percent})</span></td>
+                                <td style="color: red; text-align: right;">${formatNumber(item.sale_price)}(${item.sale_percent})</td>
+                                <td style="color: red; text-align: right;">@${item.pydanga_sale}</td>
+                                <td class="center-align">
+                                  ${item.dangi_name.length > 10 ? item.dangi_name.substring(0, 10) + '...' : item.dangi_name}
+                                </td>
+                                <td class="center-align"><button class="map-btn" data-address="${item.address1}">위치가기</button></td>
+                            </tr>`);
+                    });
+
+                    // 전체 거래금액과 전체 건물면적(평) 계산
+                    let totalDealAmount = 0;
+                    let totalArea = 0;
+                    filteredItems.forEach(item => {
+                        //let amount = Number(item.sale_price.replace(/,/g, "")) / 10000;
+                        let amount = Number(item.sale_price) / 10000;
+                        totalDealAmount += amount;
+                        let area = parseFloat(item.building_py);
+                        if (!isNaN(area)) {
+                            totalArea += area;
+                        }
+                    });
+
+                    // 평균금액: 전체 거래금액 / 거래건수
+                    let avgDealAmount = filteredItems.length > 0 ? totalDealAmount / filteredItems.length : 0;
+                    // 평균단가: 전체 거래금액 / 전체 건물면적(평)
+                    let avgUnitPrice = totalArea > 0 ? totalDealAmount / totalArea : 0;
+
+                    // 평균금액은 한글 형식으로 변환, 평균단가는 천단위 콤마 처리
+                    let avgDealAmountFormatted = convertToKoreanAmount(avgDealAmount.toFixed(0));
+                    let avgUnitPriceFormatted = formatNumber(avgUnitPrice.toFixed(0));
+
+                    // result-amt 에 평균금액(총건수 기준) 및 평균단가(평 기준) 출력, result-count 에 건수를 출력
+                    document.getElementById("auction-result-amt").innerHTML = `평균금액/단가: ${avgDealAmountFormatted}/<span style="color: red;">@${avgUnitPriceFormatted}</span>`;
+                    document.getElementById("auction-result-count").textContent = `건수: ${filteredItems.length}`;
+
+                    // '지도 보기' 버튼에 이벤트 리스너 추가
+                    document.querySelectorAll('.map-btn').forEach(button => {
+                        button.addEventListener('click', function () {
+                            // ✅ 기존 선택된 행의 'selected' 클래스 제거 및 설정
+                            $("#popup-auction tr.selected").removeClass("selected");
+                            $(this).closest("tr").addClass("selected");
+
+                            let address = this.getAttribute('data-address');
+                            openAuctionMap(address);
+                        });
+                    });
+                } // end renderAuctionTable()
+            }
+
+            function openAuctionMap(address) {
+              const width = 1900;
+              const height = 1280;
+              const left = (screen.width - width) / 2;
+              const top = (screen.height - height) / 2;
+              // 네이버맵 URL은 "https://map.naver.com/v5/search/" 뒤에 인코딩된 주소를 붙여서 사용합니다.
+              window.open('https://map.naver.com/v5/search/' + encodeURIComponent(address), '_blank', 'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top);
+            }
+
+            // 월세, 실거래,경매 층수를 설정함(pgm_type: deal, auction)
+            function set_rent_deal_auction_floor(allItems, pgm_type) {
+                // sel_floor 셀렉트 박스 초기화 및 중복 없는 층수 옵션 추가
+                let selFloorElem = null;
+                if (pgm_type === 'rent') {
+                    selFloorElem = document.getElementById("rent_sel_floor");
+                } else if (pgm_type === 'deal') {
+                    selFloorElem = document.getElementById("deal_sel_floor");
+                } else {
+                    selFloorElem = document.getElementById("auction_sel_floor");
+                }
+                selFloorElem.innerHTML = '<option value="all">전체</option> <option value="low">저층</option> <option value="high">상층</option>';
+                let floorSet = new Set();
+                allItems.forEach(item => {
+                  if (item.cfloor && item.cfloor.trim() !== "") {
+                    floorSet.add(item.cfloor);
+                  }
+                });
+                let floorArray = Array.from(floorSet).sort((a, b) => a - b);
+                floorArray.forEach(floor => {
+                    const opt = document.createElement("option");
+                    opt.value = floor;
+                    opt.textContent = floor + "층";
+                    selFloorElem.appendChild(opt);
+                });
+
+                // 실거래경우에는 년식을 설정함
+                if (pgm_type === 'deal') {
+                    const selYearElem = document.getElementById("deal_sel_year");
+                    selYearElem.innerHTML = '<option value="all">전체</option>';
+                    let yearSet = new Set();
+                    allItems.forEach(item => {
+                      if (item.buildYear && item.buildYear.trim() !== "") {
+                        yearSet.add(item.buildYear);
+                      }
+                    });
+                    let yearArray = Array.from(yearSet).sort((a, b) => a - b);
+                    yearArray.forEach(year => {
+                        const opt = document.createElement("option");
+                        opt.value = year;
+                        opt.textContent = year;
+                        selYearElem.appendChild(opt);
+                    });
+                }
+            }
+
+             // 월세, 실거래,경매 층수를 설정함(pgm_type: rent, deal, auction)
+            function set_rent_deal_auction_area(allItems, pgm_type) {
+                // sel_area 셀렉트 박스 초기화 및 중복 없는 층수 옵션 추가
+                let selAreaElem = null;
+                if (pgm_type === 'rent') {
+                    selAreaElem = document.getElementById("rent_sel_area");
+                } else if (pgm_type === 'deal') {
+                    selAreaElem = document.getElementById("deal_sel_area");
+                } else {
+                    selAreaElem = document.getElementById("auction_sel_area");
+                }
+                selAreaElem.innerHTML = '<option value="all">전체</option>';
+                let areaSet = new Set();
+                allItems.forEach(item => {
+                    if (item.exclusive_area_pyeong) {
+                        let area = parseFloat(item.exclusive_area_pyeong);
+                        if (!isNaN(area)) {
+                            let areaGroup = (area < 10) ? 9 : Math.floor(area / 10) * 10;
+                            areaSet.add(areaGroup);
+                        }
+                    }
+                });
+                let areaArray = Array.from(areaSet).sort((a, b) => a - b);
+                areaArray.forEach(area => {
+                    const opt = document.createElement("option");
+                    opt.value = area;
+                    opt.textContent = area + "평";
+                    selAreaElem.appendChild(opt);
+                });
+            }
+            // 팝업상에서 바로가기처리
+            document.getElementById("map-direct-btn").addEventListener("click", function () {
+                openMap(window.selectedRentItem);
+            });
+            // 팝업상에서 바로가기처리
+            document.getElementById("map-detail-direct-btn").addEventListener("click", function () {
+                const item = window.selectedRentItem;
+                openMapNaverDetailDirect(item);
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // 월세팝업 버튼 종료 이벤트 리스너 추가
+            document.getElementById("close-btn").addEventListener("click", function () {
+              window.close(); // 팝업창이 window.open()으로 열렸을 경우에만 동작합니다.
+            });
+        });
+    </script>
+<!--    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />-->
+<!--    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>-->
+    </head>
+<body>
+<div id="detailPopup" data-link="0" style="display:block; width:99%; max-width:999px; height:99%; max-height:899px; background:#fff; border:2px solid #007bff; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.2); margin-top:10px;">
+  <!-- 헤더: 제목과 닫기 버튼 -->
+  <div class="popup-header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd;">
+    <h2 style="margin: 0; font-size: 20px;">
+        [상가]실거래/경매 데이터 검색(<span id="popup-lawName" style="color:blue;"></span>)
+    </h2>
+    <button id="close-btn" style="padding:5px 10px; background:#007bff; color:#fff; border:none; border-radius:4px; cursor:pointer;">닫기</button>
+  </div>
+  <!-- 내부 콘텐츠: flex 컨테이너 (세로배열, 비율 5:3:2) -->
+  <div class="popup-content" style="display:flex; flex-direction:column; height:95%;">
+    <!-- 실거래조회 섹션 (flex:5) - 제공된 기존 코드를 참조 -->
+    <div id="popup-deal" style="flex:5; overflow:auto; border-bottom:1px solid #ccc; padding:1px;">
+        <div id="search-container-deal" style="position:relative; padding:3px; background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:1px; text-align:left;">
+            <div class="filter-group" style="display:flex; justify-content:left; align-items:center;">
+                <label style="margin-right:5px; color: blue;">실거래조회=&gt;</label>
+                <label for="deal_sel_year" style="margin-right:5px;">년식:</label>
+                <select id="deal_sel_year" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="all">전체</option>
+                </select>
+                <label for="deal_sel_floor" style="margin-right:5px;">층수:</label>
+                <select id="deal_sel_floor" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="all">전체</option>
+                    <!-- 동적 옵션 추가 -->
+                </select>
+                <label for="deal_sel_area" style="margin-right:5px;">평형:</label>
+                <select id="deal_sel_area" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="all">전체</option>
+                </select>
+                <span id="deal-result-amt" style="margin-left:10px;">평균단가/금액: 0/0</span>
+                <span id="deal-result-count" style="margin-left:10px;">건수: 0</span>
+                <!-- 평형분석 버튼: Header 오른쪽에 배치 -->
+                <button id="real-pyeng-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">평형분석</button>
+            </div>
+        </div>
+        <div id="header-container-deal" style="overflow-y:auto; max-height:300px;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead style="position:sticky; top:0; background:#f2f2f2; z-index:10;">
+                    <tr style="border:none;">
+                        <th style="flex:0.5;">순번</th>
+                        <th style="flex:1.5;">거래일자</th>
+                        <th style="flex:1;">건축년도</th>
+                        <th style="flex:1;">층</th>
+                        <th style="flex:1.5;">건물면적(평)</th>
+                        <th style="flex:1.5;">거래금액</th>
+                        <th style="flex:1.5;" id="sortPyeongPrice">평단가 ▲</th>
+                        <th style="flex:1.5;">건물용도</th>
+                        <th style="flex:1;">지도</th>
+                    </tr>
+                </thead>
+                <!-- 실거래 데이터 행들 (동적 생성) -->
+                <tbody id="data-container-deal"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 경매가조회 섹션 (flex:5) - 제공된 기존 코드를 참조 -->
+    <div id="popup-auction" style="flex:5; overflow:auto; padding:1px;">
+        <div id="search-container-auction" style="position:relative; padding:3px; background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:1px; text-align:left;">
+            <div class="filter-group" style="display:flex; justify-content:left; align-items:center;">
+                <label style="margin-right:5px; color: red;">경매데이타=&gt;</label>
+                <label for="auction_sel_floor" style="margin-right:5px;">층수:</label>
+                <select id="auction_sel_floor" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="all">전체</option>
+                    <!-- 동적 옵션 추가 -->
+                </select>
+                <label for="auction_sel_area" style="margin-right:5px;">평형:</label>
+                <select id="auction_sel_area" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="all">전체</option>
+                </select>
+                <span id="auction-result-amt" style="margin-left:10px;">평균단가/금액: 0/0</span>
+                <span id="auction-result-count" style="margin-left:10px; margin-right: 90px;">건수: 0</span>
+            </div>
+        </div>
+        <div id="header-container-auction" style="overflow-y:auto; max-height:290px;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead style="position:sticky; top:0; background:#f2f2f2; z-index:10;">
+                    <tr style="border:none;">
+                        <th style="flex:0.5;">순번</th>
+                        <th style="flex:1.5; text-align:center;" id="sortSalesDate">매각일자</th>
+                        <th style="flex:1.5; text-align:center;">사건번호</th>
+                        <th style="flex:1.5; text-align:center;">층</th>
+                        <th style="flex:1.5; text-align:center;">건물평수</th>
+                        <th style="flex:1.5; text-align:center;">감정/최저금액</th>
+                        <th style="flex:1.5; text-align:center;" id="sortPrice">매각금액</th>
+                        <th style="flex:1; text-align:center;" id="sortAuctionPyeongPrice">평단가 ▲</th>
+                        <th style="flex:1.5; text-align:center;">건물명</th>
+                        <th style="flex:1; text-align:center;">지도</th>
+                    </tr>
+                </thead>
+                <!-- 경매 데이터 행들 (동적 생성) -->
+                <tbody id="data-container-auction"></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

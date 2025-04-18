@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "SanGa",
+  "description": "전용면적당 평단가를 구하는 크롬 확장 프로그램",
+  "version": "1.0",
+  "permissions":["activeTab", "storage"],
+  "web_accessible_resources": [
+    {
+      "resources": [
+          "img/asil.png", "img/nland.png", "config.json",
+          "realdata_main.html", "realdata_apt.html", "realdata_villa.html", "realdata_pop_key.html",
+          "realcrawling_sanga.html", "realcrawling_auction.html", "realcrawling_broker.html"
+      ],
+      "matches": ["<all_urls>"]
+    }
+	],
+  "action": {
+    "default_icon": "img/icon.png"
+  }, 
+  "content_security_policy": {
+  	"extension_pages": "script-src 'self';"
+  },
+  "content_scripts": [
+  	{
+		"matches" : [
+			"https://new.land.naver.com/*",
+			"https://m.land.naver.com/*",
+			"https://www.auction1.co.kr/*",
+			"https://www.tankauction.com/*",
+			"https://asil.kr/*",
+			"https://myfranchise.kr/map"
+		],
+		"js": [
+			"contents_yana.js",
+            "comm/address_autocomplete.js",
+            "comm/common.js",
+            "comm/realdata_main.js",
+            "comm/realdata_pop_key.js",
+            "comm/realdata_apt.js",
+            "comm/realdata_villa.js",
+            "comm/realdata_sanga.js",
+            "comm/realcrawling_sanga.js",
+            "comm/realcrawling_auction.js",
+            "comm/realcrawling_broker.js"
+        ]
+	}
+  ],
+  "background": {
+	"service_worker": "background.js"
+  }
+}

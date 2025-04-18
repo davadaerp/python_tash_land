@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "tash",
+  "description": "부동산 부자를 만들어 주는 크롬 확장 프로그램",
+  "version": "1.0",
+  "permissions":[
+      "activeTab",
+      "storage",
+      "history"
+  ],
+  "host_permissions": [
+    "https://erp-dev.bacchuserp.com/"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["/img/asil.png", "/img/nland.png", "config.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_popup": "/login/popup.html",
+    "default_icon": "/img/icon.png"
+  }, 
+  "content_security_policy": {
+  	"extension_pages": "script-src 'self';frame-src https://erp-dev.bacchuserp.com;"
+  },
+  "content_scripts": [
+  	{
+		"matches" : [
+			"https://new.land.naver.com/*",
+			"https://m.land.naver.com/*",
+			"https://www.auction1.co.kr/*",
+			"https://www.tankauction.com/*",
+			"https://asil.kr/*",
+			"https://myfranchise.kr/map"
+		],
+		"js": [
+            "/libs/jquery-3.6.4.min.js",
+            "/login/popup.js",
+			"contents_yana.js"
+        ],
+       "run_at": "document_idle",
+       "type": "module"
+	}
+  ],
+  "background": {
+	"service_worker": "background.js"
+  }
+}

@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>상가매물 데이터 검색</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.min.css">
+    <style>
+        /* 전체 페이지 중앙 정렬 */
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          min-height: 100vh;
+          background-color: #f9f9f9;
+        }
+        h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        /* 검색 컨테이너 스타일 */
+        .search-container {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            width: 90%;
+            max-width: 1200px;
+            margin-top: 10px; /* 상단 여백 추가 */
+        }
+        .search-input-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            position: relative; /* 부모 요소를 relative로 설정: 자동완성시 입력필드 바로아래 오게함.. 중요 */
+        }
+        .search-input-group input {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        #locatadd_nm {
+          flex: 7;
+        }
+        #aptNm {
+          flex: 3;
+        }
+        #suggestions {
+            width: calc(100% - 10px);
+            font-family: inherit;
+            font-size: inherit;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            position: absolute;
+            top: 100%; /* 입력 필드 바로 아래 */
+            left: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #suggestions li {
+          padding: 8px;
+          cursor: pointer;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        #suggestions li:hover {
+          background-color: #f0f8ff;
+        }
+        #suggestions li.selected {
+          background-color: #007bff;
+          color: #fff;
+        }
+        .filter-group {
+          display: flex;
+          gap: 15px;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        .filter-group label {
+          font-weight: bold;
+        }
+        .filter-group select {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        /*select, input {*/
+        /*    padding: 10px;*/
+        /*    border: 1px solid #ddd;*/
+        /*    border-radius: 4px;*/
+        /*    font-size: 14px;*/
+        /*}*/
+        .search-btn {
+            padding: 8px 8px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .search-btn:hover {
+            background-color: #0056b3;
+        }
+        #profit {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          width: 30px; /* mhouseNm의 너비가 약 300px인 경우 1/3 정도 */
+          text-align: center;
+        }
+        /* result-count 를 년도와 비슷하게 스타일 적용 */
+        #result-count {
+          font-weight: bold;
+          padding: 5px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          background-color: #fff;
+          margin-left: auto;
+        }
+        /* result-count 를 년도와 비슷하게 스타일 적용 */
+        #result-amt {
+          font-weight: bold;
+          padding: 5px;
+          background-color: #fff;
+          margin-left: auto;
+        }
+        /* 테이블 컨테이너 */
+        .table-container {
+            width: 90%;
+            max-width: 1300px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            padding: 10px;
+            margin-top: 15px; /* 검색창 아래 위치 */
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .highlight { color: red; font-weight: bold; }
+        .right-align { text-align: right; }
+        .center-align { text-align: center; }
+
+        /* 메시지 중앙 정렬 */
+        .no-data-message, .loading-message {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 50px auto;
+        }
+        /* 상세 정보 팝업 */
+        #detailPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: #fff;
+            padding: 20px;
+            width: 400px;
+            height: 700px;
+            border-radius: 8px;
+            overflow-y: auto;
+            border: 2px solid #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #detailPopup .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+        }
+
+         /* CSS: 커스텀 드롭다운 스타일 (기존 코드와 동일) */
+        .custom-dropdown {
+            position: relative;
+            display: inline-block;
+            width: 90px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+            padding: 8px;
+            user-select: none;
+        }
+        .custom-dropdown .selected-option {
+            /* 선택된 값이 보이는 영역 */
+        }
+        .custom-dropdown .options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-top: none;
+            background-color: #fff;
+            z-index: 1000;
+        }
+        .custom-dropdown .option {
+            padding: 8px;
+        }
+        .custom-dropdown .option:hover {
+            background-color: #f0f8ff;
+        }
+
+
+    </style>
+    <script src="../static/js/address_autocomplete.js"></script>
+    <script src="../static/js/common.js"></script>
+    <script>
+        //
+        let selectedLawdCd = "";
+        let selectedUmdNm = "";
+        let selectedIndex = -1;
+        window.allFetchedItems = [];
+
+        $(document).ready(function() {
+
+            // 단지명 검색 이벤트 처리
+            // document.addEventListener("DOMContentLoaded", function() {
+            //     document.getElementById("aptNm").addEventListener("keydown", applyFilters);
+            // });
+            // 단지명 검색 이벤트 처리 - 적용 위치 변경
+            //$("#aptNm").on("keydown", applyFilters);
+            $("#trade_type").on("change", applyFilters);
+            $("#category").on("change", applyFilters);
+            $("#pyeon").on("change", applyFilters);
+            $("#sel_floor").on("change", applyFilters);
+            $("#profit").on("keyup", applyFilters);
+
+            //
+            // document.addEventListener("DOMContentLoaded", function() {
+            //     document.getElementById("trade_type").addEventListener("change", function() {
+            //         alert('xxxxx');
+            //         applyFilters();
+            //     });
+            //     // document.getElementById("sale_month").addEventListener("change", applyFilters);
+            //     // document.getElementById("pyeon").addEventListener("change", applyFilters);
+            // });
+
+            let sortTradeAscending = true;
+            let sortCategoryAscending = true;
+            let sortFloorAscending = true;
+            let sortBuildingAreaAscending = true;
+            let sortPriceAscending = true;
+
+            // "매매,월세" 정렬
+            $('#sortTrade').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let buildingA = a.trade_type ? a.trade_type.toString() : ""; // 문자열 변환 및 예외 처리
+                    let buildingB = b.trade_type ? b.trade_type.toString() : "";
+
+                    return sortTradeAscending
+                        ? buildingA.localeCompare(buildingB, 'ko-KR')
+                        : buildingB.localeCompare(buildingA, 'ko-KR');
+                });
+                sortTradeAscending = !sortTradeAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // 물건구분(일반상가,복합상가,사무실등) 정렬
+            $('#sortCategory').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let buildingA = parseInt(a.article_name) || 0;
+                    let buildingB = parseInt(b.article_name) || 0;
+                    return sortCategoryAscending ? buildingA - buildingB : buildingB - buildingA;
+                });
+                sortCategoryAscending = !sortCategoryAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // "층" 정렬
+            $('#sortFloor').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let buildingA = parseInt(a.cfloor) || 0;
+                    let buildingB = parseInt(b.cfloor) || 0;
+                    return sortFloorAscending ? buildingA - buildingB : buildingB - buildingA;
+                });
+                sortFloorAscending = !sortFloorAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // 건물평수 정렬
+            $('#sortBuildingArea').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let areaA = parseFloat(a.exclusive_area_pyeong) || 0;
+                    let areaB = parseFloat(b.exclusive_area_pyeong) || 0;
+                    return sortBuildingAreaAscending ? areaA - areaB : areaB - areaA;
+                });
+                sortBuildingAreaAscending = !sortBuildingAreaAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // 매각금액 정렬
+            $('#sortPrice').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let priceA = parseFloat(a.sortSalePrice) || 0;
+                    let priceB = parseFloat(b.sortSalePrice) || 0;
+                    return sortPriceAscending ? priceA - priceB : priceB - priceA;
+                });
+                sortPriceAscending = !sortPriceAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // 평단가금액 정렬
+            $('#sortPyeongPrice').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let priceA = parseFloat(a.sortPyeongPrice) || 0;
+                    let priceB = parseFloat(b.sortPyeongPrice) || 0;
+                    return sortPriceAscending ? priceA - priceB : priceB - priceA;
+                });
+                sortPriceAscending = !sortPriceAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            // 추후매각금액 정렬
+            $('#sortProfitPrice').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let priceA = parseFloat(a.sortProfitSalePrice) || 0;
+                    let priceB = parseFloat(b.sortProfitSalePrice) || 0;
+                    return sortPriceAscending ? priceA - priceB : priceB - priceA;
+                });
+                sortPriceAscending = !sortPriceAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
+            sortPyeongPrice
+
+            function updateSortIcons() {
+                $('#sortTrade').text(sortTradeAscending ? '거래유형 ▲' : '거래유형 ▼');
+                $('#sortCategory').text(sortCategoryAscending ? '물건구분 ▲' : '물건구분 ▼');
+                $('#sortFloor').text(sortFloorAscending ? '층 ▲' : '층 ▼');
+                $('#sortBuildingArea').text(sortBuildingAreaAscending ? '전용면적(평) ▲' : '전용면적(평) ▼');
+                $('#sortPrice').text(sortPriceAscending ? '금액 ▲' : '금액 ▼');
+                $('#sortPyeongPrice').text(sortPriceAscending ? '평단가 ▲' : '평단가 ▼');
+                $('#sortProfitPrice').text(sortPriceAscending ? '수익매매가 ▲' : '수익매매가 ▼');
+            }
+
+            //===========================================
+            function getCurrentYear() {
+                return new Date().getFullYear();
+            }
+
+            function loadYears() {
+                let currentYear = getCurrentYear();
+                let yearSelect = $('#sale_year');
+                for (let i = 0; i <= 3; i++) {
+                    yearSelect.append(`<option value="${currentYear - i}">${currentYear - i}</option>`);
+                }
+            }
+
+            function formatNumber(num) {
+                return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+
+
+            function fetchData() {
+                //
+                document.getElementById("result-amt").textContent = "평균금액/단가: 0/0";
+                document.getElementById("result-count").textContent = "건수: 0건";
+                document.getElementById("aptNm").value = "";
+
+                let searchTerm = $('#locatadd_nm').val();
+                let trade_type = $('#trade_type').val();
+                let saleYear = $('#sale_year').val();
+                let saleMonth = $('#sale_month').val();
+                let category = $('#category').val();
+                let dangiName = $('#aptNm').val();
+
+                $('#loading').show();
+                $('#noData').hide();
+                $('table').hide();
+
+                $.ajax({
+                    url: 'http://192.168.45.167:5002/api/data',
+                    method: 'GET',
+                    data: {
+                        lawdCd: selectedLawdCd,
+                        umdNm: selectedUmdNm,
+                        searchTerm: searchTerm,
+                        trade_type: trade_type,
+                        saleYear: saleYear,
+                        saleMonth: saleMonth,
+                        category: category,
+                        dangiName: dangiName
+                    },
+                    dataType: 'json',
+                    timeout: 5000,  // 5초 타임아웃 설정
+                    beforeSend: function () {
+                        $('#loading').show();
+                        $('#noData').hide();
+                        $('#errorMessage').hide();  // 에러 메시지 초기화
+                        $('table').hide();
+                    },
+                    success: function (data) {
+                        $('#loading').hide();
+                        if (data.length === 0) {
+                            $('#noData').show();
+                            $('#errorMessage').hide(); // 오류 메시지가 보이지 않도록 설정
+                        } else {
+                            $('#noData').hide();
+                            $('#errorMessage').hide();
+                            $('table').show();
+                            window.allFetchedItems = data;
+                            window.currentFilteredItems = data;
+                            renderTable(data);
+                            // 층수세팅
+                            set_floor(data);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        $('#loading').hide();
+                        if (status === "timeout") {
+                            $('#errorMessage').text("서버 응답이 없습니다. 서버가 실행 중인지 확인하세요.").show();
+                        } else {
+                            $('#errorMessage').text("데이터를 가져오는 중 오류가 발생했습니다: " + error).show();
+                        }
+                    }
+                });
+            }
+
+            // 층수를 세팅함
+           // 동적 옵션 생성: set_floor 함수 (기존과 동일하되, 옵션은 .dynamic-option 클래스로 추가)
+            function set_floor(allItems) {
+              // 데이터에서 중복 없는 층수 추출
+              let floorSet = new Set();
+              allItems.forEach(item => {
+                if (item.cfloor) {
+                  floorSet.add(item.cfloor);
+                }
+              });
+              // 정렬 (숫자인 경우 숫자순, 문자면 문자열 순)
+              let floorsArray = Array.from(floorSet).sort((a, b) => {
+                let numA = parseFloat(a);
+                let numB = parseFloat(b);
+                if(!isNaN(numA) && !isNaN(numB)) {
+                  return numA - numB;
+                }
+                return a.localeCompare(b);
+              });
+              // 기본 옵션("all", "low", "high")는 이미 있으므로 제외
+              floorsArray = floorsArray.filter(floor => (floor !== "all" && floor !== "low" && floor !== "high"));
+
+              // 옵션 목록 컨테이너 선택
+              const $optionsContainer = $("#customFloorSelect .options");
+              // 기존 동적 옵션 제거 (.dynamic-option 클래스로 구분)
+              $optionsContainer.find(".dynamic-option").remove();
+
+              // 동적 옵션 추가 (체크박스는 다중 선택 가능; 목록은 자동으로 닫지 않음)
+              floorsArray.forEach(floor => {
+                let optionHtml = `<div class="option dynamic-option">
+                  <label>
+                    <input type="checkbox" value="${floor}"> ${floor}층
+                  </label>
+                </div>`;
+                $optionsContainer.append(optionHtml);
+              });
+
+              // 동적 옵션에 대한 이벤트는 위 delegated 이벤트에서 처리됨
+            }
+
+
+            function renderTable(data) {
+                let tableBody = $('#dataBody');
+                tableBody.empty();
+                let trade_type = '';
+                data.forEach((item, index) => {
+                    trade_type = item.trade_type.replace(/\s/g, "");
+                    let salePrice = convertKoreanToNumber(item.price);
+                    let rentPrice = convertKoreanToNumber(item.rentPrc);
+                    let pyeongArea = parseFloat(item.exclusive_area_pyeong);
+                    // 매매시 해다하는 보증금/월세
+                    let saleDepositPrice = convertKoreanToNumber(item.sale_deposit_price);
+                    let saleRentPrice = convertKoreanToNumber(item.sale_rent_price);
+
+                    //console.log(trade_type,salePrice,rentPrice,pyeongArea, saleDepositPrice, saleRentPrice);
+                    // 평단가 계산(월세는 월세로, 매매는 가격으로)
+                    let pyeongPrice = 0;
+                    let priceValue = '';
+                    if (trade_type == '매매') {
+                        pyeongPrice=  (salePrice / pyeongArea) / 10000;
+                        priceValue = formatNumber(item.price);
+                    } else {
+                        pyeongPrice= (rentPrice / pyeongArea) / 10000;
+                        priceValue = formatNumber(item.price) + '/' + '<span style="color: green;">' + formatNumber(item.rentPrc) + '</span>';
+                    }
+                    // 수익율계산하기
+                    const profit = Number(document.getElementById('profit').value.replace(/[^0-9]/g, ''));
+                    let sortProfitSalePrice = 0;
+                    let profitSaleAmt = 0;
+                    let profitPercent = (profit / 100);
+                    if (profit == 6) {
+                        //profitPercent = 200;
+                    }
+                    // 수익율매매가
+                    if (trade_type == '월세') {
+                        // 보증금 3000 => 30000000
+                        let calcProfitSaleAmt = (rentPrice * 12) / profitPercent.toFixed(3);
+                        // 단위 변환: 원 → 만원 (1만원 = 10,000원)
+                        calcProfitSaleAmt = (calcProfitSaleAmt + salePrice) / 10000;
+                        // 만원 단위의 숫자를 문자열로 변환 (함수 내부에서 콤마 제거 작업을 하고 있으므로)
+                        profitSaleAmt = convertToKoreanAmount(calcProfitSaleAmt.toString());
+                    } else {
+                         // 매매추정가 = 월세 * 12 * 수익율 + 보증금
+                         let calcProfitSaleAmt = (saleRentPrice * 12) / profitPercent.toFixed(3);
+                         let compProfitSaleAmt = calcProfitSaleAmt + saleDepositPrice;
+
+                        // 단위 변환: 원 → 만원 (1만원 = 10,000원)
+                        calcProfitSaleAmt = compProfitSaleAmt / 10000;
+                        sortProfitSalePrice = calcProfitSaleAmt;
+
+                        // 나온매물과 추정매매가 비교처리
+                        if (compProfitSaleAmt > salePrice) {
+                            // 만원 단위의 숫자를 문자열로 변환 (함수 내부에서 콤마 제거 작업을 하고 있으므로)
+                            profitSaleAmt = '<span style="color: red; font-weight: bold;">' + convertToKoreanAmount(calcProfitSaleAmt.toString()) + '</span>';
+                        } else {
+                            // 만원 단위의 숫자를 문자열로 변환 (함수 내부에서 콤마 제거 작업을 하고 있으므로)
+                            profitSaleAmt = convertToKoreanAmount(calcProfitSaleAmt.toString());
+                        }
+                    }
+                    // 소트용 가격금액, 추정매각금액, 평단가속성으로 item 객체에 저장
+                    item.sortSalePrice = salePrice;
+                    item.sortProfitSalePrice = sortProfitSalePrice;
+                    item.sortPyeongPrice = pyeongPrice;
+
+                    //console.log(pyeongAmt, pyeongArea, pyeongPrice)
+                    tableBody.append(`<tr>
+                        <td class="center-align">${item.confirm_date_str}</td>
+                        <!--
+                            <td class="center-align">${item.article_no}</td>
+                        -->
+                        <td class="center-align">${trade_type}</td>
+                        <td class="center-align">${item.article_name}</td>
+                        <td class="center-align">${item.cfloor}</td>
+                        <td class="center-align">${item.tfloor}</td>
+                        <td class="right-align">${item.direction}</td>
+                        <td class="center-align">${item.area2}</td>
+                        <td class="center-align">${item.exclusive_area_pyeong}</td>
+                        <td class="right-align" style="color: blue;">${priceValue}</td>
+                        <td class="right-align" style="color: red;">@${trade_type == '매매' ? formatNumber(pyeongPrice.toFixed(0)) + '만' : formatNumber(pyeongPrice.toFixed(1)) + '만'}</td>
+                        <td class="center-align" style="color: green;">${trade_type == '매매' ? item.sale_deposit_price + '/' + item.sale_rent_price : 0} </td>
+                        <td class="center-align" style="color: blue;">${profitSaleAmt}</td>
+                        <!--
+                        <td class="center-align">
+                          ${item.realtor_name.length > 13 ? item.realtor_name.substring(0, 13) + '...' : item.realtor_name}
+                        </td>
+                        -->
+                        <td class="center-align"><button class="detail-btn" data-link="${index}">상세링크</button></td>
+                        <td><button class="map-btn" data-map="${index}">위치</button></td>
+                    </tr>`);
+                });
+
+                // 전체 거래금액과 전체 건물면적(평) 계산
+                let totalDealAmount = 0;
+                let totalArea = 0;
+                let totalPyeongPrice = 0;
+                data.forEach(item => {
+                    // let amount = Number(item.가격.replace(/,/g, "")) / 10000;
+                    let amount = convertKoreanToNumber(item.price) / 10000;
+                    totalDealAmount += amount;
+                    let area = parseFloat(item.exclusive_area_pyeong);
+                    if (!isNaN(area)) {
+                        totalArea += area;
+                    }
+                    // 월세 평단가 누적
+                    totalPyeongPrice += item.sortPyeongPrice;
+                });
+
+                // 평균금액: 전체 거래금액 / 거래건수
+                let avgDealAmount = data.length > 0 ? totalDealAmount / data.length : 0;
+
+                // 매매평균단가: 전체 거래금액 / 전체 건물면적(평), 월세평균단가
+                let avgUnitPrice= totalPyeongPrice / data.length;
+                /*
+                if (trade_type == '매매') {
+                    //avgUnitPrice = totalArea > 0 ? totalDealAmount / totalArea : 0;
+                    avgUnitPrice = totalPyeongPrice / data.length;
+                } else {
+                    avgUnitPrice = totalPyeongPrice / data.length;
+                }
+                 */
+                // 평균금액은 한글 형식으로 변환, 평균단가는 천단위 콤마 처리
+                let avgDealAmountFormatted = convertToKoreanAmount(avgDealAmount.toFixed(0));
+                let avgUnitPriceFormatted = trade_type == '매매' ? formatNumber(avgUnitPrice.toFixed(0)) : formatNumber(avgUnitPrice.toFixed(1));
+
+                // result-amt 에 평균금액(총건수 기준) 및 평균단가(평 기준) 출력, result-count 에 건수를 출력
+                document.getElementById("result-amt").innerHTML = `평균금액/단가: ${avgDealAmountFormatted}/<span style="color: red;">@${avgUnitPriceFormatted}</span>`;
+                document.getElementById("result-count").textContent = `건수: ${data.length}`;
+
+                // 매물상세 보기 버튼 이벤트 리스너 추가
+                document.querySelectorAll('.detail-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        let index = this.getAttribute('data-link');
+                        openDetailPopup(data[index]); // 인덱스도 함께 전달
+                    });
+                });
+
+                // '지도 보기' 버튼에 이벤트 리스너 추가
+                document.querySelectorAll('.map-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        let index = this.getAttribute('data-map');
+                        openMap(data[index]);
+                    });
+                });
+            }
+
+            // 상세 보기 버튼 종료 이벤트 리스너 추가
+            document.querySelectorAll('.close-btn').forEach(button => {
+                button.addEventListener('click', function () {
+                    $('#detailPopup').hide();
+                });
+            });
+
+            function openDetailPopup(item) {
+                const article_no = item.article_no;
+                var url = "https://fin.land.naver.com/articles/" + article_no;
+                var width = 900;
+                var height = 1200;
+
+                // 화면의 중앙 좌표 계산
+                var left = (window.innerWidth - width) / 2 + window.screenX;
+                var top = (window.innerHeight - height) / 2 + window.screenY;
+
+                // 새 창 열기 (팝업 창)
+                var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+                // 포커스 이동
+                if (popupWindow) {
+                    popupWindow.focus();
+                }
+            }
+
+            function openMap(item) {
+                const article_no = item.article_no;
+                var url = "https://m.land.naver.com/near/article/" + article_no + "?poi=SCHOOLPOI";
+                var width = 1400;
+                var height = 1200;
+
+                // 화면의 중앙 좌표 계산
+                var left = (window.innerWidth - width) / 2 + window.screenX;
+                var top = (window.innerHeight - height) / 2 + window.screenY;
+
+                // 새 창 열기 (팝업 창)
+                var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+                // 포커스 이동
+                if (popupWindow) {
+                    popupWindow.focus();
+                }
+            }
+
+            //
+            // function openMap(address) {
+            //     const width = 1900;
+            //     const height = 1280;
+            //     const left = (screen.width - width) / 2;
+            //     const top = (screen.height - height) / 2;
+            //     // 네이버맵 URL은 "https://map.naver.com/v5/search/" 뒤에 인코딩된 주소를 붙여서 사용합니다.
+            //     window.open('https://map.naver.com/v5/search/' + encodeURIComponent(address), '_blank', 'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top);
+            // }
+
+            // 검색 버튼 클릭 이벤트 수정 (입력 체크 추가)
+            $('#search-btn').click(function () {
+                let searchTerm = $('#locatadd_nm').val().trim(); // 검색어 가져오기
+                if (!searchTerm) { // 검색어가 없을 경우 경고 메시지
+                    alert("법정동명을 입력하세요.");
+                    $('#locatadd_nm').focus(); // 입력란에 포커스 이동
+                    return;
+                }
+                fetchData(); // 검색어가 존재하면 데이터 검색 실행
+            });
+            //
+            loadYears();
+
+            //=========================================================
+            // 조건선택 목록 처리
+            function applyFilters() {
+              let trade_type = document.getElementById("trade_type").value;
+              let category = document.getElementById("category").value;
+              let selYear = document.getElementById("sale_year").value;
+              let selPyeon = document.getElementById("pyeon").value;
+
+              let filteredItems = window.allFetchedItems.filter(item => {
+                let ok = true;
+
+                if(trade_type !== "all") {
+                  ok = ok && item.trade_type && item.trade_type.includes(trade_type.trim());
+                }
+                if(category !== "all") {
+                  ok = ok && item.article_name && item.article_name.includes(category.trim());
+                }
+                if(selPyeon !== "all") {
+                  let p = parseFloat(item.exclusive_area_pyeong).toFixed(0);
+                  if(isNaN(p)) return false;
+                  if(selPyeon === "9") {
+                    ok = ok && (p >= 1 && p < 10);
+                  } else if(selPyeon === "10") {
+                    ok = ok && (p >= 10 && p < 20);
+                  } else if(selPyeon === "20") {
+                    ok = ok && (p >= 20 && p < 30);
+                  } else if(selPyeon === "30") {
+                    ok = ok && (p >= 30 && p < 40);
+                  } else if(selPyeon === "40") {
+                    ok = ok && (p >= 40 && p < 50);
+                  } else if(selPyeon === "50") {
+                    ok = ok && (p >= 50 && p < 70);
+                  } else if(selPyeon === "70") {
+                    ok = ok && (p >= 70 && p < 100);
+                  } else if(selPyeon === "100") {
+                    ok = ok && (p >= 100);
+                  }
+                }
+
+                // 층수 필터링: 동적 옵션(기본 옵션 제외)에서 선택된 값 기준
+                let selectedFloors = $("#customFloorSelect .options input[type='checkbox']")
+                                      .filter(":checked")
+                                      .map(function() { return $(this).val(); })
+                                      .get();
+                console.log("Selected Floors:", selectedFloors);
+                if(selectedFloors.length > 0) {
+                  let p = item.cfloor ? item.cfloor.toString().trim() : "";
+                  let condition = false;
+                  selectedFloors.forEach(function(sel) {
+                    if (sel === "low") {
+                      // "low"는 B1, B2, 또는 숫자 1, 2로 처리
+                      if(p === "B1" || p === "B2" || (!isNaN(p) && parseInt(p) >= 1 && parseInt(p) <= 2)) {
+                        condition = true;
+                      }
+                    } else if (sel === "high") {
+                        condition = true;
+                    } else {
+                      // 그 외는 직접 비교
+                      if(p === sel) {
+                        condition = true;
+                      }
+                    }
+                  });
+                  ok = ok && condition;
+                }
+                return ok;
+              });
+
+              renderTable(filteredItems);
+              window.currentFilteredItems = filteredItems;
+            }
+
+
+        function openProfitPopup() {
+            let popup = window.open("sanga_profit_sheet.html", "profitPopup",
+                "resizable=yes, scrollbars=yes, menubar=no, location=no, toolbar=no");
+
+            if (popup) {
+                popup.onload = function() {
+                    let width = popup.document.documentElement.scrollWidth-300;
+                    let height = popup.document.documentElement.scrollHeight-390;
+
+                    // 팝업을 현재 화면의 중앙에 배치
+                    let left = window.screenX + (window.innerWidth - width) / 2;
+                    let top = window.screenY + (window.innerHeight - height) / 2;
+
+                    popup.resizeTo(width, height);
+                    popup.moveTo(left, top);
+                };
+            } else {
+                alert("팝업이 차단되었습니다. 팝업 차단을 해제해주세요.");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById("profit-link").addEventListener("click", openProfitPopup);
+
+            // 수익율처리 프로세스
+            const profitInput = document.getElementById("profit");
+            // 포커스 시 "%" 제거
+            profitInput.addEventListener("focus", function() {
+                if (this.value.endsWith('%')) {
+                  this.value = this.value.slice(0, -1);
+                }
+            });
+            // 블러(포커스 아웃) 시 숫자 뒤에 "%" 추가 (값이 있을 경우)
+            profitInput.addEventListener("blur", function() {
+                if (this.value && !this.value.endsWith('%')) {
+                  this.value += '%';
+                }
+            });
+            // 입력 시 숫자 외의 문자 제거
+            profitInput.addEventListener("input", function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+        });
+
+        // 드롭다운 토글: 선택영역 클릭 시 옵션 목록 토글
+       // jQuery: 드롭다운 동작 및 이벤트 처리
+          // 선택 영역 클릭 시 옵션 목록 토글
+          $("#customFloorSelect .selected-option").on("click", function(e) {
+            $("#customFloorSelect .options").toggle();
+            e.stopPropagation();
+          });
+
+          // 문서 외부 클릭 시 옵션 목록 닫고 applyFilters() 실행
+          $(document).on("click", function() {
+            $("#customFloorSelect .options").hide();
+            applyFilters();
+          });
+
+            // 옵션 변경 이벤트 (delegated 이벤트)
+        $("#customFloorSelect .options").on("change", "input[type='checkbox']", function(e) {
+          let val = $(this).val();
+          if (val === "all" || val === "low" || val === "high") {
+            // 기본 옵션 선택 시: 해당 옵션만 체크하고 다른 기본/동적 옵션은 모두 unchecked
+            $("#customFloorSelect .options input[type='checkbox']").each(function() {
+              if ($(this).val() === val) {
+                $(this).prop("checked", true);
+              } else {
+                $(this).prop("checked", false);
+              }
+            });
+            // 선택된 기본 옵션 텍스트 표시, 필터 적용 후 목록 닫기
+            $("#customFloorSelect .selected-option").text($(this).parent().text().trim());
+            applyFilters();
+            $("#customFloorSelect .options").hide();
+          } else {
+            // 동적 옵션 선택 시: 기본 옵션(전체, 지층, 상층)은 모두 해제
+            $("#customFloorSelect .options input[type='checkbox']")
+              .filter("[value='all'], [value='low'], [value='high']")
+              .prop("checked", false);
+            updateCustomFloorSelectionText();
+            // 동적 옵션 선택 시에는 드롭다운 목록을 닫지 않고 그대로 유지함.
+            // (목록은 문서 외부 클릭 시에만 닫힘)
+          }
+        });
+
+          // 동적 옵션 체크박스 선택 상태에 따라 선택 영역 텍스트 업데이트
+          function updateCustomFloorSelectionText() {
+            let selected = [];
+            // 기본 옵션은 제외하고 동적 옵션만 선택된 항목 수집
+            $("#customFloorSelect .options input[type='checkbox']").not("[value='all'], [value='low'], [value='high']")
+              .each(function() {
+                if($(this).prop("checked")) {
+                  selected.push($(this).parent().text().trim());
+                }
+              });
+            if(selected.length === 0) {
+              $("#customFloorSelect .selected-option").text("전체");
+            } else {
+              $("#customFloorSelect .selected-option").text(selected.join(", "));
+            }
+          }
+        });
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    </head>
+<body>
+<h2>상가매물 데이터 검색(<span id="profit-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">수익율표)</span>
+    <input type="hidden" id="api-link">
+    </h2>
+    <div class="search-container">
+        <div class="search-input-group">
+            <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
+            <ul id="suggestions"></ul>
+            <input type="text" id="aptNm" placeholder="단지명을 입력하세요">
+        </div>
+        <div class="filter-group">
+            <label for="trade_type">거래유형:</label>
+            <select id="trade_type">
+                <option value="">전체</option>
+                <option value="매매">매매</option>
+                <option value="월세">월세</option>
+            </select>
+            <label for="category">물건구분:</label>
+            <select id="category">
+                <option value="">전체</option>
+                <option value="일반상가">일반상가</option>
+                <option value="복합상가">복합상가</option>
+                <option value="단지내상가">단지내상가</option>
+                <option value="사무실">사무실</option>
+            </select>
+            <label for="sale_year">년:</label>
+            <select id="sale_year">
+                <option value="">전체</option>
+            </select>
+            <!--
+            <label for="sale_month">월:</label>
+            <select id="sale_month">
+                <option value="">전체</option>
+                <option value="01">1월</option>
+                <option value="02">2월</option>
+                <option value="03">3월</option>
+                <option value="04">4월</option>
+                <option value="05">5월</option>
+                <option value="06">6월</option>
+                <option value="07">7월</option>
+                <option value="08">8월</option>
+                <option value="09">9월</option>
+                <option value="10">10월</option>
+                <option value="11">11월</option>
+                <option value="12">12월</option>
+            </select>
+            -->
+            <label for="pyeon">평형:</label>
+            <select id="pyeon">
+                <option value="all">전체</option>
+                <option value="9">9평대</option>
+                <option value="10">10평대</option>
+                <option value="20">20평대</option>
+                <option value="30">30평대</option>
+                <option value="40">40평대</option>
+                <option value="50">50평대</option>
+                <option value="70">70평대</option>
+                <option value="100">100평대</option>
+                <option value="00">기타</option>
+            </select>
+            <!-- 층수 -->
+            <!-- HTML: 커스텀 드롭다운 (층 선택) -->
+            <label for="customFloorSelect">층수:</label>
+            <div id="customFloorSelect" class="custom-dropdown">
+              <div class="selected-option">전체</div>
+              <div class="options" style="display: none;">
+                <!-- 기본 옵션: 단일 선택 (클릭 시 즉시 적용) -->
+                <div class="option">
+                  <label>
+                    <input type="checkbox" value="all" checked> 전체
+                  </label>
+                </div>
+                <div class="option">
+                  <label>
+                    <input type="checkbox" value="low"> 지층
+                  </label>
+                </div>
+                <div class="option">
+                  <label>
+                    <input type="checkbox" value="high"> 상층
+                  </label>
+                </div>
+                <!-- 동적 옵션은 set_floor()에서 .dynamic-option 클래스로 추가됨 -->
+              </div>
+            </div>
+            <!-- 수익율 -->
+            <input type="text" id="profit" value="6%" placeholder="수익율">
+            <button class="search-btn" id="search-btn">검색</button>
+            <!-- 평규단가 표시 요소 -->
+            <span id="result-amt">평균단가/금액: 0/0</span>
+            <span id="result-count" style="margin-left: auto;">건수: 0</span>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>매물일자</th>
+<!--                    <th>기사번호</th>-->
+                    <th id="sortTrade" style="cursor: pointer;">거래유형 ▼</th>
+                    <th id="sortCategory" style="cursor: pointer;">물건구분 ▼</th>
+                    <th id="sortFloor" style="cursor: pointer;">층수 ▼</th>
+                    <th>총층수</th>
+                    <th>방향</th>
+                    <th>전용면적(m2)</th>
+                    <th id="sortBuildingArea" style="cursor: pointer;">전용면적(평) ▼</th>
+                    <th id="sortPrice" style="cursor: pointer;">가격 ▼</th>
+                    <th id="sortPyeongPrice">평단가 ▼</th>
+                    <th>매매월세</th>
+                    <th id="sortProfitPrice" >수익매매가 ▼</th>
+<!--                    <th>중개사명</th>-->
+                    <th>지도</th>
+                    <th>상세</th>
+                </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+        </table>
+        <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+        <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+        <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+    </div>
+
+    <!-- 상세 정보 팝업 -->
+    <div id="detailPopup">
+        <button class="close-btn">×</button>
+        <h2>상세 정보</h2>
+        <div id="detailContent"></div>
+    </div>
+</body>
+</html>

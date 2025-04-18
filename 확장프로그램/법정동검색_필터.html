@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지역 검색 (Google-like Search Bar)</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        #search-container {
+            position: relative;
+            width: 300px;
+        }
+        #locatadd_nm {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        #suggestions li {
+            padding: 10px;
+            cursor: pointer;
+        }
+        #suggestions li.selected {
+            background-color: #f0f0f0;
+        }
+        #loading {
+            display: none;
+            color: #007bff;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>지역(법정동)검색</h1>
+
+    <div id="search-container">
+        <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
+        <ul id="suggestions"></ul>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            let selectedIndex = -1;
+
+            // Event listener for input field (search as you type)
+            $('#locatadd_nm').on('input', function() {
+                const locatadd_nm = $('#locatadd_nm').val().trim();
+
+                if (locatadd_nm) {
+                    searchRegionData(locatadd_nm, 1);  // Search as the user types (pageNo: 1)
+                } else {
+                    // Clear results if the search field is empty
+                    $('#suggestions').empty().hide();
+                }
+            });
+
+            // Function to perform AJAX request for search results
+            function searchRegionData(locatadd_nm, pageNo) {
+                $.ajax({
+                    url: 'http://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList',
+                    type: 'GET',
+                    dataType: 'xml',  // Request XML format
+                    data: {
+                        ServiceKey: 'B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==',
+                        type: 'xml',
+                        pageNo: pageNo,
+                        numOfRows: 10,  // Fetch 10 records per request
+                        flag: 'Y',
+                        locatadd_nm: locatadd_nm
+                    },
+                    success: function(response) {
+                        // Clear previous search results
+                        $('#suggestions').empty();
+
+                        // Parse the XML response
+                        const rows = $(response).find('row');
+
+                        if (rows.length > 0) {
+                            // Create a list to display search results
+                            rows.each(function(index, item) {
+                                const region_cd = $(item).find('region_cd').text() || '';
+                                const locatadd_nm = $(item).find('locatadd_nm').text() || '';
+
+                                // Only show the name in the suggestion list
+                                const listItem = $('<li></li>').text(locatadd_nm);
+                                listItem.data('region_cd', region_cd);  // Store region_cd in the list item
+
+                                // Add click event to the list item
+                                listItem.on('click', function() {
+                                    selectItem(index);
+                                });
+
+                                $('#suggestions').append(listItem);
+                            });
+
+                            $('#suggestions').show();  // Show the suggestions list
+                        } else {
+                            $('#suggestions').append('<li>검색 결과가 없습니다.</li>').show();
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        alert('오류 발생: ' + error);
+                    },
+                    complete: function() {
+                        $('#loading').hide();
+                    }
+                });
+            }
+
+            // Arrow key navigation and selection
+            $('#locatadd_nm').on('keydown', function(e) {
+                const items = $('#suggestions li');
+                if (e.key === 'ArrowDown') {
+                    if (selectedIndex < items.length - 1) {
+                        selectedIndex++;
+                        updateSelectedItem(items);
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    if (selectedIndex > 0) {
+                        selectedIndex--;
+                        updateSelectedItem(items);
+                    }
+                } else if (e.key === 'Enter') {
+                    selectItem(selectedIndex);
+                }
+            });
+
+            // Highlight selected item
+            function updateSelectedItem(items) {
+                items.removeClass('selected');
+                const selectedItem = items.eq(selectedIndex);
+                selectedItem.addClass('selected');
+            }
+
+            // Select an item
+            function selectItem(index) {
+                const items = $('#suggestions li');
+                if (index >= 0 && index < items.length) {
+                    const selectedItem = items.eq(index);
+                    const fullName = selectedItem.text();
+                    const region_cd = selectedItem.data('region_cd');
+                    const spaceIndex = fullName.lastIndexOf(' ');
+                    const name = fullName.substring(0, spaceIndex);
+                    const district = fullName.substring(spaceIndex + 1);
+
+                    //alert(fullName + ',' + spaceIndex);
+                    if (spaceIndex < 7) {
+                        alert('법정코드를 끝까지 선택해주세요.');
+                        return;
+                    }
+
+                    const formattedName = `법정코드: ${name}(${region_cd.slice(0, 5)})`;  // 경기도 김포시: 45001
+                    const formattedDistrict = `동명: ${district}`;          // 운양동
+
+                    // Set the input value to the selected item
+                    //$('#locatadd_nm').val(formattedName);
+                    $('#locatadd_nm').val(name + ' ' + district);
+
+                    // Show the formatted name and code
+                    alert(`${formattedName}\n${formattedDistrict}`);
+
+                    // Hide the suggestions after selection
+                    $('#suggestions').hide();
+                }
+            }
+
+            // Close search results when clicked outside of the input or results
+            $(document).on('click', function(event) {
+                if (!$(event.target).closest('#search-container').length) {
+                    $('#suggestions').empty().hide(); // Hide search results if clicked outside
+                }
+            });
+        });
+    </script>
+</body>
+</html>

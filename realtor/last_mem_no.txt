@@ -1,0 +1,87 @@
+{
+    "1": {
+        "sido_name": "서울특별시",
+        "last_page": 2414,
+        "timestamp": "2025-03-08 15:00:38"
+    },
+    "2": {
+        "sido_name": "경기도",
+        "last_page": 2711,
+        "timestamp": "2025-03-08 19:26:50"
+    },
+    "3": {
+        "sido_name": "인천광역시",
+        "last_page": 560,
+        "timestamp": "2025-03-08 19:27:12"
+    },
+    "4": {
+        "sido_name": "부산광역시",
+        "last_page": 673,
+        "timestamp": "2025-03-08 19:27:33"
+    },
+    "5": {
+        "sido_name": "대구광역시",
+        "last_page": 465,
+        "timestamp": "2025-03-08 19:27:47"
+    },
+    "6": {
+        "sido_name": "광주광역시",
+        "last_page": 356,
+        "timestamp": "2025-03-08 19:28:03"
+    },
+    "7": {
+        "sido_name": "대전광역시",
+        "last_page": 312,
+        "timestamp": "2025-03-08 19:28:17"
+    },
+    "8": {
+        "sido_name": "울산광역시",
+        "last_page": 203,
+        "timestamp": "2025-03-08 19:28:33"
+    },
+    "9": {
+        "sido_name": "강원특별자치도",
+        "last_page": 224,
+        "timestamp": "2025-03-08 19:28:50"
+    },
+    "10": {
+        "sido_name": "경상남도",
+        "last_page": 574,
+        "timestamp": "2025-03-08 19:29:04"
+    },
+    "11": {
+        "sido_name": "경상북도",
+        "last_page": 357,
+        "timestamp": "2025-03-08 19:29:20"
+    },
+    "12": {
+        "sido_name": "전라남도",
+        "last_page": 217,
+        "timestamp": "2025-03-08 19:29:37"
+    },
+    "13": {
+        "sido_name": "전북특별자치도",
+        "last_page": 299,
+        "timestamp": "2025-03-08 19:29:53"
+    },
+    "14": {
+        "sido_name": "충청남도",
+        "last_page": 387,
+        "timestamp": "2025-03-08 19:30:07"
+    },
+    "15": {
+        "sido_name": "충청북도",
+        "last_page": 277,
+        "timestamp": "2025-03-08 19:30:21"
+    },
+    "16": {
+        "sido_name": "세종특별자치시",
+        "last_page": 114,
+        "timestamp": "2025-03-08 19:30:36"
+    },
+    "17": {
+        "sido_name": "제주특별자치도",
+        "last_page": 184,
+        "timestamp": "2025-03-08 19:30:48"
+    }
+}

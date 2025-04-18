@@ -1,0 +1,85 @@
+<!-- main.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>키 입력 및 표시</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    h1 {
+      color: blue;
+      font-size: 30px;
+    }
+    .key-container {
+      font-size: 20px;
+      font-weight: bold;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>저장된 키:</h1>
+  <div class="key-container">상가 키: <span id="sanga-key"></span></div>
+  <div class="key-container">아파트 키: <span id="apt-key"></span></div>
+  <div class="key-container">빌라 키: <span id="villa-key"></span></div>
+
+  <button id="sanga-button">상가 키 입력/수정</button>
+  <button id="apt-button">아파트 키 입력/수정</button>
+  <button id="villa-button">빌라 키 입력/수정</button>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      function checkLocalStorage() {
+        document.getElementById("sanga-key").innerText = localStorage.getItem("sanga_key") || "미설정";
+        document.getElementById("apt-key").innerText = localStorage.getItem("apt_key") || "미설정";
+        document.getElementById("villa-key").innerText = localStorage.getItem("villa_key") || "미설정";
+      }
+
+      function openPopup(type) {
+        const popupWidth = 400; // 기존 팝업 크기 조정
+        const popupHeight = 250;
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open(`국토부키테스트_팝업.html?type=${type}`, "popupWindow", `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=no,scrollbars=no`);
+      }
+
+      function handleKeyUpdate(type) {
+        let existingKey = localStorage.getItem(`${type}_key`);
+        let typeLabel = type === "sanga" ? "상가" : type === "apt" ? "아파트" : "빌라";
+
+        if (!existingKey) {
+          if (confirm(`${typeLabel} 키가 없습니다. 등록하시겠습니까?`)) {
+            openPopup(type);
+          }
+        } else {
+          openPopup(type);
+        }
+      }
+
+      document.getElementById("sanga-button").addEventListener("click", function () {
+        handleKeyUpdate("sanga");
+      });
+      document.getElementById("apt-button").addEventListener("click", function () {
+        handleKeyUpdate("apt");
+      });
+      document.getElementById("villa-button").addEventListener("click", function () {
+        handleKeyUpdate("villa");
+      });
+
+      checkLocalStorage();
+    });
+  </script>
+</body>
+</html>

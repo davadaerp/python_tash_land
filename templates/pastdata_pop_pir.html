@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PIR 분석 결과</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h1 {
+      margin-top: 20px;
+      display: inline-block;
+      font-size: 22px; /* 원하는 폰트 크기로 조정 가능 */
+    }
+    select { margin-left: 20px; padding: 4px 8px; font-size: 14px; }
+    /* 테이블 래퍼: 화면 너비 초과시 가로 스크롤 발생 */
+    .table-wrapper {
+      margin: 20px auto;
+      width: 95%;
+      overflow-x: auto;
+    }
+    #compound-table {
+      border-collapse: collapse;
+      min-width: 800px; /* 데이터 열들이 많을 경우 최소 너비 지정 */
+      margin: 0 auto;   /* 테이블 중앙 배치 */
+    }
+    #compound-table th, #compound-table td {
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      text-align: center;
+      font-size: 14px;
+      white-space: nowrap; /* 데이터 줄 바꿈 없이 한 줄에 표시 */
+    }
+    /* 기본 헤더 셀 배경색은 옅은 파란색(#e6f7ff)로 처리 */
+    #compound-table th {
+      background-color: #f0f0f0;
+      width: 140px;
+    }
+    #compound-table tr:hover {
+      background-color: #e0f7fa;
+    }
+    tfoot td {
+      background-color: #f9f9f9;
+      font-weight: bold;
+    }
+    hr { margin: 20px 0; border: 1px solid #ddd; }
+    /* 그래프 컨테이너 스타일 */
+    #chart-container {
+      margin: 20px auto;
+      text-align: center;
+      /*height: 450px;*/
+      width: 80%;
+    }
+    /* select 스타일 (기준 선택, 그래프 타입 선택) */
+    #baseline-selector, #chart-type-selector {
+      margin-bottom: 10px;
+      padding: 4px 8px;
+      font-size: 14px;
+      margin-left: 10px;
+    }
+    /* 첫 번째 열 고정 (세로 값 표시 영역) */
+    #compound-table th:first-child,
+    #compound-table td:first-child {
+      position: sticky;
+      left: 0;
+      background-color: #fff;
+      z-index: 2;
+    }
+  </style>
+  <!-- Chart.js CDN 불러오기 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div style="text-align: center;">
+    <h1>
+      PIR분석 - {{ apt_data[0].region_name }} {{ apt_data[0].mcode_name }} {{ apt_data[0].sname }} {{ apt_data[0].apt_name }} ({{ apt_data[0].size }}㎡ / {{ (apt_data[0].size|float / 3.3)|round(2) }}평)
+    </h1>
+    <select id="year-range">
+      <option value="5">최근 5년</option>
+      <option value="10">최근 10년</option>
+      <option value="15">최근 15년</option>
+      <option value="20">20년 이상</option>
+    </select>
+  </div>
+
+  {% set sorted_data = apt_data | sort(attribute='month') %}
+  {% set base_year = sorted_data[0].month[:4] | int %}
+  {% set now_year = sorted_data[-1].month[:4] | int %}
+
+  <!-- 데이터 테이블 래퍼 -->
+  <div class="table-wrapper">
+    <table id="compound-table">
+      <tbody id="data-body">
+        <tr>
+          <th style="background-color: #f0f0f0;">년도</th>
+          {% for row in sorted_data %}
+            <td style="background-color: lightgray" data-year="{{ row.month[:4] }}">{{ row.month[:4] }}</td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <th style="background-color: #f0f0f0;">월소득 (원)</th>
+          {% for row in sorted_data %}
+            <td data-year="{{ row.month[:4] }}">{{ "{:,}".format(row.month_income) }}</td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <th style="background-color: #f0f0f0;">연소득 (만원)</th>
+          {% for row in sorted_data %}
+            <td data-year="{{ row.month[:4] }}">{{ "{:,}".format(row.year_income) }}</td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <th style="background-color: #f0f0f0;">PIR</th>
+          {% for row in sorted_data %}
+            <td class="pir" data-year="{{ row.month[:4] }}">{{ "%.2f"|format(row.pir) }}</td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <th style="background-color: #f0f0f0;">아파트 시세 (만원)</th>
+          {% for row in sorted_data %}
+            <td class="price" data-year="{{ row.month[:4] }}">{{ row.sale_high }}</td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 요약 테이블 -->
+  <!-- PIR 관련 행은 최소, 평균, 최대 옆에 "최근" 열을 추가하고, 아파트 시세 부분은 빈 셀로 맞춥니다. -->
+  <table id="summary-table" style="margin: 0 auto; border-collapse: collapse; border: 1px solid #ccc;">
+    <caption id="summary-caption" style="caption-side: top; text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 10px;"></caption>
+    <thead>
+      <tr>
+        <th style="background-color:#f0f0f0; padding: 8px 16px; width:150px; border:1px solid #ccc;">구분</th>
+        <th style="background-color:#f9f9f9; padding: 8px 16px; width:100px; border:1px solid #ccc;">최소</th>
+        <th style="background-color:#f9f9f9; padding: 8px 16px; width:100px; border:1px solid #ccc;">평균</th>
+        <th style="background-color:#f9f9f9; padding: 8px 16px; width:100px; border:1px solid #ccc;">최대</th>
+        <th style="background-color:#f9f9f9; padding: 8px 16px; width:100px; border:1px solid #ccc; border-left: 2px solid #ccc;">최근</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- PIR 데이터 -->
+      <tr>
+        <th style="background-color:#f0f0f0; border:1px solid #ccc;">PIR</th>
+        <td id="pir-min" style="text-align: center; color: red; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-avg" style="text-align: center; color: blue; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-max" style="text-align: center; color: green; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-recent" style="text-align: center; font-weight: bold; border:1px solid #ccc; border-left: 2px solid #ccc;">-</td>
+      </tr>
+      <!-- PIR 아파트시세 데이터 -->
+      <tr>
+        <th style="background-color:#f0f0f0; border:1px solid #ccc;">PIR 아파트시세</th>
+        <td id="pir-price-min" style="text-align: center; color: red; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-price-avg" style="text-align: center; color: blue; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-price-max" style="text-align: center; color: green; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-price-recent" style="text-align: center; font-weight: bold; border:1px solid #ccc; border-left: 2px solid #ccc;">-</td>
+      </tr>
+      <!-- PIR 해당년도 데이터 -->
+      <tr>
+        <th style="background-color:#f0f0f0; border:1px solid #ccc;">PIR 해당년도</th>
+        <td id="pir-min-year" style="text-align: center; color: red; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-avg-year" style="text-align: center; color: blue; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-max-year" style="text-align: center; color: green; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="pir-year-recent" style="text-align: center; font-weight: bold; border:1px solid #ccc; border-left: 2px solid #ccc;">-</td>
+      </tr>
+      <!-- 구분라인 -->
+      <tr style="height: 15px;">
+        <td colspan="5" style="padding:0; border:none;"></td>
+      </tr>
+      <!-- 아파트 시세 데이터 (최근 열은 빈 셀) -->
+      <tr>
+        <th style="background-color:#f0f0f0; border:1px solid #ccc;">아파트 시세 (만원)</th>
+        <td id="price-min" style="text-align: center; color: red; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="price-avg" style="text-align: center; color: blue; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="price-max" style="text-align: center; color: green; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td style="border:1px solid #ccc; border-left: 2px solid #ccc;"></td>
+      </tr>
+      <tr>
+        <th style="background-color:#f0f0f0; border:1px solid #ccc;">시세 해당년도</th>
+        <td id="price-min-year" style="text-align: center; color: red; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="price-avg-year" style="text-align: center; color: blue; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td id="price-max-year" style="text-align: center; color: green; font-weight: bold; border:1px solid #ccc;">-</td>
+        <td style="border:1px solid #ccc; border-left: 2px solid #ccc;"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 차트 영역 (기존 차트 관련 코드는 그대로 유지) -->
+  <div id="chart-container">
+    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+      <h2 style="margin: 0 10px 0 0;">차트</h2>
+      <!-- 기준 선택 박스 -->
+      <select id="baseline-selector">
+        <option value="pir">아파트 기준</option>
+        <option value="income">연소득 기준</option>
+      </select>
+      <!-- 차트 타입 선택 박스 -->
+      <select id="chart-type-selector">
+        <option value="mixed" selected>막대+선 그래프</option>
+        <option value="bar">막대그래프</option>
+        <option value="line">선그래프</option>
+        <option value="pie">파이그래프</option>
+      </select>
+    </div>
+    <canvas id="incomeChart" width="400" height="250"></canvas>
+  </div>
+
+  <!-- jQuery CDN -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    // 업데이트된 연소득/차트 데이터 함수 (이전 코드와 동일)
+    function updateIncomeChart() {
+      const chartType = $("#chart-type-selector").val();
+      const baseline = $("#baseline-selector").val();
+      let labels = [];
+      $("#data-body tr:nth-child(1) td:visible").each(function(){
+        labels.push($(this).text());
+      });
+
+      let datasets = [];
+      if(chartType === 'mixed') {
+        let pirData = [];
+        $("#data-body tr:nth-child(4) td:visible").each(function(){
+          pirData.push(parseFloat($(this).text()));
+        });
+        let dataset1 = {
+          label: 'PIR',
+          type: 'bar',
+          data: pirData,
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+          yAxisID: 'y'
+        };
+        let dataset2 = {};
+        if(baseline === 'pir') {
+          let priceData = [];
+          $("#data-body tr:nth-child(5) td:visible").each(function(){
+            priceData.push(parseInt($(this).text().replace(/,/g, "")));
+          });
+          dataset2 = {
+            label: '아파트 시세 (만원)',
+            type: 'line',
+            data: priceData,
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            fill: false,
+            yAxisID: 'y1'
+          };
+        } else if(baseline === 'income') {
+          let incomeData = [];
+          $("#data-body tr:nth-child(3) td:visible").each(function(){
+            incomeData.push(parseInt($(this).text().replace(/,/g, "")));
+          });
+          dataset2 = {
+            label: '연소득 (만원)',
+            type: 'line',
+            data: incomeData,
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 2,
+            fill: false,
+            yAxisID: 'y1'
+          };
+        }
+        datasets = [dataset1, dataset2];
+      } else {
+        let dataset = {};
+        if(baseline === 'pir') {
+          let priceData = [];
+          $("#data-body tr:nth-child(5) td:visible").each(function(){
+            priceData.push(parseInt($(this).text().replace(/,/g, "")));
+          });
+          dataset = {
+            label: '아파트 시세 (만원)',
+            data: priceData,
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1,
+            type: chartType
+          };
+        } else if(baseline === 'income') {
+          let incomeData = [];
+          $("#data-body tr:nth-child(3) td:visible").each(function(){
+            incomeData.push(parseInt($(this).text().replace(/,/g, "")));
+          });
+          dataset = {
+            label: '연소득 (만원)',
+            data: incomeData,
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1,
+            type: chartType
+          };
+        }
+        datasets = [dataset];
+      }
+
+      let chartOptions = {};
+      if(chartType === 'mixed') {
+         chartOptions = {
+           scales: {
+             y: {
+               beginAtZero: true,
+               position: 'left',
+               title: { display: true, text: 'PIR' }
+             },
+             y1: {
+               beginAtZero: true,
+               position: 'right',
+               grid: { drawOnChartArea: false },
+               title: { display: true, text: (baseline === 'pir') ? '아파트 시세 (만원)' : '연소득 (만원)' }
+             }
+           }
+         };
+      } else {
+         chartOptions = { scales: { y: { beginAtZero: true } } };
+      }
+
+      if (window.incomeChartInstance) { window.incomeChartInstance.destroy(); }
+      const ctx = document.getElementById('incomeChart').getContext('2d');
+      window.incomeChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: chartOptions
+      });
+    }
+
+    // 업데이트된 요약 통계 함수 (아파트 시세 처리 수정 및 최근 필드 추가)
+    function updateSummary() {
+      // PIR 통계 (기존 코드)
+      const visiblePIRs = $(".pir:visible").map((_, td) => parseFloat($(td).text())).get().filter(val => val !== 0);
+      if (visiblePIRs.length > 0) {
+        const pirMin = Math.min(...visiblePIRs);
+        const pirMax = Math.max(...visiblePIRs);
+        const pirAvg = (visiblePIRs.reduce((a, b) => a + b, 0) / visiblePIRs.length).toFixed(0);
+        $("#pir-min").text(pirMin);
+        $("#pir-avg").text(pirAvg);
+        $("#pir-max").text(pirMax);
+        let pirMinYear = '-', pirMaxYear = '-', pirAvgYear = '-';
+        $(".pir:visible").each(function(){
+          const val = parseFloat($(this).text());
+          if (val === pirMin) { pirMinYear = $(this).attr("data-year"); return false; }
+        });
+        $(".pir:visible").each(function(){
+          const val = parseFloat($(this).text());
+          if (val === pirMax) { pirMaxYear = $(this).attr("data-year"); return false; }
+        });
+        let smallestDiff = Infinity;
+        $(".pir:visible").each(function(){
+          const val = parseFloat($(this).text());
+          const diff = Math.abs(val - pirAvg);
+          if (diff < smallestDiff) { smallestDiff = diff; pirAvgYear = $(this).attr("data-year"); }
+        });
+        $("#pir-min-year").text(pirMinYear);
+        $("#pir-avg-year").text(pirAvgYear);
+        $("#pir-max-year").text(pirMaxYear);
+        // PIR 아파트시세 (기존)
+        let pirPriceMin = '-';
+        if (pirMinYear !== '-') {
+          $(".price:visible").each(function(){
+            if ($(this).attr("data-year") === pirMinYear) { pirPriceMin = $(this).text(); return false; }
+          });
+        }
+        let pirPriceAvg = '-';
+        if (pirAvgYear !== '-') {
+          $(".price:visible").each(function(){
+            if ($(this).attr("data-year") === pirAvgYear) { pirPriceAvg = $(this).text(); return false; }
+          });
+        }
+        let pirPriceMax = '-';
+        if (pirMaxYear !== '-') {
+          $(".price:visible").each(function(){
+            if ($(this).attr("data-year") === pirMaxYear) { pirPriceMax = $(this).text(); return false; }
+          });
+        }
+        $("#pir-price-min").text(pirPriceMin);
+        $("#pir-price-avg").text(pirPriceAvg);
+        $("#pir-price-max").text(pirPriceMax);
+      } else {
+        $("#pir-min, #pir-avg, #pir-max, #pir-min-year, #pir-avg-year, #pir-max-year, #pir-price-min, #pir-price-avg, #pir-price-max").text("-");
+      }
+
+      // 아파트 시세 통계 처리 (콤마 제거 후 연산, 결과 포맷)
+      const visiblePrices = $(".price:visible").map((_, td) => parseInt($(td).text().replace(/,/g, ""))).get().filter(val => val !== 0);
+      if (visiblePrices.length > 0) {
+        const priceMin = Math.min(...visiblePrices);
+        const priceMax = Math.max(...visiblePrices);
+        const priceAvg = Math.round(visiblePrices.reduce((a, b) => a + b, 0) / visiblePrices.length);
+        $("#price-min").text(priceMin.toLocaleString());
+        $("#price-avg").text(priceAvg.toLocaleString());
+        $("#price-max").text(priceMax.toLocaleString());
+        let priceMinYear = '-', priceMaxYear = '-', priceAvgYear = '-';
+        $(".price:visible").each(function(){
+          const val = parseInt($(this).text().replace(/,/g, ""));
+          if (val === priceMin) { priceMinYear = $(this).attr("data-year"); return false; }
+        });
+        $(".price:visible").each(function(){
+          const val = parseInt($(this).text().replace(/,/g, ""));
+          if (val === priceMax) { priceMaxYear = $(this).attr("data-year"); return false; }
+        });
+        let smallestDiffPrice = Infinity;
+        $(".price:visible").each(function(){
+          const val = parseInt($(this).text().replace(/,/g, ""));
+          const diff = Math.abs(val - priceAvg);
+          if (diff < smallestDiffPrice) { smallestDiffPrice = diff; priceAvgYear = $(this).attr("data-year"); }
+        });
+        $("#price-min-year").text(priceMinYear);
+        $("#price-avg-year").text(priceAvgYear);
+        $("#price-max-year").text(priceMaxYear);
+      } else {
+        $("#price-min, #price-avg, #price-max, #price-min-year, #price-avg-year, #price-max-year").text("-");
+      }
+
+      // ---------- 최근 필드 계산 (전체 원데이터 소스 기준) ----------
+      // 전체 데이터(숨겨진 열 포함)에서, PIR와 아파트 시세가 0보다 큰 가장 최근의 열을 찾습니다.
+      let recentPIR = '-';
+      let recentPrice = '-';
+      let recentYear = '-';
+      const totalCols = $("#data-body tr:nth-child(1) td").length;
+      // 전체 열을 순회 (오름차순; 가장 마지막 값이 최근)
+      $("#data-body tr:nth-child(1) td").each(function(index){
+         let tmpYear = $(this).attr("data-year");
+         let pirVal = parseFloat($("#data-body tr:nth-child(4) td").eq(index).text());
+         let priceVal = parseInt($("#data-body tr:nth-child(5) td").eq(index).text().replace(/,/g, ""));
+         if(pirVal > 0 && priceVal > 0) {
+           recentPIR = pirVal;
+           recentPrice = priceVal;
+           recentYear = tmpYear;
+         }
+      });
+      // 결과 업데이트 (최근 필드: PIR, PIR 아파트시세, PIR 해당년도)
+      $("#pir-recent").text(recentPIR);
+      $("#pir-price-recent").text((recentPrice !== '-' ? recentPrice.toLocaleString() : recentPrice));
+      $("#pir-year-recent").text(recentYear);
+    }
+
+    // 화면에 표시되는 시작년도~종료년도를 summary-caption에 업데이트하는 함수
+    function updateSummaryCaption(){
+      var visibleYears = $("#data-body tr:nth-child(1) td:visible").map(function(){
+          return $(this).text();
+      }).get();
+      if(visibleYears.length > 0){
+        var startYear = visibleYears[0];
+        var endYear = visibleYears[visibleYears.length - 1];
+        $("#summary-caption").text("(" + startYear + " ~ " + endYear + ")");
+      } else {
+        $("#summary-caption").text("");
+      }
+    }
+
+    function filterByYearRange(years) {
+      const startYear = parseInt($("td[data-year]").first().attr("data-year"));
+      $("td[data-year]").each(function () {
+        const year = parseInt($(this).data("year"));
+        let show;
+        if (years === '20') { show = true; }
+        else { show = (year >= startYear && year < startYear + parseInt(years)); }
+        const colIndex = $(this).index() + 1;
+        $(`#compound-table tr`).each(function () {
+          $(this).find("td:nth-child(" + colIndex + ")").toggle(show);
+        });
+      });
+      updateSummary();
+      updateIncomeChart();
+      updateSummaryCaption();
+    }
+
+    $(document).ready(function () {
+      $("#year-range").change(function () {
+        filterByYearRange($(this).val());
+      });
+      $("#baseline-selector, #chart-type-selector").change(function () {
+        updateIncomeChart();
+      });
+      filterByYearRange("5");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>양식다운로드</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #f8f9fa;
+      margin: 20px;
+      color: #333;
+      text-align: center;
+    }
+    h1 {
+      color: #007bff;
+      margin-bottom: 20px;
+    }
+    table {
+      width: 80%;
+      margin: 0 auto;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #dee2e6;
+      padding: 8px;  /* 패딩을 줄여 상하 마진을 감소 */
+      text-align: center;
+    }
+    th {
+      background-color: #f8f9fa;
+      font-weight: bold;
+    }
+    .download-btn {
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      background-color: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .download-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+  <script>
+    // 다운로드할 양식 정보를 배열로 정의 (form_id, form_name)
+    const forms = [
+      { form_id: 'contents', form_name: '명도확인서' },
+      { form_id: 'yieldcalc', form_name: '수익율계산기' }
+    ];
+
+    // 파일 다운로드를 처리하는 함수
+    function downloadFile(form) {
+      var url = '/api/form_down?form=' + form;
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = ''; // 서버에서 제공하는 파일명이 사용됩니다.
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // DOM이 로드되면 innerHTML을 이용해 테이블 행을 생성
+    window.onload = function() {
+      const tbody = document.getElementById('forms-table-body');
+      let rows = "";
+      forms.forEach((item, index) => {
+        rows += `<tr>
+                   <td>${index + 1}</td>
+                   <td>${item.form_name}</td>
+                   <td><button class="download-btn" onclick="downloadFile('${item.form_id}')">다운로드</button></td>
+                 </tr>`;
+      });
+      tbody.innerHTML = rows;
+    }
+  </script>
+</head>
+<body>
+  <h1>양식다운로드</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>순번</th>
+        <th>제목</th>
+        <th>다운로드</th>
+      </tr>
+    </thead>
+    <tbody id="forms-table-body">
+      <!-- 자바스크립트를 통해 행이 추가됩니다. -->
+    </tbody>
+  </table>
+</body>
+</html>

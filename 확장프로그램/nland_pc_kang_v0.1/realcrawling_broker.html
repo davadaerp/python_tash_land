@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* 전체 페이지 중앙 정렬 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 15px;
+    }
+    /* 검색 컨테이너 스타일 */
+    .search-container {
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 90%;
+      max-width: 800px;
+      margin-top: 10px;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      position: relative;
+    }
+    .search-input-group input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #locatadd_nm { flex: 7; }
+    #aptNm { flex: 3; }
+    #suggestions {
+      width: calc(100% - 10px);
+      font-family: inherit;
+      font-size: inherit;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    #suggestions li {
+      padding: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    #suggestions li:hover { background-color: #f0f8ff; }
+    #suggestions li.selected {
+      background-color: #007bff;
+      color: #fff;
+    }
+    .filter-group {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .filter-group label { font-weight: bold; }
+    .filter-group select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .search-btn, .message-btn, .excel-btn {
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    .search-btn:hover, .message-btn:hover, .excel-btn:hover {
+      background-color: #0056b3;
+    }
+    /* 헤더 컨테이너 */
+    #header-container {
+      width: 90%;
+      max-width: 950px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 5px;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 0px;
+      align-items: center;
+      gap: 5px;
+    }
+    #header-container span {
+      text-align: center;
+      padding: 0 5px;
+      flex: 1;
+      border-right: 1px solid #ddd;
+    }
+    #header-container span:last-child { border-right: none; }
+    /* 테이블 컨테이너: 화면 크기를 넘어가면 자동 스크롤 */
+    .table-container {
+      width: 90%;
+      max-width: 950px;
+      max-height: 880px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 10px;
+      margin-top: 10px;
+      overflow: auto;
+      position: relative;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+      font-size: 14px;
+    }
+    th { background-color: #f2f2f2; font-weight: bold; }
+    .highlight { color: red; font-weight: bold; }
+    .right-align { text-align: right; }
+    .left-align { text-align: left; }
+    .center-align { text-align: center; }
+    /* 메시지, 로딩, 오류 메시지 */
+    .no-data-message, .loading-message {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+      margin: 50px auto;
+    }
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+    /* 메시지 팝업: 테이블 컨테이너 내부 중앙 */
+    #message-popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      z-index: 2000;
+      width: 90%;
+      max-width: 500px;
+      padding: 20px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    /* 팝업 헤더: 제목 중앙, 위/아래 간격 10px, 건수 표시 오른쪽 */
+    .popup-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 10px 0;
+      position: relative;
+      text-align: center;
+    }
+    .popup-header h3 {
+      margin: 0;
+      flex: 1;
+    }
+    .popup-count {
+      position: absolute;
+      right: 0;
+      font-size: 14px;
+      color: #555;
+    }
+    #message-popup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    /* 선택 목록: 순번, 대표자, 휴대전화 (목록이 5개 넘으면 세로 스크롤) */
+    #selected-list-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .selected-list-header, .selected-list-item {
+      display: flex;
+      padding: 8px;
+    }
+    .selected-list-header {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .selected-list-header span,
+    .selected-list-item span {
+      text-align: center;
+      border-right: 1px solid #ddd;
+    }
+    .selected-list-header span:nth-child(1),
+    .selected-list-item span:nth-child(1) { width: 30px; } /* 순번 */
+    .selected-list-header span:nth-child(2),
+    .selected-list-item span:nth-child(2) { flex: 2; } /* 대표자 */
+    .selected-list-header span:nth-child(3),
+    .selected-list-item span:nth-child(3) { flex: 2; } /* 휴대전화 */
+    .selected-list-header span:last-child,
+    .selected-list-item span:last-child {
+      border-right: none;
+    }
+    /* 메시지 입력 영역 */
+    #message-popup textarea {
+      width: 100%;
+      height: 100px;
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    /* 첨부파일 영역 */
+    .attachment-container {
+      margin-top: 10px;
+    }
+    .attachment-container input[type="file"] {
+      display: block;
+      margin-bottom: 10px;
+    }
+    /* 썸네일 슬라이더: 메시지 팝업의 전체 너비에 맞게 100% 적용 */
+    .thumbnail-slider {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .thumbnail-list {
+      display: flex;
+      transition: transform 0.3s ease;
+    }
+    /* 각 썸네일 아이템: 기본 4개 보이도록 계산 (4개 사이 3개 간격 5px) */
+    .thumbnail-item {
+      width: calc((100% - 15px) / 4);
+      height: 80px;
+      margin-right: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .thumbnail-item:last-child { margin-right: 0; }
+    .thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    /* 슬라이더 좌우 네비 버튼 */
+    .thumb-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 25px;
+      height: 25px;
+      background-color: rgba(0,0,0,0.5);
+      color: #fff;
+      text-align: center;
+      line-height: 25px;
+      cursor: pointer;
+      border-radius: 50%;
+      user-select: none;
+      z-index: 1;
+    }
+    .thumb-nav.left { left: 5px; }
+    .thumb-nav.right { right: 5px; }
+    #message-popup button {
+      margin-top: 10px;
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    #message-popup button:hover { background-color: #0056b3; }
+    /* 이미지 팝업 (썸네일 클릭 시) */
+    #image-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      border: 5px solid #fff;
+      border-radius: 8px;
+    }
+  </style>
+  <script src="./libs/jquery-3.6.4.min.js"></script>
+  <script src="./comm/address_autocomplete.js"></script>
+  <script src="./comm/common.js"></script>
+  <script src="./comm/realcrawling_broker.js"></script>
+</head>
+<body>
+  <h2>
+    중개사 데이터 검색
+    <span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;"></span>
+  </h2>
+  <div class="search-container">
+    <div class="search-input-group">
+      <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
+      <ul id="suggestions"></ul>
+      <input type="text" id="aptNm" placeholder="단지명을 입력하세요">
+      <button class="search-btn" id="search-btn">검색</button>
+      <button class="message-btn" id="message-btn">메시지</button>
+      <!-- 엑셀 버튼을 이미지 형태로 -->
+      <button class="excel-btn" id="excel-btn">
+        <img src="excel_icon.png" alt="엑셀 저장" style="width:24px; height:24px; vertical-align: middle;">
+      </button>
+    </div>
+  </div>
+
+  <!-- 헤더 (전체 선택 체크박스 포함) -->
+  <div id="header-container">
+    <span style="flex:0.5;"><input type="checkbox" id="select-all"></span>
+    <span style="flex:0.5;">순번</span>
+    <span>제목</span>
+    <span>대표자</span>
+    <span>주소지</span>
+    <span>일반전화</span>
+    <span>휴대전화</span>
+    <span>지도</span>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <tbody id="dataBody"></tbody>
+    </table>
+    <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+    <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+    <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+
+    <!-- 메시지 팝업 (테이블 컨테이너 내부 중앙) -->
+    <div id="message-popup">
+      <span class="close-btn">&times;</span>
+      <div class="popup-header">
+        <h3>메시지보내기</h3>
+        <span class="popup-count">(0건)</span>
+      </div>
+      <!-- 선택 목록 (순번, 대표자, 휴대전화) -->
+      <div id="selected-list-container"></div>
+      <!-- 메시지 입력 영역 -->
+      <textarea id="message-content" placeholder="전송할 메시지를 입력하세요"></textarea>
+      <!-- 첨부파일 영역 -->
+      <div class="attachment-container">
+        <input type="file" id="file-input" accept="image/*" multiple>
+        <div class="thumbnail-slider">
+          <div class="thumb-nav left">&#9664;</div>
+          <div class="thumbnail-list"></div>
+          <div class="thumb-nav right">&#9654;</div>
+        </div>
+      </div>
+      <button id="send-message-btn">전송</button>
+    </div>
+  </div>
+
+  <!-- 이미지 팝업 (썸네일 클릭 시) -->
+  <div id="image-popup">
+    <img src="" alt="첨부 이미지">
+  </div>
+</body>
+</html>

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* (기존 스타일은 그대로 유지) */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      font-size: 25px;
+      margin: 10px 0;
+      color: #333;
+    }
+    h1 span {
+      color: blue;
+    }
+    /* 검색 컨테이너 */
+    .search-container {
+      margin-bottom: 5px;
+      background-color: #fff;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      width: 90%;
+      max-width: 990px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      position: relative; /* 부모 요소를 relative로 설정: 자동완성시 입력필드 바로 아래에 오게함 */
+    }
+    .search-input-group label {
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      text-align: left;
+    }
+    .search-input-group select,
+    .search-input-group input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .search-btn {
+      align-self: flex-end;
+      padding: 8px 16px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .search-btn:hover {
+      background-color: #0056b3;
+    }
+    /* 프린트 버튼 스타일 */
+    #print-btn {
+      padding: 8px 16px;
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 0px;
+    }
+    #print-btn:hover {
+      background-color: #218838;
+    }
+    .filter-group {
+      display: flex;
+      gap: 13px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .filter-group label {
+      font-weight: bold;
+    }
+    .filter-group select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #aptNm {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 60px;
+      text-align: center;
+    }
+    /* result-count, result-amt 스타일 */
+    #result-count {
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      margin-left: auto;
+    }
+    #result-amt {
+      font-weight: bold;
+      padding: 5px;
+      background-color: #fff;
+      margin-left: auto;
+    }
+    /* 헤더 컨테이너 */
+    #header-container {
+      width: 98%;
+      max-width: 1350px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 0;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 0px;
+    }
+    #header-container span {
+      flex: 1;
+      text-align: center;
+      padding: 0 4px;
+      border-right: 1px solid #ddd;
+    }
+    #header-container span:last-child {
+      border-right: none;
+    }
+    /* 데이터 테이블 컨테이너 */
+    #data-container {
+      width: 98%;
+      max-width: 1350px;
+      max-height: 980px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      margin-top: 0px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      table-layout: auto;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      font-size: 14px;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    td.amount {
+      text-align: right;
+    }
+    /* 선택된 행 스타일 */
+    #data-container tr.selected {
+      background-color: #cce5ff !important; /* 선택된 행: 연한 파란색 */
+    }
+    #data-container tr:hover {
+      background-color: #cce5ff;
+    }
+    /* 메시지 중앙 정렬 */
+    .no-data-message, .loading-message {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+      margin: 50px auto;
+    }
+    /* 상세 팝업 스타일 */
+    #detailPopup {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2000;
+    }
+    #detailPopup .popup-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 550px;
+      height: 600px;
+      position: fixed;
+      transform: translate(-50%, -50%);
+      font-size: 1.5em;
+      overflow-y: auto;
+      border: 2px solid #007bff;
+    }
+    #detailPopup .popup-content h2 {
+      margin-top: 0;
+    }
+    #detailPopup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+    }
+    /* 검색 버튼 스타일 */
+    #search-btn {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    #search-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/address_autocomplete.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script>
+    // 전역 변수: 평형 및 거래일자 정렬 토글 상태 (초기 오름차순)
+    let sortFloorAscending = false;
+    let sortPriceAscending = false;
+
+    window.addEventListener("load", function () {
+      // 초기 선택값 가져오기 (예: region의 값을 기본으로 사용)
+      categoryData('region', '01');
+      //document.getElementById('region').dispatchEvent(new Event('change'));
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+      //
+      document.getElementById("region").addEventListener("change", function () {
+         let selectedValue = document.getElementById('region').value;
+         categoryData('region', selectedValue, '');
+
+         //resetFilters();
+      });
+
+      document.getElementById("sggNm").addEventListener("change", function () {
+         let selectedRegionValue = document.getElementById('region').value;
+         let selectedValue = document.getElementById('sggNm').value;
+         categoryData('sggNm', selectedValue, selectedRegionValue);
+      });
+
+      document.getElementById("search-btn").addEventListener("click", function () {
+        fetchData();
+      });
+
+      // 단지명 검색
+      document.getElementById("aptNm").addEventListener("keyup", applyFilters);
+
+    });
+
+    function resetFilters() {
+      $('#data-container').empty();
+      const sggSelect = document.getElementById("sggNm");
+      sggSelect.innerHTML = "";
+      const umdSelect = document.getElementById("umdNm");
+      umdSelect.innerHTML = "";
+      $('#noData').show();
+    }
+
+    async function categoryData(category, sel_code, parent_sel_code) {
+      $.ajax({
+        url: BASE_URL + '/api/pastapt/categories',
+        method: 'GET',
+        data: { category: category, sel_code: sel_code, parent_sel_code: parent_sel_code },
+        dataType: 'json',
+        timeout: 5000,
+        success: function (data) {
+          if (data.length === 0) {
+            $('#noData').show();
+            $('#errorMessage').hide();
+          } else {
+            window.allFetchedItems = data;
+            console.log(data);
+            set_select(category, data);
+            // category가 'region'이면 sggNm도 동시에 처리하도록 change 이벤트 트리거
+            if (category === 'region') {
+              const sggSelect = document.getElementById("sggNm");
+              // 선택된 값이 이미 설정되어 있거나, 기본값을 지정한 후
+              // 강제로 change 이벤트를 발생시켜 sggNm 관련 처리가 진행되게 합니다.
+              sggSelect.dispatchEvent(new Event("change"));
+              // 또는 필요에 따라 categoryData를 직접 호출할 수도 있습니다.
+              // categoryData('sggNm', sggSelect.value, sel_code);
+            }
+          }
+        },
+        error: function (xhr, status, error) {
+          $('#loading').hide();
+          $('#errorMessage').text("데이터를 가져오는 중 오류가 발생했습니다: " + error).show();
+        }
+      });
+    }
+
+    function set_select(category, data) {
+      let selElem = category === 'region' ? document.getElementById("sggNm") : document.getElementById("umdNm");
+      selElem.innerHTML = '';
+      data.sort((a, b) => Number(a.code) - Number(b.code))
+          .forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.code;
+            opt.textContent = item.name;
+            selElem.appendChild(opt);
+          });
+    }
+
+    // 검색조건에 따른 아파트목록 검색
+    async function fetchData() {
+      let tableBody = $('#data-container');
+      tableBody.empty();
+      $('#noData').show();
+
+      const regionSelect = document.getElementById("region");
+      const regionNm = regionSelect.options[regionSelect.selectedIndex].text;
+      const sggSelect = document.getElementById("sggNm");
+      const sggNm = sggSelect.options[sggSelect.selectedIndex].text;
+      const umdSelect = document.getElementById("umdNm");
+      const umdNm = umdSelect.options[umdSelect.selectedIndex].text;
+      const selHouseCnt = document.getElementById("houseCnt").value;
+      $.ajax({
+        url: BASE_URL + '/api/pastapt/apt_list',
+        method: 'GET',
+        data: { regionNm: regionNm, sggNm: sggNm, umdNm: umdNm, houseCnt: selHouseCnt },
+        dataType: 'json',
+        timeout: 5000,
+        success: function (data) {
+          if (data.length === 0) {
+            $('#noData').show();
+            $('#errorMessage').hide();
+          } else {
+            window.allFetchedItems = data.map((item, i) => ({ ...item, originalIndex: i }));
+            console.log(window.allFetchedItems);
+            renderTable(window.allFetchedItems);
+          }
+        },
+        error: function (xhr, status, error) {
+          $('#errorMessage').text("데이터를 가져오는 중 오류가 발생했습니다: " + error).show();
+        }
+      });
+    }
+
+    function renderTable(data) {
+      let tableBody = $('#data-container');
+      tableBody.empty();
+      let previousAptName = null; // 이전 행의 apt_name 저장
+
+      data.forEach((item, index) => {
+        const size_py = item.size_py.replace(/\.\d+/g, '');
+        // 현재 행의 apt_name이 이전 행과 다르면 배경색 지정 (첫 그룹도 포함)
+        let rowStyle = "";
+        if (item.apt_name !== previousAptName) {
+          rowStyle = "background-color: #FFF9C4;"; // 부드러운 노란색
+        }
+        previousAptName = item.apt_name;
+
+        tableBody.append(`<tr data-link="${item.originalIndex}" style="${rowStyle}">
+            <td style="text-align: center; width: 5%;">${index}</td>
+            <td style="text-align: left; width: 18%;">${item.apt_name}(${size_py})</td>
+            <td style="text-align: center; width: 6%;">${item.move_in_date}</td>
+            <td style="text-align: center; width: 10%;">${item.size}/${item.size_py}</td>
+            <td style="text-align: center; width: 8%;">${item.total_households}</td>
+            <td style="text-align: center; width: 8%; color:blue;">${item.min_month}</td>
+            <td style="text-align: center; width: 10%;">${formatNumber(item.sale_high)}</td>
+            <td style="text-align: center; width: 10%;">${formatNumber(item.rent_high)}</td>
+            <td style="text-align: center; width: 8%; color:red; font-weight:bold;">${formatNumber(item.sale_rent_diff)}</td>
+            <td style="text-align: center; width: 8%;"><button class="detail-btn">상세</button></td>
+            <td style="text-align: center; width: 13%;"><button class="profit-detail-btn">연복리</button></td>
+            <td style="text-align: center; width: 8%;"><button class="pir-detail-btn">PIR</button></td>
+          </tr>`);
+
+        document.getElementById("result-count").textContent = `건수: ${data.length}`;
+      });
+
+      document.querySelectorAll('.detail-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          let originalIndex = this.closest('tr').getAttribute('data-link');
+          openItemDetailPopup(window.allFetchedItems[originalIndex]);
+        });
+      });
+
+      document.querySelectorAll('.profit-detail-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          let originalIndex = this.closest('tr').getAttribute('data-link');
+          openYearProfitPopup(window.allFetchedItems[originalIndex]);
+        });
+      });
+
+      document.querySelectorAll('.pir-detail-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          let originalIndex = this.closest('tr').getAttribute('data-link');
+          openPirPopup(window.allFetchedItems[originalIndex]);
+        });
+      });
+    }
+
+
+    // 조건선택 및 단지명입력 목록 처리
+    function applyFilters() {
+      let selAptNm = document.getElementById("aptNm").value;
+      let filteredItems = window.allFetchedItems.filter(item => {
+        let ok = true;
+        if (selAptNm.trim() !== "") {
+          ok = ok && item.apt_name && item.apt_name.includes(selAptNm.trim());
+        }
+        return ok;
+      });
+      renderTable(filteredItems);
+    }
+
+    function openItemDetailPopup(item) {
+      const apt_id = item.apt_id;
+      $.ajax({
+        url: BASE_URL + '/api/pastapt/apt_detail',
+        method: 'GET',
+        data: { apt_id: apt_id },
+        dataType: 'json',
+        timeout: 5000,
+        success: function (data) {
+          if (!data || data.length === 0) {
+            console.warn("상세 데이터가 없습니다.");
+            return;
+          }
+          console.log(data);
+          const closeButtonHTML = `<button class="close-btn" onclick="closeDetailPopup()">닫기</button>`;
+          const sizeValue = parseFloat(data[0].size);
+          const size_py = sizeValue / 3.3;
+          const titleHTML = `<h1>${data[0].apt_name} (${data[0].size}m² / ${size_py.toFixed(2)}평)</h1>`;
+          let tableHTML = `
+            <table border="1" style="width:100%; border-collapse:collapse; text-align:center;">
+              <thead style="text-align:center;">
+                <tr>
+                  <th rowspan="2">순번</th>
+                  <th rowspan="2">월</th>
+                  <th colspan="3">매매</th>
+                  <th colspan="3">전세</th>
+                </tr>
+                <tr>
+                  <th>상한</th>
+                  <th>하한</th>
+                  <th>등락</th>
+                  <th>하한</th>
+                  <th>상한</th>
+                  <th>등락</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          data.forEach((row, index) => {
+            tableHTML += `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${row.month}</td>
+                <td>${row.sale_high}</td>
+                <td>${row.sale_low}</td>
+                <td>${row.sale_change}</td>
+                <td>${row.rent_low}</td>
+                <td>${row.rent_high}</td>
+                <td>${row.rent_change}</td>
+              </tr>
+            `;
+          });
+          tableHTML += `
+              </tbody>
+            </table>
+          `;
+          const htmlContent = closeButtonHTML + titleHTML + tableHTML;
+          document.querySelector("#detailPopup .popup-content").innerHTML = htmlContent;
+          document.getElementById("detailPopup").style.display = "block";
+        },
+        error: function (xhr, status, error) {
+          console.error("상세 데이터를 가져오는 중 오류가 발생했습니다:", error);
+        }
+      });
+    }
+
+    function closeDetailPopup() {
+      document.getElementById("detailPopup").style.display = "none";
+    }
+
+    function openYearProfitPopup(item) {
+      const apt_name = item.apt_name;
+      const min_month = item.min_month;
+      const sale_rent_diff_amt = item.sale_rent_diff;
+      let url = BASE_URL + '/api/pastapt/interest?apt_name=' + apt_name + '&min_month=' + min_month + '&sale_rent_diff_amt=' + sale_rent_diff_amt;
+      var width = 1400;
+      var height = 1200;
+      const left = (screen.width - width) / 2 + 50;
+      const top = (screen.height - height) / 2 - 50;
+      var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+      if (popupWindow) { popupWindow.focus(); }
+    }
+
+    // PIR분석처리
+    function openPirPopup(item) {
+        const apt_id = item.apt_id;
+        let url = BASE_URL + '/api/pastapt/pir?apt_id=' + apt_id;
+        var width = 1400;
+        var height = 1200;
+        const left = (screen.width - width) / 2 + 50;
+        const top = (screen.height - height) / 2 - 50;
+        var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        if (popupWindow) { popupWindow.focus(); }
+    }
+  </script>
+</head>
+<body>
+  <h1 style="font-size: 30px; padding: 10px 0 1px 0;">연복리분석(아파트)</h1>
+  <div class="search-container">
+    <div class="filter-group">
+      <label for="region">지역:</label>
+      <select id="region">
+        <option value="01">서울특별시</option>
+        <option value="02">경기도</option>
+        <option value="03">부산광역시</option>
+        <option value="04">대구광역시</option>
+        <option value="05">인천광역시</option>
+        <option value="06">광주광역시</option>
+        <option value="07">대전광역시</option>
+        <option value="08">강원도</option>
+        <option value="10">경상남도</option>
+        <option value="11">경상북도</option>
+        <option value="12">전라남도</option>
+        <option value="13">전라북도</option>
+        <option value="14">제주특별자치도</option>
+        <option value="15">충청남도</option>
+        <option value="16">충청북도</option>
+        <option value="17">울산광역시</option>
+        <option value="19">세종특별자치시</option>
+      </select>
+      <select id="sggNm"></select>
+      <select id="umdNm"></select>
+      <label for="aptNm">아파트명:</label>
+      <input type="text" id="aptNm" placeholder="아파트명">
+      <label for="houseCnt">가구수:</label>
+      <select id="houseCnt">
+        <option value="all">전체</option>
+        <option value="1000">1000↑</option>
+        <option value="500">500↑</option>
+        <option value="300">300↑</option>
+      </select>
+      <!--
+      <span id="result-amt" style="margin-left: auto;">인구및평균소득: 0/0</span>
+      -->
+      <span id="result-count" style="margin-left: auto;">건수: 0</span>
+      <button id="search-btn">검색</button>
+      <!--
+      <button id="print-btn">프린트</button>
+      -->
+    </div>
+  </div>
+  <div id="header-container">
+    <span style="flex:0.5;">순번</span>
+    <span style="flex:2.0;" id="sortDealDate">아파트명</span>
+    <span style="flex:1;" id="sortBuildYear">건축년도</span>
+    <span style="flex:1.5;" id="sortPyeong">전용면적(평)</span>
+    <span style="flex:1;">가구수</span>
+    <span style="flex:1;">기준년월</span>
+    <span style="flex:1;">매매(상한)</span>
+    <span style="flex:1;">전세(상한)</span>
+    <span style="flex:1;">차이</span>
+    <span style="flex:1;">상세보기</span>
+    <span style="flex:1;">연복리</span>
+    <span style="flex:1;">PIR</span>
+  </div>
+  <div id="data-container">
+    <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+    <div class="no-data-message">데이터를 검색해주세요.</div>
+  </div>
+  <div id="detailPopup">
+    <div class="popup-content"></div>
+  </div>
+</body>
+</html>

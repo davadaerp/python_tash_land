@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* (기존 스타일은 그대로 유지) */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      font-size: 30px;
+      margin: 10px 0;
+      color: #333;
+    }
+    /* 검색 컨테이너 */
+    .search-container {
+      margin-bottom: 5px;
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      width: 80%;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .input-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    .input-wrapper input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    #suggestions {
+      width: 100%;
+      font-family: inherit;
+      font-size: inherit;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    #suggestions li {
+      padding: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    #suggestions li:hover {
+      background-color: #f0f8ff;
+    }
+    #suggestions li.selected {
+      background-color: #007bff;
+      color: #fff;
+    }
+    .filter-group {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .filter-group label {
+      font-weight: bold;
+    }
+    .filter-group select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .search-btn {
+      align-self: flex-end;
+      padding: 8px 16px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .search-btn:hover {
+      background-color: #0056b3;
+    }
+    /* result-count 를 년도와 비슷하게 스타일 적용 */
+    #result-count {
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      margin-left: auto;
+    }
+    /* result-count 를 년도와 비슷하게 스타일 적용 */
+    #result-amt {
+      font-weight: bold;
+      padding: 5px;
+      background-color: #fff;
+      margin-left: auto;
+    }
+    #header-container {
+      width: 90%;
+      max-width: 850px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 0;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    #header-container span {
+      flex: 1;
+      text-align: center;
+      padding: 0 4px;
+      border-right: 1px solid #ddd;
+    }
+
+    #header-container span:last-child {
+      border-right: none;
+    }
+    /* 평형 헤더: 아이콘 토글을 위해 id 부여 */
+    #sortPyeong {
+      flex: 1.5;
+      cursor: pointer;
+    }
+    /* 데이터 테이블 */
+    #data-container {
+      width: 90%;
+      max-width: 850px;
+      margin-top: 5px;
+      /* 목록이 많을 경우 스크롤 가능하도록 max-height 및 overflow-y 추가 */
+      max-height: 780px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      table-layout: auto;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      font-size: 14px;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    td.amount {
+      text-align: right;
+    }
+    table tr th:nth-child(4),
+    table tr td:nth-child(4) {
+      white-space: nowrap;
+      width: auto;
+    }
+    /* 메시지 중앙 정렬 */
+    .no-data-message, .loading-message {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        color: #007bff;
+        margin: 50px auto;
+    }
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(255,255,255,0.8);
+      font-size: 24px;
+      color: #007bff;
+      z-index: 1500;
+    }
+    #detailPopup {
+      display: none; /* 기본적으로 숨김 */
+    }
+    #detailPopup .popup-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 400px;
+      height: 700px;
+      position: fixed;
+      z-index: 2000;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5em;
+      overflow-y: auto;
+      border: 2px solid #007bff; /* 외곽선 추가 */
+    }
+    #detailPopup .popup-content h2 {
+      margin-top: 0;
+    }
+    #detailPopup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+    }
+    /* 검색 버튼 (아이디로 지정하여 별도 스타일 적용 가능) */
+    #search-btn {
+      background-color: #007bff; /* 파란색 배경 */
+      color: #fff;              /* 흰색 텍스트 */
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    #search-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+  <script src="./libs/jquery-3.6.4.min.js"></script>
+  <script src="./comm/address_autocomplete.js"></script>
+  <script src="./comm/common.js"></script>
+  <script src="./comm/realdata_sanga.js"></script>
+</head>
+<body>
+<h1 style="font-size: 30px; padding: 10px 0 1px 0;">
+  국토부 실거래 데이터(
+  <span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">상가</span>)
+</h1>
+  <div class="search-container">
+    <div class="input-wrapper">
+      <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
+      <ul id="suggestions"></ul>
+    </div>
+    <div class="filter-group">
+      <label for="year">년도:</label>
+      <select id="year">
+        <option value="all">전체</option>
+      </select>
+      <label for="month">월:</label>
+      <select id="month">
+        <option value="all">전체</option>
+      </select>
+      <label for="pyeon">평형:</label>
+      <select id="pyeon">
+        <option value="all">전체</option>
+        <option value="9">9평대</option>
+        <option value="10">10평대</option>
+        <option value="20">20평대</option>
+        <option value="30">30평대</option>
+        <option value="40">30평대</option>
+        <option value="50">50평대</option>
+        <option value="70">70평대</option>
+        <option value="100">100평대</option>
+      </select>
+      <button class="search-btn" id="search-btn">검색</button>
+      <!-- 평규단가 표시 요소 -->
+      <span id="result-amt" style="margin-left: auto;">평균단가/금액: 0/0</span>
+        <!-- 검색 건수 표시 요소 -->
+      <span id="result-count" style="margin-left: auto;">건수: 0</span>
+    </div>
+  </div>
+  <div id="header-container">
+    <span style="flex:0.5;">순번</span>
+    <span style="flex:1;" id="sortDealDate">거래일자</span>
+    <span style="flex:1;" id="sortFloor">층</span>
+    <span style="flex:1.5;" id="sortPyeong">건물면적(평)</span>
+    <span style="flex:1.5;">거래금액</span>
+    <span style="flex:1;">건축년도</span>
+    <span style="flex:1.5;">건물용도</span>
+    <span style="flex:1;">지도</span>
+    <span style="flex:1;">상세보기</span>
+  </div>
+  <div id="data-container">
+    <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+    <div class="no-data-message">데이터를 검색해주세요.</div>
+  </div>
+  <div id="detailPopup">
+    <div class="popup-content">
+      <!-- 상세 정보가 여기에 표시됩니다. -->
+    </div>
+  </div>
+</body>
+</html>

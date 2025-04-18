@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>팝업 샘플</title>
+  <style>
+    /* 전체 페이지 스타일 */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    /* 로고 위치 및 스타일 */
+    .logo {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 50px;
+      height: 50px;
+      background-image: url('/img/nland.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    /* 헤더 영역 스타일 */
+    .header {
+      text-align: center;
+      padding: 20px;
+      font-size: 15px;
+      font-weight: bold;
+      margin-top: 50px;
+    }
+
+    /* 폼 영역 스타일 수정: width, height, border 변경 */
+    form {
+      text-align: left;
+      border: none;
+      width: 300px;
+      height: 200px;
+      padding: 10px;
+      border-radius: 8px;
+      margin: 0 auto;
+    }
+
+    /* 라벨 스타일 */
+    label {
+      display: inline-block;
+      width: 70px;
+      text-align: right;
+      margin-right: 10px;
+      font-size: 14px;
+    }
+
+    /* 입력 필드 스타일 */
+    input[type="text"],
+    input[type="password"] {
+      width: 130px;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    /* 입력 그룹 간격 최소화 */
+    .input-group {
+      margin-bottom: 2px;
+    }
+
+    /* 버튼 영역 스타일 (가로 배열을 위해 flexbox 사용) */
+    .button-container {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    /* 버튼 기본 스타일 */
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background-color: #fff;
+      border-radius: 4px;
+    }
+
+    /* 초기화 버튼 스타일 */
+    #reset {
+      background-color: #f44336;
+      color: white;
+      border: none;
+    }
+
+    /* 에러 메시지 스타일 */
+    .error {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* 로그인 상태 메시지 (초기에는 숨김) */
+    #login-status {
+      display: none;
+      text-align: center;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+
+  </style>
+  <!-- jQuery 라이브러리 추가 -->
+  <script src="/libs/jquery-3.6.4.min.js"></script>
+</head>
+<body>
+  <div class="logo"></div>
+  <div class="header">고치가게 오신것을 환영합니다..</div>
+  <div>
+    <form id="login-form" method="POST">
+      <!-- 로그인에 필요한 입력 필드와 로그인 버튼 영역 -->
+      <div id="login-section">
+        <div class="input-group">
+          <label>아이디:</label>
+          <input type="text" id="userid" required>
+        </div>
+        <div class="input-group">
+          <label>패스워드:</label>
+          <input type="password" id="password" required>
+        </div>
+        <div class="button-container">
+          <button type="submit" id="loginBtn">로그인</button>
+          <button type="button" id="signup">회원가입</button>
+        </div>
+      </div>
+      <!-- 에러 메시지 영역 -->
+      <p class="error" id="error-message"></p>
+      <!-- 로그인 상태 메시지 -->
+      <p id="login-status">로그인되었습니다.</p>
+      <!-- 로그아웃 버튼 -->
+      <div id="logout-section" style="display: none">
+        <div class="button-container">
+          <button type="button" id="logoutBtn">로그아웃</button>
+          <button type="button" id="reset">초기화</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

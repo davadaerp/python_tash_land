@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google-like Search Bar</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+        }
+        #search-container {
+            position: relative;
+            width: 300px;
+        }
+        #search-bar {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 1000;
+        }
+        #suggestions li {
+            padding: 10px;
+            cursor: pointer;
+        }
+        #suggestions li:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Google-like Search Bar</h1>
+
+    <div id="search-container">
+        <input type="text" id="search-bar" placeholder="Search..." autocomplete="off">
+        <ul id="suggestions"></ul>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // Sample suggestions for demonstration purposes
+            const suggestionsList = [
+                'Apaaaafffadgsafadafdaddafapdfdffdfddfle',
+                'Banana',
+                'Cherry',
+                'Date',
+                'Grapes',
+                'Lemon',
+                'Mango',
+                'Orange',
+                'Peach',
+                'Pineapple'
+            ];
+
+            // Listen for input events to show suggestions
+            $('#search-bar').on('input', function() {
+                const query = $(this).val().toLowerCase().trim();
+
+                if (query.length > 0) {
+                    const filteredSuggestions = suggestionsList.filter(item => item.toLowerCase().includes(query));
+
+                    if (filteredSuggestions.length > 0) {
+                        // Show the suggestions list
+                        $('#suggestions').empty().show();
+
+                        // Add the filtered suggestions to the list
+                        filteredSuggestions.forEach(suggestion => {
+                            $('#suggestions').append(`<li>${suggestion}</li>`);
+                        });
+                    } else {
+                        $('#suggestions').empty().hide();
+                    }
+                } else {
+                    $('#suggestions').empty().hide();
+                }
+            });
+
+            // Event listener for selecting a suggestion
+            $('#suggestions').on('click', 'li', function() {
+                const selectedSuggestion = $(this).text();
+                $('#search-bar').val(selectedSuggestion);  // Auto-fill the search bar
+                $('#suggestions').empty().hide();  // Hide the suggestions list
+                alert(`You selected: ${selectedSuggestion}`);  // Show an alert with the selected suggestion
+            });
+
+            // Close suggestions if user clicks outside the search container
+            $(document).on('click', function(event) {
+                if (!$(event.target).closest('#search-container').length) {
+                    $('#suggestions').empty().hide();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

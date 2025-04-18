@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Region Data</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        #loading {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>지역 검색</h1>
+
+    <div>
+        <label for="locatadd_nm">법정동명 검색:</label>
+        <input type="text" id="locatadd_nm" placeholder="Enter 법정동명">
+        <button id="search-btn">검색</button>
+    </div>
+
+    <p id="loading">Loading...</p>
+
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>순번</th>
+                <th>지역 코드</th>
+                <th>시도 코드</th>
+                <th>시군구 코드</th>
+                <th>읍면동 코드</th>
+                <th>리 코드</th>
+                <th>주민 코드</th>
+                <th>지역 코드</th>
+                <th>법정동 명칭</th>
+                <th>정렬 순서</th>
+                <th>상위 지역 코드</th>
+                <th>하위 지역 명칭</th>
+                <th>적용일자</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data rows will be inserted here dynamically -->
+        </tbody>
+    </table>
+
+    <script>
+        $(document).ready(function() {
+            // Click event for the search button
+            $('#search-btn').click(function() {
+                const locatadd_nm = $('#locatadd_nm').val().trim();
+
+                if (locatadd_nm) {
+                    $('#loading').show();
+                    // AJAX request to get data (changed type to 'xml')
+                    $.ajax({
+                        url: 'http://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList',
+                        type: 'GET',
+                        dataType: 'xml',  // Changed dataType to 'xml'
+                        data: {
+                            ServiceKey: 'B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==',
+                            type: 'xml',
+                            pageNo: 1,
+                            numOfRows: 500,
+                            flag: 'Y',
+                            locatadd_nm: locatadd_nm
+                        },
+                        success: function(response) {
+                            // Clear previous table data
+                            $('#data-table tbody').empty();
+
+                            // Parse the XML response
+                            const rows = $(response).find('row');
+
+                            if (rows.length > 0) {
+                                // Insert new rows into the table
+                                rows.each(function(index, item) {
+                                    const region_cd = $(item).find('region_cd').text() || '';
+                                    const sido_cd = $(item).find('sido_cd').text() || '';
+                                    const sgg_cd = $(item).find('sgg_cd').text() || '';
+                                    const umd_cd = $(item).find('umd_cd').text() || '';
+                                    const ri_cd = $(item).find('ri_cd').text() || '';
+                                    const locatjumin_cd = $(item).find('locatjumin_cd').text() || '';
+                                    const locatjijuk_cd = $(item).find('locatjijuk_cd').text() || '';
+                                    const locatadd_nm = $(item).find('locatadd_nm').text() || '';
+                                    const locat_order = $(item).find('locat_order').text() || '';
+                                    const locathigh_cd = $(item).find('locathigh_cd').text() || '';
+                                    const locallow_nm = $(item).find('locallow_nm').text() || '';
+                                    const adpt_de = $(item).find('adpt_de').text() || '';
+
+                                    $('#data-table tbody').append(`
+                                        <tr>
+                                            <td>${index + 1}</td>
+                                            <td>${region_cd}</td>
+                                            <td>${sido_cd}</td>
+                                            <td>${sgg_cd}</td>
+                                            <td>${umd_cd}</td>
+                                            <td>${ri_cd}</td>
+                                            <td>${locatjumin_cd}</td>
+                                            <td>${locatjijuk_cd}</td>
+                                            <td>${locatadd_nm}</td>
+                                            <td>${locat_order}</td>
+                                            <td>${locathigh_cd}</td>
+                                            <td>${locallow_nm}</td>
+                                            <td>${adpt_de}</td>
+                                        </tr>
+                                    `);
+                                });
+                            } else {
+                                alert('데이터가 없습니다.');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            alert('Error: ' + error);
+                        },
+                        complete: function() {
+                            $('#loading').hide();
+                        }
+                    });
+                } else {
+                    alert('법정동명을 입력해주세요.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>키 입력</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .popup {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 620px;
+    }
+    .input-group {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: 15px;
+    }
+    .input-group label {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-right: 10px;
+      width: 100px;
+      text-align: right;
+    }
+    .popup input {
+      flex: 1;
+      padding: 12px;
+      height: 24px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1.5em;
+    }
+    .popup button {
+      padding: 12px 24px;
+      font-size: 1.5em;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 10px;
+    }
+    .popup button:hover {
+      background-color: #0056b3;
+    }
+    .popup .delete-button {
+      background-color: #dc3545;
+    }
+    .popup .delete-button:hover {
+      background-color: #a71d2a;
+    }
+  </style>
+  <script src="./libs/jquery-3.6.4.min.js"></script>
+  <script src="./comm/realdata_pop_key.js"></script>
+</head>
+<body>
+  <div class="popup">
+    <h2 id="popup-title">키 입력</h2>
+    <div class="input-group">
+      <label>상가 키:</label>
+      <input type="text" id="sanga-key" />
+    </div>
+    <div class="input-group">
+      <label>빌라 키:</label>
+      <input type="text" id="villa-key" />
+    </div>
+    <div class="input-group">
+      <label>아파트 키:</label>
+      <input type="text" id="apt-key" />
+    </div>
+    <div>
+      <button id="save-key">저장</button>
+      <button id="delete-key" class="delete-button">삭제</button>
+      <button id="close-popup">닫기</button>
+    </div>
+  </div>
+</body>
+</html>

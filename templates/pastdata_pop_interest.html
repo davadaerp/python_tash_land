@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>복리 계산 결과 (CSV 계산식 적용)</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h1 { display: inline-block; margin-top: 20px; }
+    #data-container { font-size: 20px; color: #333; text-align: center; margin-bottom: 20px; }
+    #compound-table { margin: 0 auto; border-collapse: collapse; }
+    #compound-table th, #compound-table td {
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      text-align: right;
+      font-size: 14px;
+    }
+    /* rate 열(첫번째 열)은 옅은 그린 배경 */
+    #compound-table td.rate-cell {
+      background-color: #e0f7e0;
+      text-align: center;
+    }
+    #compound-table th:first-child, #compound-table td:first-child {
+      text-align: center;
+    }
+    #compound-table th {
+      background-color: #f0f0f0;
+    }
+    /* 10% 단위(즉, 이율이 10,20,...%인 행)의 나머지 셀은 옅은 노란색 배경 */
+    .yellow-bg {
+      background-color: #fff9c4;
+    }
+    /* 엑셀다운 버튼 스타일 */
+    #download-btn {
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 20px;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    /* tbody 내 tr에 마우스 오버 시 배경색 변경 */
+    #compound-table tr:hover {
+      background-color: #cce5ff;
+    }
+  </style>
+  <!-- jQuery CDN -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <div style="text-align: center;">
+    <h1>{{ apt_name }}({{ min_month }} / {{ sale_rent_diff_amt }})</h1>
+    <button id="download-btn">엑셀다운</button>
+  </div>
+  <div id="table-container"></div>
+
+  <script>
+    $(document).ready(function(){
+       var apt_name = '{{ apt_name }}' || 'compound_interest';
+      // 기본값: 기준값은 10000, min_month는 "2016.03" (템플릿 변수 또는 기본값)
+      var baseValue = parseFloat('{{ sale_rent_diff_amt }}');
+      //var baseValue = parseFloat('10000');
+      var minMonth = '{{ min_month }}' || '2016.03';
+      // minMonth에서 시작 연도 추출 (형식 "YYYY.MM"을 가정)
+      var startYear = parseInt(minMonth.split('.')[0], 10);
+      var currentYear = new Date().getFullYear();
+
+      // 테이블 생성
+      var $table = $('<table id="compound-table"></table>');
+
+      // 헤더 행 생성: 첫 번째 셀은 "Rate (%)", 이후 시작연도부터 현재년도까지 연도 출력
+      var $headerRow = $('<tr></tr>');
+      $headerRow.append('<th>Rate (%)</th>');
+      for(var year = startYear; year <= currentYear; year++){
+        $headerRow.append('<th>' + year + '</th>');
+      }
+      $table.append($headerRow);
+
+      // 1%부터 100%까지의 이율에 대해 각 행 생성
+      // CSV 계산식: = 기준값 * (1 + (이율/100))^(연도 - 시작년도 + 1)
+      for(var rate = 1; rate <= 100; rate++){
+        var $row = $('<tr></tr>');
+        // 첫 번째 셀 (이율 셀): 옅은 그린 배경 적용 (클래스 rate-cell)
+        $row.append('<td class="rate-cell">' + rate + '%</td>');
+        // 각 연도별로 계산된 값을 구해서 셀에 추가
+        for(var year = startYear; year <= currentYear; year++){
+          var periods = year - startYear + 1;
+          var compoundedValue = baseValue * Math.pow(1 + (rate / 100), periods);
+          // 숫자 포맷팅 처리 (천 단위 구분 등)
+          var formattedValue = compoundedValue.toFixed(0).toLocaleString();
+          // 이율이 10의 배수인 경우, 옅은 노란색 배경 적용
+          var cellClass = (rate % 10 === 0) ? ' class="yellow-bg"' : '';
+          // formatNumber() 함수가 이미 정의되어 있다고 가정 (없다면 formattedValue를 사용)
+          $row.append('<td' + cellClass + '>' + (typeof formatNumber === "function" ? formatNumber(formattedValue) : formattedValue) + '</td>');
+        }
+        $table.append($row);
+      }
+
+      // 완성된 테이블을 페이지에 추가
+      $('#table-container').append($table);
+
+      // 엑셀다운 버튼 클릭 시, table-container의 내용을 .xls 파일로 다운로드
+      $('#download-btn').click(function(){
+          // h1 제목 내용 추출
+          var titleHTML = document.getElementsByTagName("h1")[0].outerHTML;
+          // table-container의 내용 추출
+          var tableHTML = document.getElementById("table-container").innerHTML;
+          // 엑셀에서 인식할 수 있도록 HTML 문서 형태로 감싸기
+          var excelHTML = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+                          'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+                          'xmlns="http://www.w3.org/TR/REC-html40">' +
+                          '<head><meta charset="UTF-8"></head><body>' +
+                          titleHTML + tableHTML +
+                          '</body></html>';
+          // Blob 객체 생성
+          var blob = new Blob([excelHTML], { type: "application/vnd.ms-excel" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = apt_name + '.xls';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Flask + SmartEditor2</title>
+  <script src="{{ url_for('static', filename='smarteditor2/js/service/HuskyEZCreator.js') }}" charset="utf-8"></script>
+  <style>
+    #ir1 {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>✏️ 스마트에디터 입력</h2>
+
+  <form id="editorForm" method="post" action="/api/form_editor/submit">
+    <textarea id="ir1" name="ir1" rows="10" cols="100"></textarea>
+    <br>
+    <button type="button" onclick="submitEditorForm()">제출</button>
+  </form>
+
+  <script>
+    var oEditors = [];
+
+    nhn.husky.EZCreator.createInIFrame({
+      oAppRef: oEditors,
+      elPlaceHolder: "ir1",
+      sSkinURI: "{{ url_for('static', filename='smarteditor2/SmartEditor2Skin.html') }}",
+      fCreator: "createSEditor2",
+      htParams: {
+        bUseToolbar: true,
+        bUseVerticalResizer: true,
+        bUseModeChanger: true
+      },
+      fOnAppLoad: function () {
+        oEditors.getById["ir1"].exec("PASTE_HTML", [
+          `<div style="border:1px solid #aaa;padding:10px;">
+            <h3>📌 신청서</h3>
+            <p>이름: <input type='text' id='nameInput'></p>
+            <p>연락처: <input type='text' id='phoneInput'></p>
+            <p>내용: <textarea id='messageInput' rows='3'></textarea></p>
+          </div>`
+        ]);
+      }
+    });
+
+    function submitEditorForm() {
+      // (1) 우선, 에디터 내용을 업데이트하여 hidden textarea(#ir1)에 현재 내용을 동기화합니다.
+      oEditors.getById["ir1"].exec("UPDATE_CONTENTS_FIELD", []);
+      // 위 코드에서 PASTE_HTML안에 input dom data처리가 안됨 ㅠ.ㅠ
+      let content = document.getElementById("ir1").value;
+      alert(content);
+
+      // SmartEditor2 인스턴스("ir1")의 내부 IFrame 요소에 접근
+      var editorInstance = oEditors.getById["ir1"];
+      var editorFrame = editorInstance._iframe;  // SmartEditor2는 내부적으로 _iframe 프로퍼티에 IFrame 객체를 보관합니다.
+      if (!editorFrame) {
+        console.error("에디터 IFrame을 찾을 수 없습니다.");
+      } else {
+        var iframeDoc = editorFrame.contentDocument || editorFrame.contentWindow.document;
+        if (!iframeDoc) {
+          console.error("에디터 IFrame의 document에 접근할 수 없습니다.");
+        } else {
+          // live DOM에서 id가 nameInput인 <input> 요소의 현재 value를 가져옴
+          var nameInput = iframeDoc.getElementById("nameInput");
+          var nameValue = nameInput ? nameInput.value : "";
+          console.log("이름 입력값:", nameValue);
+        }
+      }
+      //document.getElementById("editorForm").submit();
+    }
+
+    function submitEditorForm_old() {
+      // (1) 우선, 에디터 내용을 업데이트하여 hidden textarea(#ir1)에 현재 내용을 동기화합니다.
+      oEditors.getById["ir1"].exec("UPDATE_CONTENTS_FIELD", []);
+
+      // (2) SmartEditor2 인스턴스의 내부 IFrame 요소에 접근합니다.
+      var editorInstance = oEditors.getById["ir1"];
+      // _iframe 프로퍼티로 IFrame 요소를 가져옵니다.
+      var editorFrame = editorInstance._iframe;
+      if (!editorFrame) {
+        console.error("❌ 에디터 IFrame을 찾을 수 없습니다.");
+        return;
+      }
+      var iframeDoc = editorFrame.contentDocument || editorFrame.contentWindow.document;
+      if (!iframeDoc) {
+        console.error("❌ 에디터 IFrame의 document에 접근할 수 없습니다.");
+        return;
+      }
+
+      // (3) IFrame 내부의 모든 <input> 요소에 대해 현재 value를 해당 attribute에 업데이트합니다.
+      var inputs = iframeDoc.querySelectorAll("input");
+      inputs.forEach(function(input) {
+        // input.value는 사용자가 입력한 현재 값이고, 이것을 value attribute에 설정합니다.
+        input.setAttribute("value", input.value);
+      });
+
+      // (4) IFrame 내부의 모든 <textarea> 요소도 textContent를 업데이트합니다.
+      var textareas = iframeDoc.querySelectorAll("textarea");
+      textareas.forEach(function(textarea) {
+        // <textarea>의 경우, 내용은 textContent로 관리됩니다.
+        textarea.textContent = textarea.value;
+      });
+
+      // (5) 업데이트된 HTML을 가져옵니다.
+      // getIR()은 IFrame 내부의 body.innerHTML을 반환합니다.
+      var editorHTML = editorInstance.getIR();
+      alert(editorHTML);
+
+      // (6) 필요한 경우 임시 DOM 객체에 담아 값을 추출할 수 있습니다.
+      // 예: 폼 요소의 값을 다시 읽고 싶다면 아래와 같이 진행합니다.
+      var temp = document.createElement("div");
+      temp.innerHTML = editorHTML;
+      var name = temp.querySelector("#nameInput") ? temp.querySelector("#nameInput").value : "";
+      var phone = temp.querySelector("#phoneInput") ? temp.querySelector("#phoneInput").value : "";
+      var message = temp.querySelector("#messageInput") ? temp.querySelector("#messageInput").value : "";
+      alert(`이름: ${name}\n연락처: ${phone}\n내용: ${message}`);
+
+      // (7) 만약 사용자 입력 값들을 다시 포함하는 새로운 HTML을 만들고 싶다면:
+      var updatedHTML = `
+        <div style="border:1px solid #aaa; padding:10px;">
+          <h3>📌 신청서</h3>
+          <p>이름: ${name}</p>
+          <p>연락처: ${phone}</p>
+          <p>내용: ${message.replace(/\n/g, "<br>")}</p>
+        </div>
+      `;
+
+      // (8) 새로운 HTML로 에디터 업데이트 후 폼 제출
+      editorInstance.exec("SET_IR", [updatedHTML]);
+      editorInstance.exec("UPDATE_CONTENTS_FIELD", []);
+      document.getElementById("editorForm").submit();
+    }
+  </script>
+</body>
+</html>
