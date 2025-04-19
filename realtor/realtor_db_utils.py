@@ -89,6 +89,85 @@ def realtor_insert_record(record):
 
     conn.close()
 
+# 폰번호 존재하면 update, 없으면 insert
+def realtor_insert_or_update_record(record):
+    """
+    단일 레코드를 테이블에 삽입하거나, mobile_phone 기준으로
+    이미 존재하면 업데이트합니다.
+
+    파라미터:
+        record (dict): {
+            "mem_no": str,
+            "title": str,
+            "representative": str,
+            "address1": str,
+            "address2": str,
+            "landline_phone": str,
+            "mobile_phone": str,
+            "sel_type": str
+        }
+    """
+    # 테이블이 없으면 생성
+    realtor_create_table()
+
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    mobile = record.get("mobile_phone")
+
+    # 동일한 mobile_phone 값이 이미 존재하는지 확인
+    cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE mobile_phone = ?", (mobile,))
+    exists = cursor.fetchone()[0] > 0
+
+    if not exists:
+        # INSERT
+        insert_sql = f"""
+            INSERT INTO {TABLE_NAME} (
+                mem_no, title, representative,
+                address1, address2, landline_phone,
+                mobile_phone, sel_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        cursor.execute(insert_sql, (
+            record["mem_no"],
+            record["title"],
+            record["representative"],
+            record["address1"],
+            record["address2"],
+            record["landline_phone"],
+            mobile,
+            record["sel_type"]
+        ))
+        print(f"mobile_phone {mobile} 값의 레코드를 새로 삽입했습니다.")
+    else:
+        # UPDATE
+        update_sql = f"""
+            UPDATE {TABLE_NAME}
+               SET mem_no        = ?,
+                   title         = ?,
+                   representative= ?,
+                   address1      = ?,
+                   address2      = ?,
+                   landline_phone= ?,
+                   sel_type      = ?
+             WHERE mobile_phone  = ?
+        """
+        cursor.execute(update_sql, (
+            record["mem_no"],
+            record["title"],
+            record["representative"],
+            record["address1"],
+            record["address2"],
+            record["landline_phone"],
+            record["sel_type"],
+            mobile
+        ))
+        print(f"mobile_phone {mobile} 값의 레코드를 업데이트했습니다.")
+
+    conn.commit()
+    conn.close()
+
+
 def realtor_save_to_sqlite(data_list):
     # 테이블생성 (테이블이 없으면 생성)
     realtor_create_table()
