@@ -27,6 +27,8 @@ for sheet_name, df in sheets_dict.items():
         #
         role        = str(row.get('구분', '')).strip()      # 예: "대출상담사"
         company     = str(row.get('회사', '')).strip()
+        if company == 'nan':
+            company = '';
 
         # raw_name: 원본 문자열 (예: "송지희\n팀장")
         raw_name = str(row['담당자'])
@@ -68,6 +70,6 @@ for sheet_name, df in sheets_dict.items():
         print(record)
 
         # DB에 삽입 (중복 검사 포함)
-        #realtor_insert_or_update_record(record)
+        realtor_insert_or_update_record(record)
 
     print()
