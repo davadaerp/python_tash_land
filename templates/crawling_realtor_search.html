@@ -309,6 +309,134 @@
       cursor: pointer;
     }
     #add-entry-btn:hover { background-color: #218838; }
+
+    /* 확인 모달 스타일 */
+    #confirm-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      z-index: 3000;
+      width: 90%;
+      max-width: 500px;
+      padding: 20px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .confirm-modal-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 15px;
+      position: relative;
+      text-align: center;
+    }
+
+    .confirm-modal-header h3 {
+      margin: 0;
+      color: #007bff;
+      font-size: 20px;
+    }
+
+    .confirm-modal-content {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .confirm-info-row {
+      margin-bottom: 10px;
+    }
+
+    .confirm-info-row label {
+      font-weight: bold;
+      color: #555;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .confirm-info-row textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      resize: none;
+      min-height: 100px;
+    }
+
+    .confirm-thumbnail-slider {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-top: 15px;
+    }
+
+    .confirm-thumbnail-list {
+      display: flex;
+      transition: transform 0.3s ease;
+      padding: 5px;
+    }
+
+    .confirm-thumbnail-item {
+      width: calc((100% - 15px) / 4);
+      height: 80px;
+      margin-right: 5px;
+      flex-shrink: 0;
+    }
+
+    .confirm-thumbnail-item:last-child { margin-right: 0; }
+
+    .confirm-thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .confirm-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .confirm-send-btn {
+      padding: 10px 20px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+
+    .confirm-send-btn:hover {
+      background-color: #218838;
+    }
+
+    .confirm-close-btn {
+      padding: 10px 20px;
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+      margin-right: 10px;
+    }
+
+    .confirm-close-btn:hover {
+      background-color: #c82333;
+    }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="/static/js/address_autocomplete.js"></script>
@@ -683,6 +811,54 @@
             }); // end ajax
           }); //
 
+          // 첨부이미지화일 send-file-btn 클릭 이벤트 핸들러 추가
+          document.getElementById('send-file-btn').addEventListener('click', function() {
+              const fileInput = document.getElementById('file-input');
+              const files = fileInput.files;
+
+              if (files.length === 0) {
+                  alert("첨부할 파일을 선택하세요.");
+                  return;
+              }
+
+              // FormData 객체 생성
+              const formData = new FormData();
+
+              // 선택된 파일들을 FormData에 추가
+              for (let i = 0; i < files.length; i++) {
+                  formData.append('files', files[i]);
+              }
+
+              // 추가 데이터 (선택적)
+              formData.append('sender', 'web_client');
+              formData.append('upload_time', new Date().toISOString());
+
+              // 로딩 표시
+              $("#sending-message").text("파일 전송 중...").show();
+
+              // AJAX로 파일 전송
+              $.ajax({
+                  url: BASE_URL + '/api/upload_files',
+                  method: 'POST',
+                  data: formData,
+                  processData: false,  // FormData 전송을 위해 필요
+                  contentType: false,  // FormData 전송을 위해 필요
+                  timeout: 60000,
+                  success: function(response) {
+                      $("#sending-message").hide();
+                      if (response.success) {
+                          alert("파일 전송 성공!\n전송된 파일 수: " + response.file_count);
+                      } else {
+                          alert("파일 전송 실패: " + response.message);
+                      }
+                  },
+                  error: function(xhr, status, error) {
+                      $("#sending-message").hide();
+                      alert("파일 전송 중 오류 발생: " + error);
+                  }
+              });
+          });
+
           // 팝업 닫기 (메시지 팝업 내 .close-btn 클릭)
           document.querySelectorAll('#message-popup .close-btn').forEach(function(btn) {
                 btn.addEventListener('click', function() {
@@ -879,7 +1055,77 @@
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
           });
+
+          // 전송(확인후) 버튼 클릭 이벤트
+          document.getElementById('send-message-pop').addEventListener('click', function() {
+            // 전송 유형 확인 (알림톡/문자)
+            const sendType = document.querySelector('input[name="send-type"]:checked').value;
+            const sendTypeText = sendType === 'kakao' ? '알림톡' : '문자';
+
+            // 모달 제목 설정
+            document.getElementById('confirm-modal-title').textContent = `${sendTypeText} 전송 확인`;
+
+            // 전송 목록 설정
+            const selectedItems = document.querySelectorAll('.selected-list-item');
+            const recipientCount = selectedItems.length;
+            const firstRecipient = selectedItems.length > 0 ?
+              selectedItems[0].querySelector('span:nth-child(2)').textContent : '';
+
+            let recipientText = firstRecipient;
+            if (recipientCount > 1) {
+              recipientText += `외 ${recipientCount - 1}명`;
+            }
+            document.getElementById('confirm-recipients').textContent = recipientText;
+
+            // 메시지 내용 설정
+            const title = document.getElementById('message-title').value;
+            const content = document.getElementById('message-content').value;
+
+            const formattedMessage = `안녕하세요. ${firstRecipient}님\n` +
+                                    `물건 ${title} 요청합니다.\n` +
+                                    `${content}\n` +
+                                    `잘부탁합니다.\n` +
+                                    `감사합니다.`;
+
+            document.getElementById('confirm-message').value = formattedMessage;
+
+            // 첨부 이미지 설정
+            const thumbnailList = document.querySelector('.thumbnail-list');
+            const confirmThumbnailList = document.getElementById('confirm-thumbnail-list');
+            confirmThumbnailList.innerHTML = '';
+
+            if (thumbnailList) {
+              const thumbnails = thumbnailList.querySelectorAll('.thumbnail-item img');
+              thumbnails.forEach(thumb => {
+                const src = thumb.getAttribute('src');
+                confirmThumbnailList.innerHTML += `
+                  <div class="confirm-thumbnail-item">
+                    <img src="${src}" alt="첨부이미지">
+                  </div>
+                `;
+              });
+            }
+
+            // 모달 표시
+            document.getElementById('confirm-modal').style.display = 'block';
+          });
+
+          // 확인 모달 닫기 버튼
+          document.querySelector('.confirm-close-btn').addEventListener('click', function() {
+            document.getElementById('confirm-modal').style.display = 'none';
+          });
+
+          // 확인 모달 전송 버튼
+          document.getElementById('confirm-send-btn').addEventListener('click', function() {
+            // 실제 전송 로직 실행 (기존 send-message-btn의 로직 재사용)
+            document.getElementById('send-message-btn').click();
+
+            // 모달 닫기
+            document.getElementById('confirm-modal').style.display = 'none';
+          });
+
     });
+
   </script>
 </head>
 <body>
@@ -984,6 +1230,8 @@
         </div>
       </div>
       <button id="send-message-btn">전송</button>
+      <button id="send-message-pop">전송(확인후)</button>
+      <button id="send-file-btn">첨부파일전송</button>
     </div>
   </div>
 
@@ -995,6 +1243,38 @@
   <!-- 메시지 전송 처리 중 로딩 메시지 (초기에는 숨김) -->
   <div id="sending-message" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background-color: rgba(0,0,0,0.7); color: white; font-size: 20px; border-radius: 8px; z-index: 3000;">
     메시지전송처리중..
+  </div>
+
+  <!-- 확인 모달 창 -->
+  <div id="confirm-modal">
+    <div class="confirm-modal-header">
+      <h3 id="confirm-modal-title">알림톡 전송 확인</h3>
+    </div>
+
+    <div class="confirm-modal-content">
+      <div class="confirm-info-row">
+        <label>전송목록:</label>
+        <div id="confirm-recipients">강종철외 15명</div>
+      </div>
+      <div class="confirm-info-row">
+        <textarea id="confirm-message" readonly>안녕하세요. 강종철님
+물건 [제목] 요청합니다.
+[내용]
+잘부탁합니다.
+감사합니다.</textarea>
+      </div>
+
+      <div class="confirm-thumbnail-slider">
+        <div class="confirm-thumbnail-list" id="confirm-thumbnail-list">
+          <!-- 썸네일이 여기에 동적으로 추가됩니다 -->
+        </div>
+      </div>
+    </div>
+
+    <div class="confirm-modal-footer">
+      <button class="confirm-send-btn" id="confirm-send-btn">전송</button>
+      <button class="confirm-close-btn">닫기</button>
+    </div>
   </div>
 </body>
 </html>

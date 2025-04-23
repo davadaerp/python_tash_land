@@ -1,7 +1,11 @@
+import os
+import json
 import requests
 from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory
 from flask_cors import CORS
-import json
+from werkzeug.utils import secure_filename
+from datetime import datetime
+#
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
 from auction.auction_db_utils import auction_read_db, auction_read_csv
 from realtor.realtor_db_utils import realtor_read_db
@@ -385,6 +389,65 @@ def sms_send():
     # 로그인 성공 시 리다이렉트 URL을 JSON으로 반환
     #return jsonify({"result": result, "data": data, "errmsg": errmsg})
     return jsonify({"result": result, "errmsg": errmsg})
+
+
+# 파일 업로드 설정
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# # 업로드 폴더가 없으면 생성
+# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/upload_files', methods=['POST'])
+def upload_files():
+    # 요청에 파일이 포함되어 있는지 확인
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'message': 'No file part'}), 400
+
+    files = request.files.getlist('files')
+    if len(files) == 0:
+        return jsonify({'success': False, 'message': 'No selected files'}), 400
+
+    saved_files = []
+
+    for file in files:
+        if file.filename == '':
+            continue
+
+        if file and allowed_file(file.filename):
+            # 안전한 파일 이름 생성
+            filename = secure_filename(file.filename)
+            # 고유한 파일 이름을 위해 타임스탬프 추가
+            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}.{filename}"
+            save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+
+            try:
+                file.save(save_path)
+                saved_files.append({
+                    'original_name': filename,
+                    'saved_name': unique_filename,
+                    'size': os.path.getsize(save_path)
+                })
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'message': f'Error saving file {filename}: {str(e)}'
+                }), 500
+
+    if len(saved_files) == 0:
+        return jsonify({'success': False, 'message': 'No valid files uploaded'}), 400
+
+    return jsonify({
+        'success': True,
+        'message': 'Files uploaded successfully',
+        'file_count': len(saved_files),
+        'files': saved_files
+    })
 
 @app.route('/api/form_down', methods=['GET'])
 def form_download():

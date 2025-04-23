@@ -57,7 +57,7 @@ def alimtalk_send(data):
         content_template = (
             f"안녀하세요. {name}님\n"
             f"물건 {item_name} 요청합니다.\n"
-            f"{item_spec}\n"
+            f"{item_spec}\n\n"
             f"잘 부탁드립니다.\n\n감사합니다."
         )
         messages.append({
@@ -67,6 +67,10 @@ def alimtalk_send(data):
             # 첨부 파일 ID 리스트
             #"imageIdList": [file_id]
         })
+
+# 차후 버튼url처리
+#    변수URL:
+    # {url}
 
     # 페이로드 구성
     payload = {
