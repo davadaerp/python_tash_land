@@ -1,6 +1,7 @@
 
     //BASE_URL = 'http://192.168.45.167:5002';
-    BASE_URL = 'http://192.168.45.167:8081';
+    //BASE_URL = 'http://192.168.45.167:8081';
+    BASE_URL = 'http://localhost:8080';
 
     // 자동완성 공통필드
     let selectedLawdCd = "";

@@ -8,11 +8,17 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+#
+from jumpo.jumpo_db_utils import jumpo_save_to_sqlite, jumpo_drop_table
 
 # 글로벌 변수 설정
 page_list = "60"
 data_list = []
 saved_count = 0    # 누적 저장 건수
+
+# 저장 방식 선택: "csv" 또는 "sqlite"
+SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
+BATCH_SIZE = 120     # 레코드 1000건마다 저장
 
 # —————————————————————————————————————————————————————————
 # 1) 전역 detail_driver 선언
@@ -167,9 +173,9 @@ def record_parsing_list(driver, section, current_page):
         record = {
             "section": section,
             "id": item_id,
-            "매물번호": item_no,
-            "지역": region,
-            "업종": upjong,
+            "item_no": item_no,     # 매물번호
+            "region": region,       # 지역
+            "upjong": upjong,       # 업종
             # #"프랜차이즈명": franch_name,
             # "층": floor,
             # "면적": area,
@@ -191,11 +197,19 @@ def record_parsing_list(driver, section, current_page):
         }
         data_list.append(record)
 
+        # 1000건마다 저장 처리
+        if len(data_list) >= BATCH_SIZE:
+            print(f"저장 전 현재까지 저장 건수: {saved_count + len(data_list)} 건, 이번 배치: {len(data_list)} 건")
+            jumpo_save_to_sqlite(data_list)
+            saved_count += len(data_list)
+            data_list.clear()
+            time.sleep(1)
+
         print(f"[{idx}] {record}")
 
         # 상세현황 파싱처리
-        extract_info(item_id, item_no, section)
-        time.sleep(1)
+        #extract_info(item_id, item_no, section)
+        #time.sleep(1)
 
     # 누적 파싱 개수
     total = (current_page - 1) * len(items) + idx
@@ -229,6 +243,7 @@ def navigate_pages(driver, section, total_records):
         except Exception as e:
             print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
             break
+
 
 
 # 주소로 시군구 데이타 파싱및 분석
@@ -380,8 +395,11 @@ def main():
         first_html = driver.page_source
         categories = menu_list(first_html)
         print(f"총 {len(categories)}개 카테고리 발견\n")
-        # for cat in categories:
-        #     print(f"▶ [{cat['section']}] {cat['name']} total: {cat['total']}건, mcode={cat['mcode']}, scode={cat['scode']}")
+        for cat in categories:
+            print(f"▶ [{cat['section']}] {cat['name']} total: {cat['total']}건, mcode={cat['mcode']}, scode={cat['scode']}")
+
+        # 맨처음 목록리스트 전부를 삭제후 처리함
+        #jumpo_drop_table()
 
         # 3) 각 카테고리에 대해 1~3페이지만 예시로 읽어보기
         for cat in categories:

@@ -9,6 +9,7 @@ PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/persis
 SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
 REALTOR_DB_PATH = os.environ.get("REALTOR_DB_PATH", BASE_PATH + "/realtor")
+JUMPO_BASE_PATH = os.environ.get("JUMPO_BASE_PATH", BASE_PATH + "/jumpo")
 #
 PAST_APT_BASE_PATH = os.environ.get("PAST_APT_BASE_PATH", BASE_PATH + "/pastapt")
 
@@ -22,8 +23,11 @@ if not SANGA_BASE_PATH.endswith(os.sep):
 if not AUCTION_DB_PATH.endswith(os.sep):
     AUCTION_DB_PATH += os.sep
 
-if not REALTOR_DB_PATH.endswith(os.sep):
-    REALTOR_DB_PATH += os.sep
+if not JUMPO_BASE_PATH.endswith(os.sep):
+    JUMPO_BASE_PATH += os.sep
+
+if not SANGA_BASE_PATH.endswith(os.sep):
+    SANGA_BASE_PATH += os.sep
 
 if not PAST_APT_BASE_PATH.endswith(os.sep):
     PAST_APT_BASE_PATH += os.sep

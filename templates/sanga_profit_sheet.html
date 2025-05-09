@@ -123,7 +123,7 @@
         #legal_fees_table_1_field_4,
         #legal_fees_table_1_field_2_1,
         #legal_fees_table_3_field_3,
-        #legal_fees_table_4_field_1, #legal_fees_table_4_field_1_1,
+        #legal_fees_table_4_field_1,
         #legal_fees_table_4_field_2, #legal_fees_table_4_field_3,
         #legal_fees_table_5_field_3, #legal_fees_table_5_field_4,
         #legal_fees_table_6_field_1, #legal_fees_table_6_field_2,
@@ -148,7 +148,7 @@
         #legal_fees_table_1_field_1, #legal_fees_table_1_field_2,
         #legal_fees_table_1_field_3_1, #legal_fees_table_1_field_4_1,
         #legal_fees_table_3_field_1, #legal_fees_table_3_field_2,
-        #legal_fees_table_4_field_2_2,
+        #legal_fees_table_4_field_1_1, #legal_fees_table_4_field_2_2,
         #legal_fees_table_5_field_1, #legal_fees_table_5_field_2,
         #legal_fees_table_6_field_5,
         #records_table_1_field_1, #records_table_1_field_2, #records_table_1_field_3, #records_table_1_field_4,
@@ -201,14 +201,39 @@
             var field4_1 = parseFloat(document.getElementById('legal_fees_table_1_field_4_1').value.replace(/,/g, ''));
             var percentage = BidAmount * (field4_1/100);
             document.getElementById('legal_fees_table_1_field_4').value = formatNumber(percentage.toFixed(0));
+
+            //
+            대출이자자동계산();
+        }
+
+        // 대출비율 계산
+        function 대출비율() {
+            var LoanInterest = parseFloat(document.getElementById('legal_fees_table_4_field_1_1').value.replace(/,/g, '')) / 100;
+            var LoanAmount = Math.floor(BidAmount * LoanInterest);
+            document.getElementById('legal_fees_table_4_field_1').value = formatNumber(LoanAmount.toFixed(0));
+            //
+            대출이자();
         }
 
         // 대출이자 계산
         function 대출이자() {
+            var LoanAmount = parseFloat(document.getElementById('legal_fees_table_4_field_1').value.replace(/,/g, ''));
+            //
+            var LoanInterestYear = parseFloat(document.getElementById('legal_fees_table_4_field_2_2').value.replace(/,/g, ''));
+            var LoanInterestYearAmount = LoanAmount * (LoanInterestYear/100);
+            var LoanInterestMonAmount = LoanInterestYearAmount / 12;
+            document.getElementById('legal_fees_table_4_field_2').value = formatNumber(LoanInterestYearAmount.toFixed(0));
+            document.getElementById('legal_fees_table_4_field_3').value = formatNumber(LoanInterestMonAmount.toFixed(0));
+            document.getElementById('records_table_1_field_5').value = formatNumber(LoanInterestYearAmount.toFixed(0));
+        }
+
+        // 대출이자자동계산 계산
+        function 대출이자자동계산() {
             var LoanAmount = Math.floor(Math.min(ValuationAmount * 0.6, BidAmount * 0.85) / 1000000) * 1000000 + 2000000;
             document.getElementById('legal_fees_table_4_field_1').value = formatNumber(LoanAmount.toFixed(0));
             var LoanInterest = (LoanAmount / BidAmount) * 100;
             document.getElementById('legal_fees_table_4_field_1_1').value = LoanInterest.toFixed(1) + '%';
+            //
             var LoanInterestYear = parseFloat(document.getElementById('legal_fees_table_4_field_2_2').value.replace(/,/g, ''));
             var LoanInterestYearAmount = LoanAmount * (LoanInterestYear/100);
             var LoanInterestMonAmount = LoanInterestYearAmount / 12;
@@ -327,6 +352,9 @@
             if (input.id === 'legal_fees_table_1_field_4_1') {
                 법무비();
             }
+            if (input.id === 'legal_fees_table_4_field_1_1') {
+                대출비율();
+            }
             if (input.id === 'legal_fees_table_4_field_2_2') {
                 대출이자();
             }
@@ -354,6 +382,7 @@
             document.getElementById('legal_fees_table_2_field_4').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_3_field_1').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_3_field_2').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_4_field_1_1').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_4_field_2_2').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_5_field_1').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_5_field_2').addEventListener('input', onInput);
@@ -391,7 +420,8 @@
                 });
                 input.addEventListener('blur', function () {
                     let value = input.value.trim();
-                    if (input.id === 'legal_fees_table_1_field_3_1' || input.id === 'legal_fees_table_1_field_4_1') {
+                    if (input.id === 'legal_fees_table_1_field_3_1' || input.id === 'legal_fees_table_1_field_4_1' ||
+                        input.id === 'legal_fees_table_4_field_1_1' || input.id === 'legal_fees_table_4_field_2_2') {
                         value = value.replace(/%/g, '');
                         if (value === '' || isNaN(value)) {
                             input.value = '0';
@@ -498,7 +528,7 @@
                     <th rowspan="3">이자</th>
                     <td>대출 금액</td>
                     <td><input type="text" id="legal_fees_table_4_field_1" value="0" readonly></td>
-                    <td><input type="text" id="legal_fees_table_4_field_1_1" value="0%" readonly></td>
+                    <td><input type="text" id="legal_fees_table_4_field_1_1" value="0%"></td>
                 </tr>
                 <tr>
                     <td>대출 이자(년)</td>

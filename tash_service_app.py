@@ -5,6 +5,8 @@ from flask import Flask, jsonify, request, redirect, render_template, url_for, m
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
+
+#from naver.naver_login import naver_authorization, naver_callback
 #
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
 from auction.auction_db_utils import auction_read_db, auction_read_csv
@@ -131,6 +133,46 @@ def logout():
     response.set_cookie('access_token', '', expires=0, path='/')
 
     return response
+
+@app.route("/api/login/naver")
+def naver_login():
+    auth_url = naver_authorization()
+    return redirect(auth_url)
+
+@app.route("/api/login/naver/code")
+def callback():
+    """
+    네이버 로그인 후 콜백 처리: 토큰과 프로필을 받아와 JSON으로 반환합니다.
+    """
+    code = request.args.get('code')
+    if not code:
+        return "Error: missing code", 400
+    #
+    user_info, token = naver_callback(code)
+
+    print("===== NAVER USER PROFILE =====")
+    # 5) 개별 값 추출
+    user_id = user_info.get('id')
+    nickname = user_info.get('nickname')
+    email = user_info.get('email')
+    mobile = user_info.get('mobile')
+    mobile_e164 = user_info.get('mobile_e164')
+    real_name = user_info.get('name')
+
+    print(f"ID            : {user_id}")
+    print(f"Nickname      : {nickname}")
+    print(f"Email         : {email}")
+    print(f"Mobile        : {mobile}")
+    print(f"Mobile (E164) : {mobile_e164}")
+    print(f"Name          : {real_name}")
+    print("================================")
+
+    # 6) 클라이언트에 돌려줄 데이터
+    data = {
+        'token': token,
+        'profile': user_info
+    }
+    return jsonify(data)
 
 @app.route("/api/main")
 @token_required
@@ -592,4 +634,5 @@ def get_pastapt_apt_pir():
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
-    app.run(host='0.0.0.0', port=8081)
+    # app.run(host='0.0.0.0', port=8081)
+    app.run(host='localhost', port=8080, debug=True)
