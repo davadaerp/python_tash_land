@@ -1647,6 +1647,251 @@ function observeMutations() {
     observer.observe(targetNode, config);
 }
 
+// 탱크옥션 처리
+function observeMutationsTank() {
+    const targetNode = document.querySelector('body'); // 감시할 노드 선택
+    const config = { childList: true, subtree: true }; // 감시할 변경 유형 설정
+
+    const callback = function(mutationsList, observer) {
+		// 제거된 부분이 있는지 확인 - 제거가 안되서 문제... 파악다시
+        for (let mutation of mutationsList) {
+            if (mutation.type === 'childList') {
+                setTimeout(extractPropertyInfoTank, 300); // 1초 후에 extractPropertyInfo 함수 실행
+            }
+        }
+    };
+
+    const observer = new MutationObserver(callback);
+    observer.observe(targetNode, config);
+}
+
+// 옥션원 리스트목록 표시
+function extractPropertyInfoTank() {
+
+    // 1. tbody 존재 여부 체크 (3가지 방법)
+    const tbody = document.querySelector('#lsTbody');
+    const propertyItems = tbody.querySelectorAll('tr');
+
+	propertyItems.forEach((item) => {
+
+        let areaPy = 0;
+        // 방법 1 적용: 모든 .blue 클래스 요소 수집
+        const areaElements = item.querySelectorAll('.blue, .blue.f12');
+        areaElements.forEach(el => {
+            const areaText = el.textContent.trim();
+            console.log('검색 텍스트:', areaText);
+
+            // 건물 평수 우선 추출
+            const buildingMatch = areaText.match(/건물[^㎡]*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
+            if (buildingMatch && !areaPy) { // 아직 값이 없을 때만 할당
+                areaPy = parseFloat(buildingMatch[1]);
+                console.log(`건물 평수: ${areaPy}평`);
+            }
+
+            // 건물 없으면 토지 평수 추출
+            const landMatch = areaText.match(/토지[^㎡]*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
+            if (landMatch && !areaPy) {
+                areaPy = parseFloat(landMatch[1]);
+                console.log(`토지 평수: ${areaPy}평`);
+            }
+        });
+        console.log(`최종 평수: ${areaPy}평`);
+
+		if (areaPy) {
+			// 금액1 추출 (auct_iprice_숫자 아이디 내부 텍스트) //auct_jprice_2406369
+			const price1Element = item.querySelector('[id^="apslAmt_"]');
+			const price1Text = price1Element.textContent.trim().replace(/,/g, '');
+			const price1num = parseInt(price1Text);
+			console.log(price1num);
+			if (!price1Element.dataset.highlighted) {
+				// 금액2 추출 (auct_iprice_숫자 아이디 내부 텍스트) //auct_jprice_2406369
+				const price2Element = item.querySelector('[id^="minbAmt"]');
+				const price2Text = price2Element.textContent.trim().replace(/,/g, '');
+				const price2num = parseInt(price2Text);
+				console.log(price2num);
+
+				const pydanga1 = parseInt(price1num / (areaPy * 10000));
+				const pydanga2 = parseInt(price2num / (areaPy * 10000));
+				console.log(pydanga1);
+
+				// Create a new <span> element for the line break
+				const lineBreakSpan = document.createElement('span');
+				lineBreakSpan.innerHTML = '<br>'; // This will render as an actual line break
+				const lineBreakSpan2 = document.createElement('span');
+				lineBreakSpan2.innerHTML = '<br>'; // This will render as an actual line break
+
+				const pydanga1Span = document.createElement('span');
+				pydanga1Span.textContent = `@${pydanga1}만원`;
+				pydanga1Span.style.opacity = 0.5; // 50% opacity
+				pydanga1Span.style.color = 'red';
+
+				// Append the line break and the calculated value to the content
+				price1Element.appendChild(lineBreakSpan);
+				price1Element.appendChild(pydanga1Span);
+
+				const pydanga2Span = document.createElement('span');
+				pydanga2Span.textContent = `@${pydanga2}만원`;
+				pydanga2Span.style.opacity = 0.5; // 50% opacity
+				pydanga2Span.style.color = 'green';
+
+				price2Element.appendChild(lineBreakSpan2);
+				price2Element.appendChild(pydanga2Span);
+
+				// 낙찰단가는 창을 모르니까 비워둠
+				// const price3Element = item.querySelector('[id^="auct_sprice_"]');
+
+				// if (price3Element) {
+					// // 금액3 추출 (auct_iprice_숫자 아이디 내부 텍스트) //auct_sprice_2406369
+					// const price3Text = price3Element.textContent.trim().replace(/,/g, '');
+					// const price3num = parseInt(price3Text);
+					// const pydanga3 = parseInt(price3num / (areaPy * 10000));
+
+					// const lineBreakSpan3 = document.createElement('span');
+					// lineBreakSpan3.innerHTML = '<br>'; // This will render as an actual line break
+
+					// const pydanga3Span = document.createElement('span');
+					// pydanga3Span.textContent = `@${pydanga3}만원`;
+					// pydanga3Span.style.opacity = 0.5; // 50% opacity
+					// pydanga3Span.style.color = 'blue';
+
+					// price3Element.appendChild(lineBreakSpan3);
+					// price3Element.appendChild(pydanga3Span);
+				// }
+				price1Element.dataset.highlighted = true;
+			}
+		} else {
+			console.log('면적 없어서 pass');
+		}
+	});
+}
+
+
+// 탱크 auction 세부조회 적용
+function extractPropertyInfoDetailTank() {
+	let areaPy;
+
+	const tbody = document.querySelector('.Btbl_list');
+
+	const headerCells = tbody.querySelectorAll('th');
+
+
+	for (const headerCell of headerCells) {
+		if (headerCell.textContent.includes('토지면적')) {
+			const areaLand = headerCell.nextElementSibling;
+			// const content = areaLand.textContent.trim(); //내용에서 공백 제가
+			const content = areaLand.innerHTML.trim(); //내용에서 공백 제가
+			const lines = content.split(/<br\s*\/?>/i);
+			const regex = /\((\d+\.\d+)\평\)/;
+
+			lines.forEach (part => {
+				const match = part.match(regex);
+				if (match) {
+					areaPy = parseFloat(match [1]);
+					console.log(areaPy);
+				} else {
+					console.log('면적 추출 실패');
+				}
+			});
+		}
+	}
+
+	for (const headerCell of headerCells) {
+		if (headerCell.textContent.includes('건물면적')) {
+			const areaBd = headerCell.nextElementSibling;
+			const content = areaBd.innerHTML.trim(); //내용에서 공백 제가
+			const lines = content.split(/<br\s*\/?>/i);
+			const regex = /\((\d+\.\d+)\평\)/;
+
+			lines.forEach (part => {
+				const match = part.match(regex);
+				if (match) {
+					areaPy = parseFloat(match [1]);
+					console.log(areaPy);
+				} else {
+					console.log('면적 추출 실패');
+				}
+			});
+		}
+	}
+
+
+	for (const headerCell of headerCells) {
+		if (headerCell.textContent.includes('감정가')) {
+			const price1Element = headerCell.nextElementSibling;
+			const price1Text = price1Element.textContent.trim().replace(/,/g, '');
+			const price1num = parseInt(price1Text);
+			const pydanga1 = parseInt(price1num / (areaPy * 10000));
+
+			// Create a new <span> element for the line break
+			const lineBreakSpan = document.createElement('span');
+			lineBreakSpan.innerHTML = '<br>'; // This will render as an actual line break
+
+			const pydanga1Span = document.createElement('span');
+			pydanga1Span.textContent = `@${pydanga1}만원`;
+			pydanga1Span.style.opacity = 0.5; // 50% opacity
+			pydanga1Span.style.color = 'red';
+
+			// Append the line break and the calculated value to the content
+			price1Element.appendChild(lineBreakSpan);
+			price1Element.appendChild(pydanga1Span);
+
+		}
+	}
+
+
+	for (const headerCell of headerCells) {
+		if (headerCell.textContent.includes('최저가')) {
+			const price2Element = headerCell.nextElementSibling;
+			const price2Text1 = price2Element.textContent.trim().replace(/\(\d+%\)\s*/g, '');
+			const price2Text = price2Text1.replace(/[,원]/g,'');
+			const price2num = parseInt(price2Text);
+			console.log(price2num);
+			const pydanga2 = parseInt(price2num / (areaPy * 10000));
+
+			// Create a new <span> element for the line break
+			const lineBreakSpan2 = document.createElement('span');
+			lineBreakSpan2.innerHTML = '<br>'; // This will render as an actual line break
+
+			const pydanga2Span = document.createElement('span');
+			pydanga2Span.textContent = `@${pydanga2}만원`;
+			pydanga2Span.style.opacity = 0.5; // 50% opacity
+			pydanga2Span.style.color = 'green';
+
+			// Append the line break and the calculated value to the content
+			price2Element.appendChild(lineBreakSpan2);
+			price2Element.appendChild(pydanga2Span);
+
+		}
+	}
+
+
+	for (const headerCell of headerCells) {
+		if (headerCell.textContent.includes('매각가')) {
+			const price3Element = headerCell.nextElementSibling;
+			const price3Text1 = price3Element.textContent.trim().replace(/\(\d+%\)\s*/g, '');
+			const price3Text = price3Text1.replace(/[,원]/g,'');
+			const price3num = parseInt(price3Text);
+			// console.log(price2num);
+			const pydanga2 = parseInt(price3num / (areaPy * 10000));
+
+			// Create a new <span> element for the line break
+			const lineBreakSpan3 = document.createElement('span');
+			lineBreakSpan3.innerHTML = '<br>'; // This will render as an actual line break
+
+			const pydanga3Span = document.createElement('span');
+			pydanga3Span.textContent = `@${pydanga2}만원`;
+			pydanga3Span.style.opacity = 0.5; // 50% opacity
+			pydanga3Span.style.color = 'blue';
+
+			// Append the line break and the calculated value to the content
+			price3Element.appendChild(lineBreakSpan3);
+			price3Element.appendChild(pydanga3Span);
+
+		}
+	}
+
+}
+
 // 페이지가 로드되면 실행
 window.addEventListener('load', function() {
     if (window.location.href.startsWith('https://new.land.naver.com/offices') ||
@@ -1655,4 +1900,18 @@ window.addEventListener('load', function() {
         setTimeout(extractPropertyInfo,50);
         observeMutations(); // DOM 변경 감시 시작
     }
+
+    	// Tank Auction 목록조회아이템 적용(경매,공매)
+	if (window.location.href.startsWith('https://www.tankauction.com/ca/caList.php') ||
+        window.location.href.startsWith('https://www.tankauction.com/pa/paList.php')) {
+		setTimeout(extractPropertyInfoTank,50);
+		observeMutationsTank();
+	}
+
+	// Tank Auction 세부조회아이템 적용
+	if (window.location.href.startsWith('https://www.tankauction.com/ca/caView.php') ||
+        window.location.href.startsWith('https://www.tankauction.com/pa/paView.php')) {
+		extractPropertyInfoDetailTank();
+	}
+
 });

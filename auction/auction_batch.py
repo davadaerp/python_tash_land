@@ -1,6 +1,6 @@
 import time
 from datetime import datetime, timedelta
-import auction_crawling  # auction_crawling.py 파일에 main() 함수가 정의되어 있어야 함
+import auction_crawling  # npl_tk_crawling.py 파일에 main() 함수가 정의되어 있어야 함
 
 def wait_until_target(target_datetime):
     """현재 시각과 target_datetime 사이의 시간을 기다린 후 반환"""

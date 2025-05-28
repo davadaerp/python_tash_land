@@ -8,6 +8,7 @@ BASE_PATH = "/Users/wfight/IdeaProjects/PythonProject/Auction"
 PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/persistence")
 SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
+NPL_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/npl")
 REALTOR_DB_PATH = os.environ.get("REALTOR_DB_PATH", BASE_PATH + "/realtor")
 JUMPO_BASE_PATH = os.environ.get("JUMPO_BASE_PATH", BASE_PATH + "/jumpo")
 #
@@ -19,6 +20,9 @@ if not PERSISTENCE_DB_PATH.endswith(os.sep):
 
 if not SANGA_BASE_PATH.endswith(os.sep):
     SANGA_BASE_PATH += os.sep
+
+if not NPL_DB_PATH.endswith(os.sep):
+    NPL_DB_PATH += os.sep
 
 if not AUCTION_DB_PATH.endswith(os.sep):
     AUCTION_DB_PATH += os.sep

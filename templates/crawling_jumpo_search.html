@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* 전체 페이지 중앙 정렬 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 15px;
+    }
+    /* 검색 컨테이너 스타일 */
+    .search-container {
+      margin-bottom: 5px;
+      background-color: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      position: relative;
+    }
+    .search-input-group label {
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      text-align: left;
+    }
+    .search-input-group input,
+    .search-input-group select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .search-btn, .message-btn, .excel-btn {
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    .search-btn:hover, .message-btn:hover, .excel-btn:hover {
+      background-color: #0056b3;
+    }
+    #result-count {
+      width: 40px;
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      margin-left: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 30px;
+    }
+    #header-container {
+      width: 95%;
+      max-width: 940px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 0;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 1px;
+    }
+    #header-container span {
+      text-align: center;
+      padding: 0 5px;
+      flex: 1;
+      border-right: 1px solid #ddd;
+    }
+    #header-container span:last-child { border-right: none; }
+    .table-container {
+      width: 95%;
+      max-width: 940px;
+      max-height: 980px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 0;
+      margin-top: 1px;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+      font-size: 14px;
+    }
+    th { background-color: #f2f2f2; font-weight: bold; }
+    .highlight { color: red; font-weight: bold; }
+    .right-align { text-align: right; }
+    .left-align { text-align: left; }
+    .center-align { text-align: center; }
+    .no-data-message, .loading-message {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+      margin: 50px auto;
+    }
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+    /* 선택된 상세 버튼 스타일 */
+    .map-detail.selected {
+      background-color: #28a745;
+      color: #fff;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/address_autocomplete.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script>
+    const upjongOptions = {
+      '휴게음식점': ['카페','치킨점','커피점','패스트푸드','피자점','제과점','떡볶이/튀김','아이스크림점','기타휴게점'],
+      '일반음식점': ['한식점','고깃집','분식점','중국집','일식점','레스토랑','돈까스/우동','생선회/해물','기타음식점'],
+      '주류점': ['맥주호프점','노래주점','바','실내포차','이자카야','꼬치구이','기타주점'],
+      '오락스포츠': ['당구장','노래방','요가/필라테스','스크린골프장','헬스클럽','PC방','골프연습장','만화방','기타오락스포츠'],
+      '판매업': ['편의점','의류판매점','이동통신점','1층다용도','슈퍼마켓','아이스크림 할인점','문구팬시','화장품점','기타판매점'],
+      '서비스업': ['독서실','미용실','마사지','피부미용','세차장/카센타','빨래방','네일아트','키즈카페','기타서비스업'],
+      '기타업종': ['상가매매','상가임대','펜션','학원','모텔','고시원','병원/약국','다용도점포','기타창업모음']
+    };
+
+    /** 데이터 조회 **/
+    function fetchData() {
+      const region = $('#region').val();
+      const section = $('#section').val();
+      const upjong = $('#upjong').val();
+      const umdNm = $('#umdNm').val();
+      $('#loading').show(); $('#noData').hide(); $('table').hide();
+      $.ajax({
+        url: BASE_URL + '/api/jumpo',
+        method: 'GET',
+        dataType: 'json',
+        timeout:5000,
+        data: { region, section, upjong, umdNm },
+        beforeSend: ()=>{
+          $('#loading').show();
+          $('#noData,#errorMessage,table').hide();
+        },
+        success: function(data) {
+          $('#loading').hide();
+          if(data.length===0) {
+            $('#noData').show();
+          } else {
+            $('table').show();
+            renderTable(data);
+          }
+          $('#result-count').text(data.length);
+        },
+        error: function(xhr,status,error){
+          $('#loading').hide();
+          const msg = status==='timeout'?
+            '서버 응답이 없습니다. 서버가 실행 중인지 확인하세요.' :
+            '데이터를 가져오는 중 오류가 발생했습니다: '+error;
+          $('#errorMessage').text(msg).show();
+        }
+      });
+    }
+
+    /** 테이블 렌더 **/
+    function renderTable(data){
+      const tableBody = $('#dataBody').empty();
+      data.forEach((item,i)=>{
+        const addr=item.도로명주소.trim();
+        tableBody.append(`
+          <tr>
+            <td class="center-align">${i}</td>
+            <td class="center-align">${item.section}</td>
+            <td class="center-align">${item.업종.replace(/\s/g,'')}</td>
+            <td class="left-align">${addr.length>25?addr.substring(0,25)+'...':addr}</td>
+            <td class="center-align">${item.보증금}</td>
+            <td class="center-align">${item.매출이익}</td>
+            <td><button class="map-detail" data-map="${item.id}">상세</button></td>
+            <td><button class="map-btn" data-map="${item.도로명주소}">위치</button></td>
+          </tr>
+        `);
+      });
+      document.querySelectorAll('.map-detail').forEach(btn=>{
+        btn.onclick=function(){
+          document.querySelectorAll('.map-detail.selected')
+            .forEach(b=>b.classList.remove('selected'));
+          this.classList.add('selected');
+          window.open(
+            `https://www.jumpoline.com/_jumpo/jumpo_view.asp?webjofrsid=${this.dataset.map}`,
+            '_blank'
+          );
+        };
+      });
+      document.querySelectorAll('.map-btn').forEach(btn=>btn.onclick=_=>openMap(btn.dataset.map));
+    }
+
+    document.addEventListener('DOMContentLoaded',()=>{
+      // 검색 버튼
+      $('#search-btn').click(fetchData);
+      // 엔터 키
+      $('#dangiName').keypress(e=>{ if(e.which===13 && $('#dangiName').val().trim()) fetchData(); });
+
+      // section→upjong 연동
+      $('#section').change(function(){
+        const opts = upjongOptions[this.value]||[];
+        const up = $('#upjong').empty().append('<option value="">업종 선택</option>');
+        opts.forEach(o=>up.append(`<option value="${o}">${o}</option>`));
+      });
+
+      // 기본값 설정
+      $('#section').val('휴게음식점').trigger('change');
+      $('#upjong').val('카페');
+    });
+  </script>
+</head>
+<body>
+  <h2>점포내역목록</h2>
+  <div class="search-container">
+    <div class="search-input-group">
+      <label for="region">지역:</label>
+      <select id="region">
+        <option value="">전체</option>
+        <option value="서울">서울</option>
+        <option value="경기">경기</option>
+        <option value="인천">인천</option>
+        <option value="부산">부산</option>
+        <option value="대구">대구</option>
+        <option value="광주">광주</option>
+        <option value="대전">대전</option>
+        <option value="세종">세종</option>
+        <option value="울산">울산</option>
+        <option value="강원">강원도</option>
+        <option value="충청북도">충청북도</option>
+        <option value="충청남도">충청남도</option>
+        <option value="전라북도">전라북도</option>
+        <option value="전라남도">전라남도</option>
+        <option value="경상북도">경상북도</option>
+        <option value="경상남도">경상남도</option>
+        <option value="제주">제주도</option>
+      </select>
+      <label for="section">분류:</label>
+      <select id="section">
+        <option value="">전체</option>
+        <option>휴게음식점</option>
+        <option>일반음식점</option>
+        <option>주류점</option>
+        <option>오락스포츠</option>
+        <option>판매업</option>
+        <option>서비스업</option>
+        <option>기타업종</option>
+      </select>
+      <label for="upjong">업종:</label>
+      <select id="upjong">
+      </select>
+      <input type="text" id="umdNm" placeholder="읍면동을 입력하세요">
+      <span id="result-count">0</span>
+      <button class="search-btn" id="search-btn">검색</button>
+      <button class="excel-btn" id="download-btn">
+        <img src="excel_icon.png" alt="엑셀 저장" style="width:24px;height:24px;vertical-align:middle;">
+      </button>
+    </div>
+  </div>
+  <div id="header-container">
+    <span style="flex:0.5;">순번</span>
+    <span>분류</span>
+    <span>업종</span>
+    <span>주소지</span>
+    <span>보증금</span>
+    <span>매출이익</span>
+    <span>상세</span>
+    <span>지도</span>
+  </div>
+  <div class="table-container">
+    <table><tbody id="dataBody"></tbody></table>
+    <div id="loading" class="loading-message" style="display:none;">데이터 검색 중입니다...</div>
+    <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+    <div id="errorMessage" class="error-message" style="display:none;color:red;margin-top:10px;text-align:center;"></div>
+  </div>
+</body>
+</html>

@@ -1,6 +1,69 @@
 
 1. jumpo_crawling.py에서는 메뉴목록에 리스트를 추출함.
    : 해당리스트에서 데이터 추출시 문제가 많아서 목록을 추출후 상세만 검색처리함(매주1번 돌려야 할듯)
+    section upjong
+  [휴게음식점] 카페 total: 2674건, mcode=B, scode=14
+▶ [휴게음식점] 치킨점 total: 917건, mcode=B, scode=13
+▶ [휴게음식점] 커피점 total: 534건, mcode=B, scode=10
+▶ [휴게음식점] 패스트푸드 total: 374건, mcode=B, scode=04
+▶ [휴게음식점] 피자점 total: 292건, mcode=B, scode=05
+▶ [휴게음식점] 제과점 total: 238건, mcode=B, scode=02
+▶ [휴게음식점] 떡볶이/튀김 total: 96건, mcode=B, scode=15
+▶ [휴게음식점] 아이스크림점 total: 35건, mcode=B, scode=03
+▶ [휴게음식점] 기타휴게점 total: 326건, mcode=B, scode=90
+▶ [일반음식점] 한식점 total: 2007건, mcode=A, scode=01
+▶ [일반음식점] 고깃집 total: 1144건, mcode=A, scode=10
+▶ [일반음식점] 분식점 total: 483건, mcode=A, scode=09
+▶ [일반음식점] 중국집 total: 419건, mcode=A, scode=05
+▶ [일반음식점] 일식점 total: 335건, mcode=A, scode=02
+▶ [일반음식점] 레스토랑 total: 244건, mcode=A, scode=04
+▶ [일반음식점] 돈까스/우동 total: 221건, mcode=A, scode=11
+▶ [일반음식점] 생선회/해물 total: 220건, mcode=A, scode=07
+▶ [일반음식점] 기타음식점 total: 840건, mcode=A, scode=90
+▶ [주류점] 맥주호프점 total: 547건, mcode=C, scode=02
+▶ [주류점] 노래주점 total: 261건, mcode=C, scode=05
+▶ [주류점] 바 total: 260건, mcode=C, scode=01
+▶ [주류점] 실내포차 total: 247건, mcode=C, scode=15
+▶ [주류점] 이자카야 total: 202건, mcode=C, scode=13
+▶ [주류점] 꼬치구이 total: 54건, mcode=C, scode=14
+▶ [주류점] 기타주점 total: 333건, mcode=C, scode=90
+▶ [오락스포츠] 당구장 total: 454건, mcode=E, scode=07
+▶ [오락스포츠] 노래방 total: 337건, mcode=E, scode=01
+▶ [오락스포츠] 요가/필라테스 total: 323건, mcode=E, scode=22
+▶ [오락스포츠] 스크린골프장 total: 266건, mcode=E, scode=21
+▶ [오락스포츠] 헬스클럽 total: 139건, mcode=E, scode=10
+▶ [오락스포츠] PC방 total: 132건, mcode=E, scode=03
+▶ [오락스포츠] 골프연습장 total: 123건, mcode=E, scode=09
+▶ [오락스포츠] 만화방 total: 18건, mcode=E, scode=02
+▶ [오락스포츠] 기타오락스포츠 total: 148건, mcode=E, scode=90
+▶ [판매업] 편의점 total: 253건, mcode=F, scode=13
+▶ [판매업] 의류판매점 total: 169건, mcode=F, scode=01
+▶ [판매업] 이동통신점 total: 105건, mcode=F, scode=15
+▶ [판매업] 1층다용도 total: 90건, mcode=F, scode=19
+▶ [판매업] 슈퍼마켓 total: 57건, mcode=F, scode=17
+▶ [판매업] 아이스크림 할인점 total: 55건, mcode=F, scode=16
+▶ [판매업] 문구팬시 total: 47건, mcode=F, scode=18
+▶ [판매업] 화장품점 total: 4건, mcode=F, scode=05
+▶ [판매업] 기타판매점 total: 429건, mcode=F, scode=90
+▶ [서비스업] 독서실 total: 698건, mcode=G, scode=44
+▶ [서비스업] 미용실 total: 557건, mcode=G, scode=12
+▶ [서비스업] 마사지 total: 537건, mcode=G, scode=38
+▶ [서비스업] 피부미용 total: 299건, mcode=G, scode=06
+▶ [서비스업] 세차장/카센타 total: 249건, mcode=G, scode=41
+▶ [서비스업] 빨래방 total: 180건, mcode=G, scode=43
+▶ [서비스업] 네일아트 total: 179건, mcode=G, scode=37
+▶ [서비스업] 키즈카페 total: 164건, mcode=G, scode=36
+▶ [서비스업] 기타서비스업 total: 654건, mcode=G, scode=90
+▶ [기타업종] 상가매매 total: 65건, mcode=H, scode=19
+▶ [기타업종] 상가임대 total: 42건, mcode=H, scode=18
+▶ [기타업종] 펜션 total: 726건, mcode=H, scode=14
+▶ [기타업종] 학원 total: 105건, mcode=H, scode=10
+▶ [기타업종] 모텔 total: 48건, mcode=H, scode=13
+▶ [기타업종] 고시원 total: 38건, mcode=H, scode=12
+▶ [기타업종] 병원/약국 total: 17건, mcode=H, scode=17
+▶ [기타업종] 다용도점포 total: 103건, mcode=H, scode=90
+▶ [기타업종] 기타창업모음 total: 94건, mcode=H, scode=91
+
 #
 2. jumpo_crawling_info_list.py을 1번 메뉴목록을 가지고 상세목록을 추출함.
 

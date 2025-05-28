@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.common import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -8,12 +9,14 @@ import time
 import re
 import json
 import os
+
+from jumpo.jumpo_crawling import detail_driver
 #
-from auction_db_utils import auction_save_to_sqlite
-from config import AUCTION_DB_PATH
+from npl_db_utils import npl_save_to_sqlite
+from config import NPL_DB_PATH
 
 # 저장파일명
-last_file_name = os.path.join(AUCTION_DB_PATH, "last_npl_date.txt")
+last_file_name = os.path.join(NPL_DB_PATH, "last_npl_date.txt")
 
 # ------------------------------
 # 텍스트 파일에서 마지막 날짜를 읽어오는 함수
@@ -52,6 +55,10 @@ page_list = "100"
 data_list = []
 saved_count = 0    # 누적 저장 건수
 map_api_key = "AIzaSyBzacpsf9Cw3CRRqWXUHbHkRDNbYlaXGCI"    # 구글맴 api_key
+# —————————————————————————————————————————————————————————
+# 1) 전역 detail_driver 선언
+detail_driver = None
+# —————————————————————————————————————————————————————————
 
 # 팝업 닫기 함수
 def close_popups(driver):
@@ -119,10 +126,10 @@ def menu_search(driver):
     try:
         # ======================================================================
         # "경매검색" 메뉴 클릭 (<a href="/ca/caList.php" ... >경매검색</a> 요소 선택)
-        auction_search = WebDriverWait(driver, 5).until(
+        npl_search = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//a[@href='/ca/caList.php' and contains(text(), '경매검색')]"))
         )
-        auction_search.click()
+        npl_search.click()
         print("경매검색 메뉴 클릭 완료.")
 
     except Exception as e:
@@ -149,51 +156,29 @@ def select_categories(driver):
             EC.presence_of_element_located((By.ID, "stat"))
         )
         select_obj = Select(stat_select)
-        select_obj.select_by_value("12")
-        print("매각전부 옵션 선택됨.")
+        select_obj.select_by_value("11")
+        print("진행물건(11), 매각전부(12) 옵션 선택됨.")
         time.sleep(2)
     except Exception as e:
         print("매각전부 옵션 선택 중 오류 발생:", e)
 
-    # # DOM속성을 이용하여 처리함.
-    # try:
-    #     stat_select = WebDriverWait(driver, 10).until(
-    #         EC.presence_of_element_located((By.ID, "stat"))
-    #     )
-    #     # JavaScript를 사용하여 '매각전부' 옵션 수정(Dom속성 바로제어함)
-    #     driver.execute_script("""
-    #         let option = [...document.querySelectorAll("#stat option")].find(opt => opt.textContent.includes("매각전부"));
-    #         if (option) {
-    #             option.removeAttribute("disabled");
-    #             option.classList.remove("bg_gray");
-    #             option.setAttribute("value", "12");
-    #         }
-    #     """)
-    #     # Select 객체를 사용하여 수정된 옵션 선택
-    #     select_obj = Select(stat_select)
-    #     select_obj.select_by_value("12")
-    #
-    #     print("매각전부 옵션 선택됨.")
-    #     time.sleep(2)
-    # except Exception as e:
-    #     print("매각전부 옵션 선택 중 오류 발생:", e)
 
     # [추가] 매각일자 설정
-    try:
-        bgnDt = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.ID, "bgnDt"))
-        )
-        endDt = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.ID, "endDt"))
-        )
-        bgnDt.clear()
-        bgnDt.send_keys(sale_sdate)
-        endDt.clear()
-        endDt.send_keys(sale_edate)
-        print(f"매각일자 설정 완료: 시작일자 {sale_sdate}, 종료일자 {sale_edate}")
-        time.sleep(1)
-    except Exception as e:
-        print("매각일자 설정 중 오류 발생:", e)
+    # try:
+    #     bgnDt = WebDriverWait(driver, 5).until(
+    #         EC.presence_of_element_located((By.ID, "bgnDt"))
+    #     )
+    #     endDt = WebDriverWait(driver, 5).until(
+    #         EC.presence_of_element_located((By.ID, "endDt"))
+    #     )
+    #     bgnDt.clear()
+    #     bgnDt.send_keys(sale_sdate)
+    #     endDt.clear()
+    #     endDt.send_keys(sale_edate)
+    #     print(f"매각일자 설정 완료: 시작일자 {sale_sdate}, 종료일자 {sale_edate}")
+    #     time.sleep(1)
+    # except Exception as e:
+    #     print("매각일자 설정 중 오류 발생:", e)
     #
     try:
         categories = ["아파트", "연립주택", "다세대주택", "오피스텔(주거)", "단독주택", "다가구주택", "도시형생활주택", "상가주택"]
@@ -208,19 +193,28 @@ def select_categories(driver):
     except Exception as e:
         print("카테고리 선택 오류:", e)
 
-    # [추가] <ul id="ulGrpCtgr_20"> 내에서 "근린생활시설"과 "근린상가" 항목 체크
-    for category in ["근린생활시설", "근린상가", "공장", "창고"]:
-        try:
-            checkbox = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable(
-                    (By.XPATH, f"//*[@id='ulGrpCtgr_20']//span[contains(text(), '{category}')]/preceding-sibling::input[@type='checkbox']")
-                )
-            )
-            if not checkbox.is_selected():
-                checkbox.click()
-                print(f"'{category}' 체크박스 선택됨.")
-        except Exception as e:
-            print(f"'{category}' 체크박스 선택 중 오류 발생:", e)
+    #-----------------------------------------------------------------------
+    # 상업및 산업용 체크박스 선택처리
+    try:
+        # '주거용' 체크박스를 트리거할 label 클릭
+        label = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.XPATH, "//label[@for='chkGrpCtgr_20']"))
+        )
+        label.click()
+        print("✅ '주거용' 카테고리 클릭 완료 (chkCtgrMulti(20,1) 호출됨)")
+    except Exception as e:
+        print("❌ 카테고리 클릭 실패:", e)
+
+    # 토지
+    # try:
+    #     # '토지' 체크박스를 트리거할 label 클릭
+    #     label = WebDriverWait(driver, 30).until(
+    #         EC.element_to_be_clickable((By.XPATH, "//label[@for='chkGrpCtgr_30']"))
+    #     )
+    #     label.click()
+    #     print("✅ '토지' 카테고리 클릭 완료 (chkCtgrMulti(30,1) 호출됨)")
+    # except Exception as e:
+    #     print("❌ 카테고리 클릭 실패:", e)
 
     # ======================================================================
     # 첫번째 검색으로 페이지에 총건수를 가져오기 위함.
@@ -278,12 +272,36 @@ def record_parsing_list(driver, current_page):
     rows = tbody.find_elements(By.TAG_NAME, "tr")
     for idx, row in enumerate(rows, start=1):
         row_text = row.text.strip()
-        extract_info(row_text, idx)
+
+        #----------------------------
+        # npl파악위한 근저당 채권최고액(말소기준권리), 임의(강제)경매 청구금액, 임의(강제)경매 청구자
+        # tr 안의 hidden input 중 name 또는 id가 Tid_로 시작하는 것을 찾기
+        tid_input = row.find_element(By.XPATH, './/input[starts-with(@id, "Tid_")]')
+        tid = tid_input.get_attribute("value")
+
+        # print(f"{idx}: tid = {tid}")
+        npl_info = npl_extract_info(driver, row_text, tid)
+        if npl_info is None:
+            continue  # NPL 아님, 다음 로우로
+
+        # info 언패킹
+        min_price, bond_max_amount, bond_claim_amount, auction_method, auction_applicant = npl_info
+
+        # NPL 정보 출력
+        print(f"== NPL물건 =========")
+        print(f"== 최저낙찰가: {min_price}")
+        print(f"== 채권최고액: {bond_max_amount}")
+        print(f"== 채권청구액: {bond_claim_amount}")
+        print(f"== 경매청구방식: {auction_method}")
+        print(f"== 경매신청자: {auction_applicant}")
+
+        # 상세정보 처리
+        #extract_info(row_text, idx)
 
         # 1000건마다 저장 처리
         if len(data_list) >= BATCH_SIZE:
             print(f"저장 전 현재까지 저장 건수: {saved_count + len(data_list)} 건, 이번 배치: {len(data_list)} 건")
-            auction_save_to_sqlite(data_list)
+            npl_save_to_sqlite(data_list)
             saved_count += len(data_list)
             data_list.clear()
             time.sleep(1)
@@ -328,21 +346,6 @@ def get_lat_lng(address: str, api_key: str):
     :return: 위도, 경도 튜플
     """
     return 0,0
-    # Geocoding API URL
-    # url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
-    #
-    # # 요청 보내기
-    # response = requests.get(url)
-    # data = response.json()
-    #
-    # # 결과 확인 및 위도, 경도 반환
-    # if data['status'] == 'OK':
-    #     lat = data['results'][0]['geometry']['location']['lat']
-    #     lng = data['results'][0]['geometry']['location']['lng']
-    #     return lat, lng
-    # else:
-    #     print(f"Geocoding API 요청 오류: {data['status']}")
-    #     return 0, 0
 
 # 동,층정보 가져오기
 def extract_building_floor(address):
@@ -366,6 +369,175 @@ def extract_building_floor(address):
         dangi_name = ""
 
     return building, floor, dangi_name
+
+
+# tid번호를 이용한 npl여부츨 체크함
+def npl_extract_info(driver, row_text, tid):
+    try:
+        lines = row_text.split('\n')
+
+        #print('== row_text: ' + row_text)
+
+        # 금액 정보 추출
+        idx_price_start = next(
+            i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line) + 1
+        appraisal_price = lines[idx_price_start]  # 감정금액
+        min_price = lines[idx_price_start + 1]  # 최저금액
+        bid_count = lines[idx_price_start + 2].replace(',', '')  # 유찰회수
+        bid_rate = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
+        print('-')
+        print('== tid: ' + tid )
+        print('== 감정평가금액: ' + appraisal_price)
+        print('== 최저낙찰가:  ' + min_price)
+        print('== 최저유찰회수: ' + bid_count)
+        print('== 낙찰비율: ' + bid_rate.replace("(", "").replace(")", ""))
+
+        bond_max_amount = '0'         # 채권채고액
+        bond_claim_amount = '0'       # 채권청구액
+        auction_method = ''         # 경매방식(임의, 강제)
+        auction_applicant = '신협'   # 경매신청자
+
+        # 현재 드라이버: driver (기존 창)
+        main_window = driver.current_window_handle
+
+        # 2) 새 탭 열기 & 전환
+        #tid = "2231582"
+        url = f"https://www.tankauction.com/ca/caView.php?tid={tid}"
+        driver.execute_script(f"window.open('{url}', '_blank');")
+        # 새 탭으로 스위치
+        driver.switch_to.window(driver.window_handles[-1])
+
+        # 4. 보증금 요소 대기 및 추출
+        wait = WebDriverWait(driver, 1)
+        try:
+            deposit_td = wait.until(EC.presence_of_element_located((By.XPATH, "//td[contains(text(), '보:')]")))
+            deposit_text = deposit_td.text.strip()
+        except (Exception, StaleElementReferenceException):
+            deposit_text = 0
+        print("📌 보증금 추출 결과:", deposit_text)
+
+        # 채권합계금액 추출
+        try:
+            bond_span = wait.until(EC.presence_of_element_located((By.XPATH, "//span[contains(text(), '채권합계금액')]")))
+            bond_text = bond_span.text.strip()
+            # 채권금액 적용처리: # (채권합계금액:313,701,101원)
+            bond_total_amount = extract_and_format(bond_text)
+
+        except (StaleElementReferenceException, TimeoutException):
+            bond_total_amount = 0
+
+        print("📌 채권합계금액:", bond_total_amount)
+
+        # 결과 저장용 리스트
+        result_data = []
+        headers = "순서", "권리종류", "권리자", "채권금액", "비고"
+        try:
+            # 채권채고액 및 임의,강제경매 구하기
+            # 테이블의 모든 tr을 기다림
+            rows = wait.until(EC.presence_of_all_elements_located(
+                    (By.XPATH, "//div[@id='lyCnt_regist' and contains(@class,'clear')]"
+                               "//table[@class='Ltbl_list']//tbody//tr")
+                ))
+            for row in rows:
+                try:
+                    tds = row.find_elements(By.TAG_NAME, "td")
+                    if len(tds) < 6:
+                        continue  # td 수가 적으면 건너뜀
+
+                    # 비고 컬럼 텍스트
+                    seq =  tds[0].text.strip() # 순서
+                    right_type = tds[2].text.strip()  # 권리종류
+                    bond_user = tds[3].text.strip()   # 권리자
+                    bond_text = tds[4].text.strip()   # 채권금액
+                    remarks = tds[5].text.strip()
+
+                    # 채권금액 적용처리
+                    bond_amt = extract_and_format(bond_text)
+
+                    # 조건 1: 말소기준등기 포함 여부
+                    if "말소기준등기" in remarks or "강제경매" in right_type or "임의경매" in right_type:
+                        #
+                        if "말소기준등기" in remarks:
+                            bond_max_amount = bond_amt
+
+                        if "강제경매" in right_type or "임의경매" in right_type:
+                            auction_method = right_type     # 경매형식
+                            auction_applicant = bond_user.replace("\n", "")   # 경매신청자
+                            bond_claim_amount = bond_amt    # 채권청구액
+
+                        # 행 데이터를 리스트로 저장
+                        row_data = [
+                            seq,  # 순서
+                            right_type,  # 권리종류
+                            bond_user,  # 권리자
+                            bond_amt,  # 채권금액
+                            remarks  # 비고
+                        ]
+                        result_data.append(row_data)
+
+                except StaleElementReferenceException:
+                    continue
+
+            # 결과 출력
+            print(headers)
+            for row in result_data:
+                print(row)
+
+        except (StaleElementReferenceException, TimeoutException):
+            print("📌 건물등기 조건찾기 어려움:")
+
+        # 7) 새 탭 닫고 메인 탭으로 복귀
+        driver.close()
+        driver.switch_to.window(main_window)
+
+        print('--')
+        print('== 최저낙찰가: ' + min_price)         # 최저낙찰가
+        print('== 채권최고액: ' + bond_max_amount)   # 채권최고액
+        print('== 채권청구액: ' + bond_claim_amount)
+        print('== 경매청구방식: ' + auction_method)   # 임의경매, 강제경매
+        print('== 경매신청자: ' + auction_applicant)
+
+        # NPL물건여부 평가
+        is_npl = evaluate_npl(min_price, bond_max_amount, bond_claim_amount)
+        result_label = "NPL물건" if is_npl else "일반물건"
+        print('** 물건구분: ' + result_label)
+        if not is_npl:
+            return None
+
+        # NPL일 때 필요한 값 반환
+        return min_price, bond_max_amount, bond_claim_amount, auction_method, auction_applicant
+
+    except Exception as e:
+            print("데이터 처리 오류:", e)
+            return None
+
+# 금액만 추출 후 정수로 변환하고, 천 단위 콤마 포맷 적용
+def extract_and_format(text):
+    m = re.search(r'(\d[\d,]*)', text)
+    if not m:
+        return "0"
+    # 쉼표 제거 후 정수로 변환
+    value = int(m.group(1).replace(',', ''))
+    # 천 단위 콤마 추가
+    return f"{value:,}"
+
+
+# 최저낙찰가, 채권채고액, 채권청구액
+def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
+    # Remove commas and convert to integers
+    lowest_price = int(lowest_price_str.replace(',', '').strip())
+    max_claim = int(max_claim_str.replace(',', '').strip())
+    claim_amount = int(claim_amount_str.replace(',', '').strip())
+
+    # If max_claim is zero, use claim_amount
+    if max_claim == 0:
+        max_claim = claim_amount
+
+    # Compare values
+    is_npl = max_claim > lowest_price
+
+    return is_npl
+
 
 # 주소로 시군구 데이타 파싱및 분석
 def extract_info(row_text, idx):
@@ -566,14 +738,21 @@ def extract_region_code(address):
 
 def main():
     global json_data, saved_count, data_list  # 전역 변수 사용
+    global detail_driver
 
     # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
-    driver = webdriver.Chrome(options=chrome_options)
+    #driver = webdriver.Chrome(options=chrome_options)
+    driver = webdriver.Chrome()
+
+    # 문제발생함.. 다시 로그인 해야함 ㅠ.ㅠ
+    # detail_driver = webdriver.Chrome(options=chrome_options)
     try:
         # 시군구등 법정코드 json 데이타 로딩
         json_data = load_json_data()
@@ -609,7 +788,7 @@ def main():
         # 마지막 남은 레코드 저장
         if data_list:
             print(f"마지막 저장 전 현재까지 저장 건수: {saved_count + len(data_list)} 건, 남은 배치: {len(data_list)} 건")
-            auction_save_to_sqlite(data_list)
+            npl_save_to_sqlite(data_list)
             saved_count += len(data_list)
             data_list.clear()
         print(f"총 저장 건수: {saved_count} 건")
@@ -620,6 +799,7 @@ def main():
         print("오류 발생:", e)
     finally:
         driver.quit()
+        # detail_driver.quit()
 
 if __name__ == "__main__":
     main()

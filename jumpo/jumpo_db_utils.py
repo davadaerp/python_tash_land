@@ -232,7 +232,7 @@ def jumpo_save_info_list_to_sqlite(data):
     print(f"Info 테이블 ({DB_FILENAME})에 {len(data)}건 처리 완료.")
 
 # ─── info_list 조회 (필터링) ─────────────────────────────
-def jumpo_read_info_list_db(section="", upjong="", road_addr="", land_addr=""):
+def jumpo_read_info_list_db(region="", section="", upjong="", umdNm="", land_addr=""):
     """
     jumpo_data_info_list 에서 필터 조건에 맞춰 조회합니다.
     """
@@ -242,12 +242,14 @@ def jumpo_read_info_list_db(section="", upjong="", road_addr="", land_addr=""):
 
     sql = f"SELECT * FROM {INFO_TABLE_NAME} WHERE 1=1"
     params = []
+    if region:
+        sql += " AND 지번주소 LIKE ?"; params.append(f"%{region}%")
     if section:
         sql += " AND section = ?";    params.append(section)
     if upjong:
         sql += " AND 업종 LIKE ?";     params.append(f"%{upjong}%")
-    if road_addr:
-        sql += " AND 도로명주소 LIKE ?"; params.append(f"%{road_addr}%")
+    if umdNm:
+        sql += " AND 지번주소 LIKE ?"; params.append(f"%{umdNm}%")
     if land_addr:
         sql += " AND 지번주소 LIKE ?";  params.append(f"%{land_addr}%")
 

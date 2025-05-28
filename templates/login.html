@@ -37,8 +37,12 @@
       padding: 10px 20px;
       font-size: 14px;
       cursor: pointer;
-      display: block;
-      margin: 0 auto; /* 가로 중앙 정렬 */
+      margin-left: 5px;
+    }
+    /* 네이버 버튼 전용 스타일 */
+    #naver-login-btn {
+      background-color: #b2f2bb; /* 연초록 */
+      border: 1px solid #9ae6b4;
     }
     .error {
       color: red;
@@ -60,120 +64,101 @@
     <label>PSWD:</label>
     <input type="password" id="password" required>
     <br><br>
+    <!-- 로그인 버튼과 네이버 버튼을 나란히 배치 -->
     <button type="submit">로그인</button>
+    <button type="button" id="naver-login-btn">간편회원가입(네이버)</button>
     <p class="error" id="error-message"></p>
   </form>
 
   <script>
-
-    // 전역 함수로 login_auth와 login을 정의합니다.
     function login_auth() {
-        // 이전 에러 메시지 초기화
-        $('#error-message').text('');
-
-        const userid = document.getElementById("userid").value.trim();
-        const password = document.getElementById("password").value.trim();
-        if (!userid || !password) {
-          document.getElementById("error-message").textContent = "아이디와 비밀번호를 입력하세요.";
-          return;
-        }
-
-        // base64 인코딩: "userid:password"
-        const credential = btoa(userid + ":" + password);
-        const cs = '7987f7cb05cb1992';
-
-        const data = {
-          credential: credential,
-          grant_type: 'access_token',
-          client_id: 'dp',
-          client_secret: cs
-        };
-        console.log(data);
-        // AJAX로 /api/token 호출
-        $.ajax({
-          url: BASE_URL + '/api/token',
-          method: 'POST',
-          headers: {
-              "Content-Type": "application/json"
-          },
-          data: JSON.stringify(data),
-          dataType: 'json',
-          success: function(response) {
-            console.log(response);
-            // 서버 응답 예시: { 'access_token': token, 'expires_in': 3600 }
-            const access_token = response.access_token;
-            console.log(access_token);
-            localStorage.setItem("access_token", access_token.trim());
-            //
-            const apt_key = response.apt_key;
-            const villa_key = response.villa_key;
-            const sanga_key = response.sanga_key;
-            //
-            localStorage.setItem("apt_key", apt_key);
-            localStorage.setItem("villa_key", villa_key);
-            localStorage.setItem("sanga_key", sanga_key);
-            //
-            login(access_token);
-          },
-          error: function(xhr, status, error) {
-            let errorMsg = '오류가 발생했습니다.';
-            try {
-              const responseJson = JSON.parse(xhr.responseText);
-              if (responseJson.error) {
-                errorMsg = responseJson.error;
-              }
-            } catch (e) {
-              errorMsg += ' (서버 응답을 파싱할 수 없습니다)';
-            }
-            $('#error-message').text(errorMsg);
-          }
-        });
+      $('#error-message').text('');
+      const userid = $('#userid').val().trim();
+      const password = $('#password').val().trim();
+      if (!userid || !password) {
+        $('#error-message').text("아이디와 비밀번호를 입력하세요.");
+        return;
+      }
+      const credential = btoa(userid + ":" + password);
+      const cs = '7987f7cb05cb1992';
+      const data = {
+        credential,
+        grant_type: 'access_token',
+        client_id: 'dp',
+        client_secret: cs
+      };
+      $.ajax({
+        url: BASE_URL + '/api/token',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        dataType: 'json'
+      }).done(function(response) {
+        const access_token = response.access_token.trim();
+        localStorage.setItem("access_token", access_token);
+        localStorage.setItem("apt_key", response.apt_key);
+        localStorage.setItem("villa_key", response.villa_key);
+        localStorage.setItem("sanga_key", response.sanga_key);
+        login(access_token);
+      }).fail(function(xhr) {
+        let msg = '오류가 발생했습니다.';
+        try {
+          const json = JSON.parse(xhr.responseText);
+          if (json.error) msg = json.error;
+        } catch {}
+        $('#error-message').text(msg);
+      });
     }
 
     function login(access_token) {
-        // AJAX로 /api/login 호출
-        $.ajax({
-          url: BASE_URL + '/api/login_token',
-          method: 'GET',
-          headers: {
-            "Authorization": "Bearer " + access_token
-          },
-          success: function(response) {
-            console.log(JSON.stringify(response));
-            if (response.result == "Success") {
-              // 쿠키에 access_token 저장 (예: path=/, 필요시 secure, HttpOnly 옵션 추가)
-              document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
-              window.location.href = BASE_URL + '/api/main';
-            } else {
-              $('#error-message').text(response.errmsg);
-              //alert(response.errmsg);
-              login_auth();
-            }
-          },
-          error: function(xhr, status, error) {
-            $('#error-message').text('오류가 발생했습니다: ' + error);
-          }
-        });
+      $.ajax({
+        url: BASE_URL + '/api/login_token',
+        method: 'GET',
+        headers: { "Authorization": "Bearer " + access_token }
+      }).done(function(response) {
+        if (response.result === "Success") {
+          document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
+          window.location.href = BASE_URL + '/api/main';
+        } else {
+          $('#error-message').text(response.errmsg);
+          login_auth();
+        }
+      }).fail(function(_, _, err) {
+        $('#error-message').text('오류가 발생했습니다: ' + err);
+      });
     }
 
-    // window.onload에서 전역 함수를 호출합니다.
-    window.onload = function() {
-        const accessToken = localStorage.getItem("access_token");
-        console.log('=== access_token: ', accessToken);
-        if (accessToken === null || accessToken === '') {
-          login_auth();
-        } else {
-          login(accessToken);
-        }
-    };
+    $(function(){
+      // 네이버 로그인 버튼 클릭 시
+      // $('#naver-login-btn').click(function(){
+      //   $.ajax({
+      //     url: BASE_URL + '/api/login/naver',
+      //     method: 'GET'
+      //   }).done(function(res){
+      //     // 서버에서 네이버 OAuth URL을 돌려주거나 바로 리디렉션 처리
+      //     if (res.auth_url) {
+      //       window.location.href = res.auth_url;
+      //     }
+      //   }).fail(function(){
+      //     alert('네이버 로그인 요청 중 오류가 발생했습니다.');
+      //   });
+      // });
 
-    $(document).ready(function(){
-      $('#login-form').submit(function(e) {
-          e.preventDefault(); // 기본 폼 제출 방지
-          login("accessToken");
+      // 회원가입 버튼 클릭 시
+      $('#naver-login-btn').click(function(){
+        window.location.href = BASE_URL + '/api/register';
       });
-    });
 
+      // 폼 제출 시 일반 로그인
+      $('#login-form').on('submit', function(e){
+        e.preventDefault();
+        login_auth();
+      });
+
+      // 페이지 로드 시 토큰 체크
+      const token = localStorage.getItem("access_token");
+      if (token) login(token);
+    });
   </script>
 </body>
 </html>

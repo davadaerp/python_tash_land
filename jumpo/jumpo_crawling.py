@@ -399,7 +399,7 @@ def main():
             print(f"▶ [{cat['section']}] {cat['name']} total: {cat['total']}건, mcode={cat['mcode']}, scode={cat['scode']}")
 
         # 맨처음 목록리스트 전부를 삭제후 처리함
-        #jumpo_drop_table()
+        jumpo_drop_table()
 
         # 3) 각 카테고리에 대해 1~3페이지만 예시로 읽어보기
         for cat in categories:
