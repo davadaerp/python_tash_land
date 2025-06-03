@@ -48,7 +48,8 @@ sale_edate = today
 
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
-BATCH_SIZE = 500     # 레코드 1000건마다 저장
+#BATCH_SIZE = 500     # 레코드 1000건마다 저장
+BATCH_SIZE = 3     # 레코드 1000건마다 저장
 
 # 글로벌 변수 설정
 page_list = "100"
@@ -285,18 +286,10 @@ def record_parsing_list(driver, current_page):
             continue  # NPL 아님, 다음 로우로
 
         # info 언패킹
-        min_price, bond_max_amount, bond_claim_amount, auction_method, auction_applicant = npl_info
-
-        # NPL 정보 출력
-        print(f"== NPL물건 =========")
-        print(f"== 최저낙찰가: {min_price}")
-        print(f"== 채권최고액: {bond_max_amount}")
-        print(f"== 채권청구액: {bond_claim_amount}")
-        print(f"== 경매청구방식: {auction_method}")
-        print(f"== 경매신청자: {auction_applicant}")
+        #deposit_value, min_price, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
 
         # 상세정보 처리
-        #extract_info(row_text, idx)
+        extract_info(row_text, idx, npl_info)
 
         # 1000건마다 저장 처리
         if len(data_list) >= BATCH_SIZE:
@@ -376,21 +369,22 @@ def npl_extract_info(driver, row_text, tid):
     try:
         lines = row_text.split('\n')
 
-        #print('== row_text: ' + row_text)
+        print('== row_text: ' + row_text)
 
         # 금액 정보 추출
         idx_price_start = next(
-            i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line) + 1
+            i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line and "매각제외" not in line) + 1
         appraisal_price = lines[idx_price_start]  # 감정금액
         min_price = lines[idx_price_start + 1]  # 최저금액
         bid_count = lines[idx_price_start + 2].replace(',', '')  # 유찰회수
-        bid_rate = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
+        bid_text = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
+        bid_rate = bid_text.replace("(", "").replace(")", "")
         print('-')
         print('== tid: ' + tid )
         print('== 감정평가금액: ' + appraisal_price)
         print('== 최저낙찰가:  ' + min_price)
         print('== 최저유찰회수: ' + bid_count)
-        print('== 낙찰비율: ' + bid_rate.replace("(", "").replace(")", ""))
+        print('== 낙찰비율: ' + bid_rate)
 
         bond_max_amount = '0'         # 채권채고액
         bond_claim_amount = '0'       # 채권청구액
@@ -406,15 +400,47 @@ def npl_extract_info(driver, row_text, tid):
         driver.execute_script(f"window.open('{url}', '_blank');")
         # 새 탭으로 스위치
         driver.switch_to.window(driver.window_handles[-1])
-
-        # 4. 보증금 요소 대기 및 추출
         wait = WebDriverWait(driver, 1)
+
+        # '유치권/선순위 가처분/대항력 있는 임차인' 텍스트가 있는 span 요소 대기 및 추출
+        notice_text = ''
+        try:
+
+            red_notice_span = wait.until(
+                EC.presence_of_element_located(
+                    (By.XPATH, "//span[contains(@class,'red') and contains(@class,'spanBox')]")
+                )
+            )
+            # 모든 공백(스페이스, 탭, 줄바꿈 등)을 제거하려면:
+            raw = red_notice_span.text
+            notice_text = re.sub(r"\s+", "", raw)
+
+            # 또는 split/join을 사용할 수도 있습니다:
+            # notice_text = "".join(red_notice_span.text.split())
+        except Exception as e:
+            print("오류 발생:", e)
+
+        # '개시결정' 레이블 옆의 날짜를 가져오는 예시
+        start_decision_date = ''
+        try:
+            start_decision_td = wait.until(EC.presence_of_element_located((By.XPATH, "//th[contains(text(), '개시결정')]/following-sibling::td[1]")))
+            raw_text = start_decision_td.text.strip()  # 예: "2014-01-21(강제경매)"
+
+            # "(" 이후 내용을 제거하여 날짜만 추출
+            match = re.match(r"^([^\(]+)", raw_text)
+            start_decision_date = match.group(1).strip() if match else raw_text
+        except Exception as e:
+            print("개시결정 날짜 추출 오류:", e)
+
+        # 4. 보증금 요소 대기 및 추출(목록에서 맨처음께 나옴)
+        deposit_text = ''
         try:
             deposit_td = wait.until(EC.presence_of_element_located((By.XPATH, "//td[contains(text(), '보:')]")))
             deposit_text = deposit_td.text.strip()
+            match = re.search(r"보:([\d,]+)", deposit_text)
+            deposit_value = match.group(1) if match else 0
         except (Exception, StaleElementReferenceException):
-            deposit_text = 0
-        print("📌 보증금 추출 결과:", deposit_text)
+            deposit_value = 0
 
         # 채권합계금액 추출
         try:
@@ -491,11 +517,18 @@ def npl_extract_info(driver, row_text, tid):
         driver.switch_to.window(main_window)
 
         print('--')
+        print("📌 보증금 추출 목록:", deposit_text)
+        print("== 임차보증금금액:", deposit_value)
+        print("== 채권합계금액:", bond_total_amount)
         print('== 최저낙찰가: ' + min_price)         # 최저낙찰가
+        print('== 유찰회수: ' + bid_count)
+        print('== 낙찰비율: ' + bid_rate)
         print('== 채권최고액: ' + bond_max_amount)   # 채권최고액
         print('== 채권청구액: ' + bond_claim_amount)
+        print('== 경매개시일자: ' + start_decision_date)   # 2024-03-01(임의경매)
         print('== 경매청구방식: ' + auction_method)   # 임의경매, 강제경매
         print('== 경매신청자: ' + auction_applicant)
+        print('== 비고내역: ' + notice_text)    # 임차권등기/유치권/법정지상권등
 
         # NPL물건여부 평가
         is_npl = evaluate_npl(min_price, bond_max_amount, bond_claim_amount)
@@ -505,7 +538,7 @@ def npl_extract_info(driver, row_text, tid):
             return None
 
         # NPL일 때 필요한 값 반환
-        return min_price, bond_max_amount, bond_claim_amount, auction_method, auction_applicant
+        return deposit_value, bond_total_amount, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text
 
     except Exception as e:
             print("데이터 처리 오류:", e)
@@ -540,8 +573,11 @@ def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
 
 
 # 주소로 시군구 데이타 파싱및 분석
-def extract_info(row_text, idx):
+def extract_info(row_text, idx, npl_info):
     try:
+        # info 언패킹
+        deposit_value, bond_total_amount, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
+
         lines = row_text.split('\n')
 
         # 기본 정보 추출
@@ -665,7 +701,7 @@ def extract_info(row_text, idx):
             "land_m2": land_m2,
             "land_py": land_py,
             "appraisal_price": appraisal_price,
-            "min_price": min_price,
+            "min_price": min_price,                     # 최저가
             "sale_price": sale_price,
             "min_percent": f"{min_percent}%",
             "sale_percent": f"{sale_percent}%",
@@ -675,10 +711,21 @@ def extract_info(row_text, idx):
             "sales_date": sales_date,
             "dangi_name": dangi_name,
             "extra_info": extra_info,
+            "bid_count": bid_count,                     # 유찰회수
+            "bid_rate": bid_rate,                       # 유찰비율
+            "deposit_value": deposit_value,             # 임차보증금금액
+            "bond_total_amount": bond_total_amount,     # 총채권합계금액
+            "bond_max_amount": bond_max_amount,         # 채권최고액
+            "bond_claim_amount": bond_claim_amount,     # 채권청구액
+            "start_decision_date": start_decision_date, # 경매개시일자
+            "auction_method": auction_method,           # 경매청구방식(임의경매, 강제경매)
+            "auction_applicant": auction_applicant,     # 경매신청자
+            "notice_text": notice_text,                 # 비고내역(임차권등기/유치권/법정지상권등)
             "latitude": latitude,
             "longitude": longitude
         }
-        #print(data_entry)
+        print("===== extract_info() ======= ")
+        print(data_entry)
         #
         data_list.append(data_entry)
 
