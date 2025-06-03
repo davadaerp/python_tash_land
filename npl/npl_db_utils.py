@@ -68,6 +68,7 @@ def create_npl_table():
                 bond_max_amount TEXT,
                 bond_claim_amount TEXT,
                 start_decision_date TEXT,
+                sale_decision_date TEXT,
                 auction_method TEXT,
                 auction_applicant TEXT,
                 notice_text TEXT,
@@ -134,10 +135,10 @@ def npl_insert_single(entry):
             bid_count, bid_rate,
             deposit_value, bond_total_amount,
             bond_max_amount, bond_claim_amount,
-            start_decision_date, auction_method,
+            start_decision_date, sale_decision_date, auction_method,
             auction_applicant, notice_text, expected_price,
             latitude, longitude
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     try:
         cursor.execute(insert_query, (
@@ -174,6 +175,7 @@ def npl_insert_single(entry):
             entry.get("bond_max_amount"),
             entry.get("bond_claim_amount"),
             entry.get("start_decision_date"),
+            entry.get("sale_decision_date"),
             entry.get("auction_method"),
             entry.get("auction_applicant"),
             entry.get("notice_text"),
@@ -228,6 +230,7 @@ def npl_update_single(entry):
             bond_max_amount = ?,
             bond_claim_amount = ?,
             start_decision_date = ?,
+            sale_decision_date = ?,
             auction_method = ?,
             auction_applicant = ?,
             notice_text = ?,
@@ -268,6 +271,7 @@ def npl_update_single(entry):
             entry.get("bond_max_amount"),
             entry.get("bond_claim_amount"),
             entry.get("start_decision_date"),
+            entry.get("sale_decision_date"),
             entry.get("auction_method"),
             entry.get("auction_applicant"),
             entry.get("notice_text"),

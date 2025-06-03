@@ -369,7 +369,7 @@ def npl_extract_info(driver, row_text, tid):
     try:
         lines = row_text.split('\n')
 
-        print('== row_text: ' + row_text)
+        #print('== row_text: ' + row_text)
 
         # 금액 정보 추출
         idx_price_start = next(
@@ -379,12 +379,15 @@ def npl_extract_info(driver, row_text, tid):
         bid_count = lines[idx_price_start + 2].replace(',', '')  # 유찰회수
         bid_text = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
         bid_rate = bid_text.replace("(", "").replace(")", "")
+        sale_decision_date_text = lines[idx_price_start + 5].replace(',', '')  # 매각기일
+        sale_decision_date = convert_to_iso(sale_decision_date_text)  # 매각기일
         print('-')
         print('== tid: ' + tid )
         print('== 감정평가금액: ' + appraisal_price)
         print('== 최저낙찰가:  ' + min_price)
         print('== 최저유찰회수: ' + bid_count)
         print('== 낙찰비율: ' + bid_rate)
+        print('== 매각일자: ' + sale_decision_date)
 
         bond_max_amount = '0'         # 채권채고액
         bond_claim_amount = '0'       # 채권청구액
@@ -517,15 +520,17 @@ def npl_extract_info(driver, row_text, tid):
         driver.switch_to.window(main_window)
 
         print('--')
-        print("📌 보증금 추출 목록:", deposit_text)
-        print("== 임차보증금금액:", deposit_value)
-        print("== 채권합계금액:", bond_total_amount)
+        print('== 감정평가금액: ' + appraisal_price)
         print('== 최저낙찰가: ' + min_price)         # 최저낙찰가
         print('== 유찰회수: ' + bid_count)
         print('== 낙찰비율: ' + bid_rate)
+        print("📌 보증금 추출 목록:", deposit_text)
+        print("== 임차보증금금액:", deposit_value)
+        print("== 채권합계금액:", bond_total_amount)
         print('== 채권최고액: ' + bond_max_amount)   # 채권최고액
         print('== 채권청구액: ' + bond_claim_amount)
         print('== 경매개시일자: ' + start_decision_date)   # 2024-03-01(임의경매)
+        print('== 경매매각일자: ' + sale_decision_date)   # 2025-03-01(최종매각일자)
         print('== 경매청구방식: ' + auction_method)   # 임의경매, 강제경매
         print('== 경매신청자: ' + auction_applicant)
         print('== 비고내역: ' + notice_text)    # 임차권등기/유치권/법정지상권등
@@ -538,11 +543,33 @@ def npl_extract_info(driver, row_text, tid):
             return None
 
         # NPL일 때 필요한 값 반환
-        return deposit_value, bond_total_amount, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text
+        return deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text
 
     except Exception as e:
             print("데이터 처리 오류:", e)
             return None
+
+# 날짜형식을 변환처리한다.
+def convert_to_iso(date_str):
+    """
+    "YY.MM.DD" 형식의 문자열을 받아 "YYYY-MM-DD" 형식으로 반환합니다.
+    예: "25.03.01" → "2025-03-01"
+    """
+    # "YY.MM.DD" 형식이 맞는지 간단히 확인
+    parts = date_str.split('.')
+    if len(parts) != 3:
+        raise ValueError(f"잘못된 형식: {date_str}")
+
+    yy, mm, dd = parts
+    # 두 자리 연도를 네 자리로 변환 (2000년대 기준)
+    yyyy = f"20{yy}"
+    # 검증을 위해 datetime으로 파싱했다가 다시 포맷팅
+    try:
+        dt = datetime.strptime(f"{yyyy}-{mm}-{dd}", "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(f"날짜 변환 오류: {e}")
+
 
 # 금액만 추출 후 정수로 변환하고, 천 단위 콤마 포맷 적용
 def extract_and_format(text):
@@ -576,7 +603,7 @@ def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
 def extract_info(row_text, idx, npl_info):
     try:
         # info 언패킹
-        deposit_value, bond_total_amount, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
+        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text = npl_info
 
         lines = row_text.split('\n')
 
@@ -602,37 +629,19 @@ def extract_info(row_text, idx, npl_info):
             building_m2 = building_py = land_m2 = land_py = ''
             area_py = 0
 
-        # 금액 정보 추출
-        try:
-            idx_price_start = next(
-                i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line) + 1
-            appraisal_price = int(lines[idx_price_start].replace(',', ''))  # 감정금액
-            min_price = int(lines[idx_price_start + 1].replace(',', ''))  # 최저금액
-            sale_price = int(lines[idx_price_start + 2].replace(',', ''))  # 매각금액
-        except Exception:
-            appraisal_price = min_price = sale_price = 0
-
-        # 비율 정보 추출
-        percent_match = re.findall(r'\((\d+)%\)', row_text)
-        min_percent = percent_match[0] if len(percent_match) > 0 else ''
-        sale_percent = percent_match[1] if len(percent_match) > 1 else ''
-
-        # 매각일자 추출 (yyyy-mm-dd 형식 변환)
-        date_match = re.search(r'(\d{2}\.\d{2}\.\d{2})', row_text)
-        if date_match:
-            raw_date = date_match.group(1)
-            sales_date = f"20{raw_date[:2]}-{raw_date[3:5]}-{raw_date[6:]}"
-        else:
-            sales_date = ''
+        # 판매금액및 비율 정보 추출
+        sale_price = 0
+        min_percent = bid_rate
+        sale_percent = ''
 
         # 기타 정보 추출
         extra_info = ', '.join([line for line in lines if '계' in line or '토지' in line or '건물' in line or '임차인' in line])
 
         # 평단가 계산
         if area_py != 0:
-            pydanga_appraisal = int(appraisal_price / (area_py * 10000))
-            pydanga_min = int(min_price / (area_py * 10000))
-            pydanga_sale = int(sale_price / (area_py * 10000))
+            pydanga_appraisal = int(int(appraisal_price.replace(",", "")) / (area_py * 10000))
+            pydanga_min = int(int(min_price.replace(",", "")) / (area_py * 10000))
+            pydanga_sale = 0
         else:
             pydanga_appraisal = pydanga_min = pydanga_sale = 0
 
@@ -700,15 +709,15 @@ def extract_info(row_text, idx, npl_info):
             "building_py": building_py,
             "land_m2": land_m2,
             "land_py": land_py,
-            "appraisal_price": appraisal_price,
+            "appraisal_price": appraisal_price,         # 감정가
             "min_price": min_price,                     # 최저가
             "sale_price": sale_price,
-            "min_percent": f"{min_percent}%",
-            "sale_percent": f"{sale_percent}%",
+            "min_percent": f"{min_percent}",
+            "sale_percent": f"{sale_percent}",
             "pydanga_appraisal": f"{pydanga_appraisal}",  # 만단위
             "pydanga_min": f"{pydanga_min}",
             "pydanga_sale": f"{pydanga_sale}",
-            "sales_date": sales_date,
+            "sales_date": sale_decision_date,           # 매각일자
             "dangi_name": dangi_name,
             "extra_info": extra_info,
             "bid_count": bid_count,                     # 유찰회수
@@ -718,6 +727,7 @@ def extract_info(row_text, idx, npl_info):
             "bond_max_amount": bond_max_amount,         # 채권최고액
             "bond_claim_amount": bond_claim_amount,     # 채권청구액
             "start_decision_date": start_decision_date, # 경매개시일자
+            "sale_decision_date": sale_decision_date,   # 경매매각일자
             "auction_method": auction_method,           # 경매청구방식(임의경매, 강제경매)
             "auction_applicant": auction_applicant,     # 경매신청자
             "notice_text": notice_text,                 # 비고내역(임차권등기/유치권/법정지상권등)
