@@ -6,6 +6,8 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
+from jumpo.jumpo_db_utils import jumpo_read_info_list_db
+from npl.npl_db_utils import npl_read_db
 #from naver.naver_login import naver_authorization, naver_callback
 #
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
@@ -194,8 +196,12 @@ def menu(current_user):
         return render_template("crawling_sanga_search.html")
     if menu == 'auction':
         return render_template("crawling_auction_search.html")
+    if menu == 'npl':
+        return render_template("crawling_npl_search.html")
     if menu == 'realtor':
         return render_template("crawling_realtor_search.html")
+    if menu == 'jumpo':
+        return render_template("crawling_jumpo_search.html")
     if menu == 'profit':
         return render_template("sanga_profit_sheet.html")
     if menu == 'api_key':
@@ -327,6 +333,65 @@ def geocode():
         return jsonify(data)
     except requests.RequestException as e:
         return jsonify({"error": "Geocoding failed", "details": str(e)}), 500
+
+
+#===== NPL(부실채권투자) 데이타 처리 =============
+@app.route('/api/npl/categories', methods=['GET'])
+def get_npl_categories():
+    # "빌라"와 "근린상가"의 맨 앞에 "전체" 추가
+    categoryOptions = {
+        key: (["전체"] + values if key in ["빌라", "근린상가"] else values)
+        for key, values in category_mappings.items()
+    }
+    json_data = json.dumps(categoryOptions, ensure_ascii=False, indent=4)
+    print(json_data)
+    return json_data
+
+@app.route('/api/npl', methods=['GET'])
+def get_npl_data():
+    # SQLite DB(auction_data.db)를 참조하여 데이터 읽기
+    lawdCd = request.args.get('lawdCd', '')
+    region = request.args.get('region', '')
+    sggNm = request.args.get('sggNm', '')
+    umdNm = request.args.get('umdNm', '')
+    main_category = request.args.get('mainCategory', '')
+    #category = request.args.get('category')
+    dangiName = request.args.get('dangiName', '')
+
+    print(
+        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm}, 단지명: {dangiName},  메인 카테고리: {main_category}")
+
+    categories = []
+    if main_category != '':
+        categories = category_mappings[main_category]
+
+    # if main_category in ["아파트", "빌라", "근린상가", "다가구"]:
+    #     if not category:
+    #         categories = category_mappings[main_category]
+    #     else:
+    #         categories = [c for c in category_mappings[main_category] if c in category]
+
+    # print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
+
+    # 데이타 읽기
+    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, dangiName)
+
+    return jsonify(data)
+
+
+#===== 점포 데이타 처리 =============
+@app.route('/api/jumpo', methods=['GET'])
+def get_jumpo_data():
+    region = request.args.get('region', '')     # 지역(서울,경기..)
+    section = request.args.get('section', '')   # 휴게음식점,
+    upjong = request.args.get('upjong')         # 카페,음식점
+    umdNm = request.args.get('umdNm', '')       # 읍면동명
+
+    print(f"🔍 지역: {region},  섹션(분류): {section}, 업종: {upjong}, 법정동명: {umdNm}, ")
+
+    data = jumpo_read_info_list_db(region, section, upjong, umdNm)
+
+    return jsonify(data)
 
 
 #== 네이버확장툴 접근

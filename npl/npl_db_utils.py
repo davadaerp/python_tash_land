@@ -72,7 +72,8 @@ def create_npl_table():
                 auction_method TEXT,
                 auction_applicant TEXT,
                 notice_text TEXT,
-                expected_price TEXT, -- 예상낙찰가 
+                opposability_status TEXT,
+                expected_price TEXT DEFAULT '0', -- 예상낙찰가 
                 latitude TEXT,
                 longitude TEXT
             )
@@ -136,9 +137,9 @@ def npl_insert_single(entry):
             deposit_value, bond_total_amount,
             bond_max_amount, bond_claim_amount,
             start_decision_date, sale_decision_date, auction_method,
-            auction_applicant, notice_text, expected_price,
+            auction_applicant, notice_text, opposability_status, expected_price,
             latitude, longitude
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     try:
         cursor.execute(insert_query, (
@@ -179,6 +180,7 @@ def npl_insert_single(entry):
             entry.get("auction_method"),
             entry.get("auction_applicant"),
             entry.get("notice_text"),
+            entry.get("opposability_status"),
             entry.get("expected_price"),    # 예상낙찰가
             entry.get("latitude"),
             entry.get("longitude")
@@ -234,6 +236,7 @@ def npl_update_single(entry):
             auction_method = ?,
             auction_applicant = ?,
             notice_text = ?,
+            opposability_status = ?,
             expected_price = ?,
             latitude = ?,
             longitude = ?
@@ -275,6 +278,7 @@ def npl_update_single(entry):
             entry.get("auction_method"),
             entry.get("auction_applicant"),
             entry.get("notice_text"),
+            entry.get("opposability_status"),
             entry.get("expected_price"),
             entry.get("latitude"),
             entry.get("longitude"),
@@ -330,7 +334,7 @@ def npl_select_single(case_number):
     finally:
         conn.close()
 
-def npl_read_db(lawdCd="", umdNm="", year_range="2", categories=None, dangiName=""):
+def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, dangiName=""):
     """
     SQLite DB(DB_FILENAME)에서 데이터를 읽어오며, 필터링 조건에 따라 반환합니다.
     year_range: "1"이면 현재년도 1월 1일부터 오늘까지, "2"이면 전년도 1월 1일부터 오늘까지
@@ -344,27 +348,19 @@ def npl_read_db(lawdCd="", umdNm="", year_range="2", categories=None, dangiName=
     if lawdCd:
         query += " AND sigungu_code LIKE ?"
         params.append(f"%{lawdCd}%")
-    if umdNm:
-        query += " AND eub_myeon_dong LIKE ?"
-        params.append(f"%{umdNm}%")
+    # if region:
+    #     query += " AND region LIKE ?"
+    #     params.append(f"%{region}%")
+    # if sggNm:
+    #     query += " AND sigungu_name LIKE ?"
+    #     params.append(f"%{sggNm}%")
+    # if umdNm:
+    #     query += " AND eub_myeon_dong LIKE ?"
+    #     params.append(f"%{umdNm}%")
     if categories:
         placeholders = ','.join('?' for _ in categories)
         query += f" AND category IN ({placeholders})"
         params.extend(categories)
-
-    # 날짜 범위 필터 처리
-    current_date = datetime.today().strftime("%Y-%m-%d")
-    if year_range == "1":
-        start_date = f"{datetime.today().year}-01-01"
-    elif year_range == "2":
-        start_date = f"{datetime.today().year - 1}-01-01"
-    else:
-        start_date = None
-
-    if start_date:
-        query += " AND sales_date BETWEEN ? AND ?"
-        params.append(start_date)
-        params.append(current_date)
 
     if dangiName:
         query += " AND dangi_name LIKE ?"

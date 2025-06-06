@@ -49,7 +49,7 @@ sale_edate = today
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
 #BATCH_SIZE = 500     # 레코드 1000건마다 저장
-BATCH_SIZE = 3     # 레코드 1000건마다 저장
+BATCH_SIZE = 10     # 레코드 1000건마다 저장
 
 # 글로벌 변수 설정
 page_list = "100"
@@ -407,6 +407,7 @@ def npl_extract_info(driver, row_text, tid):
 
         # '유치권/선순위 가처분/대항력 있는 임차인' 텍스트가 있는 span 요소 대기 및 추출
         notice_text = ''
+        opposability_status = ''    # 임차권등기 및 대항력여부
         try:
 
             red_notice_span = wait.until(
@@ -418,8 +419,8 @@ def npl_extract_info(driver, row_text, tid):
             raw = red_notice_span.text
             notice_text = re.sub(r"\s+", "", raw)
 
-            # 또는 split/join을 사용할 수도 있습니다:
-            # notice_text = "".join(red_notice_span.text.split())
+            # 임차권등기' 또는 '대항력있는임차인'이 포함여부
+            opposability_status = determine_opposability_status(notice_text)
         except Exception as e:
             print("오류 발생:", e)
 
@@ -520,12 +521,12 @@ def npl_extract_info(driver, row_text, tid):
         driver.switch_to.window(main_window)
 
         print('--')
+        print("📌 보증금 추출 목록:", deposit_text)
+        print("== 임차보증금금액:", deposit_value)
         print('== 감정평가금액: ' + appraisal_price)
         print('== 최저낙찰가: ' + min_price)         # 최저낙찰가
         print('== 유찰회수: ' + bid_count)
         print('== 낙찰비율: ' + bid_rate)
-        print("📌 보증금 추출 목록:", deposit_text)
-        print("== 임차보증금금액:", deposit_value)
         print("== 채권합계금액:", bond_total_amount)
         print('== 채권최고액: ' + bond_max_amount)   # 채권최고액
         print('== 채권청구액: ' + bond_claim_amount)
@@ -534,6 +535,7 @@ def npl_extract_info(driver, row_text, tid):
         print('== 경매청구방식: ' + auction_method)   # 임의경매, 강제경매
         print('== 경매신청자: ' + auction_applicant)
         print('== 비고내역: ' + notice_text)    # 임차권등기/유치권/법정지상권등
+        print('== 임차권등기여부: ' + opposability_status)
 
         # NPL물건여부 평가
         is_npl = evaluate_npl(min_price, bond_max_amount, bond_claim_amount)
@@ -543,11 +545,23 @@ def npl_extract_info(driver, row_text, tid):
             return None
 
         # NPL일 때 필요한 값 반환
-        return deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text
+        return deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status
 
     except Exception as e:
             print("데이터 처리 오류:", e)
             return None
+
+# 임차권등기 대향력여부
+def determine_opposability_status(notice_text):
+    """
+    notice_text 문자열 안에 '임차권등기' 또는 '대항력있는임차인'이 포함되어 있으면
+    opposability_status를 'Y'로, 그렇지 않으면 'N'으로 반환합니다.
+    """
+    keywords = ["임차권등기", "대항력있는임차인"]
+    for kw in keywords:
+        if kw in notice_text:
+            return 'Y'
+    return 'N'
 
 # 날짜형식을 변환처리한다.
 def convert_to_iso(date_str):
@@ -603,7 +617,7 @@ def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
 def extract_info(row_text, idx, npl_info):
     try:
         # info 언패킹
-        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text = npl_info
+        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status = npl_info
 
         lines = row_text.split('\n')
 
@@ -731,6 +745,7 @@ def extract_info(row_text, idx, npl_info):
             "auction_method": auction_method,           # 경매청구방식(임의경매, 강제경매)
             "auction_applicant": auction_applicant,     # 경매신청자
             "notice_text": notice_text,                 # 비고내역(임차권등기/유치권/법정지상권등)
+            "opposability_status": opposability_status, # 임차권등기/대항력있는임차인 여부(Y/N)
             "latitude": latitude,
             "longitude": longitude
         }
@@ -805,8 +820,8 @@ def main():
     chrome_options.add_argument("--disable-dev-shm-usage")
     # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
-    #driver = webdriver.Chrome(options=chrome_options)
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options=chrome_options)
+    #driver = webdriver.Chrome()
 
     # 문제발생함.. 다시 로그인 해야함 ㅠ.ㅠ
     # detail_driver = webdriver.Chrome(options=chrome_options)

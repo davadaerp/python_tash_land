@@ -61,6 +61,23 @@
     // function formatNumber(num) {
     //   return num.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     // }
+    /**
+     * 문자열로 된 숫자에서 쉼표(,)를 모두 제거하고 숫자로 변환하여 반환합니다.
+     * @param {string} str - 쉼표가 포함된 숫자 문자열 (예: "1,012,800,000")
+     * @returns {number} 쉼표가 제거된 숫자 (예: 1012800000)
+     */
+    function parseNumberWithCommas(str) {
+      if (typeof str !== 'string') {
+        throw new TypeError('입력값은 문자열이어야 합니다.');
+      }
+      // 모든 쉼표를 제거한 뒤 숫자로 변환
+      const cleaned = str.replace(/,/g, '');
+      const num = Number(cleaned);
+      if (Number.isNaN(num)) {
+        throw new Error(`유효한 숫자 문자열이 아닙니다: "${str}"`);
+      }
+      return num;
+    }
 
     function formatNumber(num) {
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
