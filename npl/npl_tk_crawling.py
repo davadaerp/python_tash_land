@@ -596,7 +596,7 @@ def extract_and_format(text):
     return f"{value:,}"
 
 
-# 최저낙찰가, 채권채고액, 채권청구액
+# npl여부를 체크: 최저낙찰가, 채권채고액, 채권청구액
 def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
     # Remove commas and convert to integers
     lowest_price = int(lowest_price_str.replace(',', '').strip())
@@ -630,7 +630,8 @@ def extract_info(row_text, idx, npl_info):
         # 주소 세부 정보 추출 (지역, 시군구, 법정동)
         address_parts = address1.split()
 
-        region = address_parts[0] if len(address_parts) > 0 else ''
+        # 지역코드 = 시도이름
+        # region = address_parts[0] if len(address_parts) > 0 else ''
         # city_district = address_parts[1] if len(address_parts) > 1 else ''
         # legal_dong = address_parts[2] if len(address_parts) > 2 else ''
 
@@ -713,7 +714,7 @@ def extract_info(row_text, idx, npl_info):
             "category": category,
             "address1": address1,
             "address2": address2,
-            "region": region,
+            "region": sido_name,
             "sigungu_code": sigungu_code,
             "sigungu_name": sigungu_name,
             "eub_myeon_dong": eub_myeon_dong,
@@ -784,7 +785,8 @@ def extract_region_code(address):
         sido_names = [name.strip() for name in region["시도 이름"].split(",")]
         if any(sido in address for sido in sido_names):
             sido_code = region["시도 코드"]
-            sido_name = max(sido_names, key=len)
+            #sido_name = max(sido_names, key=len)
+            sido_name = sido_names[1]
             # 시군구 리스트를 이름 길이 내림차순으로 정렬하여 더 구체적인 이름을 먼저 매칭
             cities = sorted(region["시군구"], key=lambda x: len(x["시군구 이름"]), reverse=True)
             for city in cities:

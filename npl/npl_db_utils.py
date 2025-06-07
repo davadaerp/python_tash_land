@@ -334,7 +334,7 @@ def npl_select_single(case_number):
     finally:
         conn.close()
 
-def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, dangiName=""):
+def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, opposabilityStatus="", dangiName=""):
     """
     SQLite DB(DB_FILENAME)에서 데이터를 읽어오며, 필터링 조건에 따라 반환합니다.
     year_range: "1"이면 현재년도 1월 1일부터 오늘까지, "2"이면 전년도 1월 1일부터 오늘까지
@@ -348,12 +348,12 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, dangi
     if lawdCd:
         query += " AND sigungu_code LIKE ?"
         params.append(f"%{lawdCd}%")
-    # if region:
-    #     query += " AND region LIKE ?"
-    #     params.append(f"%{region}%")
-    # if sggNm:
-    #     query += " AND sigungu_name LIKE ?"
-    #     params.append(f"%{sggNm}%")
+    if region:
+        query += " AND region LIKE ?"
+        params.append(f"%{region}%")
+    if sggNm:
+        query += " AND sigungu_name LIKE ?"
+        params.append(f"%{sggNm}%")
     # if umdNm:
     #     query += " AND eub_myeon_dong LIKE ?"
     #     params.append(f"%{umdNm}%")
@@ -361,6 +361,10 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, dangi
         placeholders = ','.join('?' for _ in categories)
         query += f" AND category IN ({placeholders})"
         params.extend(categories)
+
+    if opposabilityStatus:
+        query += " AND opposability_status LIKE ?"
+        params.append(f"{opposabilityStatus}")
 
     if dangiName:
         query += " AND dangi_name LIKE ?"
@@ -374,3 +378,45 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, dangi
     result = [dict(row) for row in rows]
     conn.close()
     return result
+
+
+# json리스트 가져오기
+def query_npl_region_hierarchy(category, sel_code, parent_sel_code):
+    """
+    region_hierarchy.json 파일을 읽어서, 아래 조건에 맞게 하위 목록을 리턴합니다.
+      - category가 "region"이면, sel_code와 일치하는 lcode를 가진 지역의 첫 번째 하위(시군구 목록)를
+        {"코드": mcode, "코드명": mcode_name} 형태의 1레벨 구조로 리턴.
+      - category가 "sigungu"이면, sel_code와 일치하는 mcode를 가진 시군구의 하위(읍면동 목록)를
+        {"코드": sname_code, "코드명": sname} 형태의 1레벨 구조로 리턴.
+    """
+    try:
+        filename = NPL_DB_PATH + "/region_codes.json"
+        with open(filename, encoding="utf-8-sig") as f:
+            import json
+            hierarchy = json.load(f)
+    except FileNotFoundError:
+        print(f"⚠️ 파일을 찾을 수 없습니다: {filename}")
+        return None
+
+    # 지역선택시(ex. 서울특별시 코드)
+    if category == "region":
+        for region in hierarchy:
+            if region.get("시도 코드") == int(sel_code):
+                # 해당 지역의 하위(시군구 목록)를 {"코드": mcode, "코드명": mcode_name} 형태로 변환하여 리턴
+                children = region.get("시군구", [])
+                return [{"code": child.get("시군구 코드"), "name": child.get("시군구 이름")} for child in children]
+        return []  # 해당 lcode를 찾지 못한 경우 빈 리스트
+
+    # elif category == "sggNm":
+    #     for region in hierarchy:
+    #         if region.get("시도 코드") == parent_sel_code:
+    #             for sigungu in region.get("하위", []):
+    #                 if sigungu.get("mcode") == sel_code:
+    #                     # 해당 시군구의 하위(읍면동 목록)를 {"코드": sname_code, "코드명": sname} 형태로 변환하여 리턴
+    #                     children = sigungu.get("하위", [])
+    #                     return [{"code": child.get("sname_code"), "name": child.get("sname")} for child in children]
+    #     return []  # 해당 mcode를 찾지 못한 경우 빈 리스트
+
+    else:
+        print("❌ category는 'region' 또는 'sigungu'이어야 합니다.")
+        return None
