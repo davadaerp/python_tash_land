@@ -1,5 +1,5 @@
 from selenium import webdriver
-from selenium.common import StaleElementReferenceException, TimeoutException, WebDriverException
+from selenium.common import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -153,18 +153,6 @@ def select_categories(driver):
     time.sleep(2)
 
     # ======================================================================
-    # [추가] 시/도 옵션 선택(특정지역 테스트용)
-    # try:
-    #     stat_select = WebDriverWait(driver, 10).until(
-    #         EC.presence_of_element_located((By.ID, "siCd"))
-    #     )
-    #     select_obj = Select(stat_select)
-    #     select_obj.select_by_value("28")    # 인천(28)
-    #     print("인천광역시(28) 옵션 선택됨.")
-    #     time.sleep(2)
-    # except Exception as e:
-    #     print("시/도 옵션 선택 중 오류 발생:", e)
-
     # [추가] 매각전부 옵션 선택
     try:
         stat_select = WebDriverWait(driver, 10).until(
@@ -176,6 +164,7 @@ def select_categories(driver):
         time.sleep(2)
     except Exception as e:
         print("매각전부 옵션 선택 중 오류 발생:", e)
+
 
     # [추가] 매각일자 설정
     # try:
@@ -194,8 +183,6 @@ def select_categories(driver):
     # except Exception as e:
     #     print("매각일자 설정 중 오류 발생:", e)
     #
-    # ======================================================================
-    # 주거용 카테고리 선택
     try:
         categories = ["아파트", "연립주택", "다세대주택", "오피스텔(주거)", "단독주택", "다가구주택", "도시형생활주택", "상가주택"]
         for category in categories:
@@ -210,28 +197,14 @@ def select_categories(driver):
         print("카테고리 선택 오류:", e)
 
     #-----------------------------------------------------------------------
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
-    # try:
-    #     categories = ["숙박시설"]
-    #     for category in categories:
-    #         checkbox = WebDriverWait(driver, 5).until(
-    #             EC.element_to_be_clickable((By.XPATH,
-    #                                         f"//*[@id='ulGrpCtgr_20']//span[contains(text(), '{category}')]/preceding-sibling::input[@type='checkbox']"))
-    #         )
-    #         if not checkbox.is_selected():
-    #             checkbox.click()
-    #             print(f"'{category}' 체크박스 선택됨.")
-    # except Exception as e:
-    #     print("카테고리 선택 오류:", e)
-
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
+    # 상업및 산업용 체크박스 선택처리
     try:
-        # '상업용' 체크박스를 트리거할 label 클릭
+        # '주거용' 체크박스를 트리거할 label 클릭
         label = WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.XPATH, "//label[@for='chkGrpCtgr_20']"))
         )
         label.click()
-        print("✅ '상업용' 카테고리 클릭 완료 (chkCtgrMulti(20,1) 호출됨)")
+        print("✅ '주거용' 카테고리 클릭 완료 (chkCtgrMulti(20,1) 호출됨)")
     except Exception as e:
         print("❌ 카테고리 클릭 실패:", e)
 
@@ -348,19 +321,15 @@ def navigate_pages(driver, total_records):
             visited_pages.add(str(page_no))
 
             # JavaScript로 페이지 이동 실행
-            safe_execute_script(driver, f"srchList({page_no}); chkEachlist();")
+            driver.execute_script(f"srchList({page_no}); chkEachlist();")
             time.sleep(5)  # 페이지 로딩 대기
 
             # 레코드 파싱 및 데이터 저장
             record_parsing_list(driver, page_no)
 
-        except WebDriverException as e:
-            print("WebDriver error, retrying page:", e)
-            # (위 safe_execute_script가 이미 재시작까지 처리해 줍니다)
-            continue
-        # except Exception as e:
-        #     print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
-        #     break
+        except Exception as e:
+            print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
+            break
 
 # 위.경도 가져오기..
 def get_lat_lng(address: str, api_key: str):
@@ -652,8 +621,7 @@ def extract_info(row_text, idx, npl_info):
         # info 언패킹
         deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status = npl_info
 
-        # 관심 ** 이런게 들어가면 2번째 라인으로 사건번호로 인식되어 제거처리
-        lines = [line for line in row_text.split('\n') if not line.startswith('관심')]
+        lines = row_text.split('\n')
 
         # 기본 정보 추출
         category = lines[0]  # 구분 (예: 아파트)
@@ -844,68 +812,36 @@ def extract_region_code(address):
     return None, None, None, None, None
 
 
-# 1) 드라이버 초기화 함수
-def init_driver():
+def main():
+    global json_data, saved_count, data_list  # 전역 변수 사용
+    global detail_driver
+
+    # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
+    chrome_options = Options()
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--remote-debugging-port=9222")
+    chrome_options.add_argument("--remote-debugging-port=9222")  # 원격 디버깅 포트
     chrome_options.add_argument("--disable-background-timer-throttling")
-    chrome_options.add_experimental_option("detach", True)
-    return webdriver.Chrome(
-        # service=Service(ChromeDriverManager().install()),
+    chrome_options.add_experimental_option("detach", True)  # 크롬 창을 셀레니움 종료 시 닫지 않음
+    # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
+
+    from selenium.webdriver.chrome.service import Service
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
+    #driver = webdriver.Chrome()
 
-# 2) 안전하게 URL 호출
-def safe_get(driver, url):
-    try:
-        driver.get(url)
-    except WebDriverException as e:
-        if 'invalid session id' in str(e).lower():
-            driver.quit()
-            # driver = init_driver()
-            # login(driver)
-            # menu_search(driver)
-            # select_categories(driver)
-            # return safe_get(driver, url)
-        else:
-            raise
-    return driver
-
-# 3) 안전하게 execute_script
-def safe_execute_script(driver, script):
-    try:
-        return driver.execute_script(script)
-    except WebDriverException as e:
-        if 'invalid session id' in str(e).lower():
-            driver.quit()
-            driver = init_driver()
-            login(driver)
-            time.sleep(2)
-            #
-            menu_search(driver)
-            # 페이지 전환 및 로딩 대기 (필요 시 조정)
-            time.sleep(2)
-            #
-            select_categories(driver)
-            time.sleep(2)
-
-            return safe_execute_script(driver, script)
-        else:
-            raise
-
-def main():
-    global json_data, saved_count, data_list  # 전역 변수 사용
-    driver = init_driver()
+    # 문제발생함.. 다시 로그인 해야함 ㅠ.ㅠ
+    # detail_driver = webdriver.Chrome(options=chrome_options)
     try:
         # 시군구등 법정코드 json 데이타 로딩
         json_data = load_json_data()
 
-        # driver = init_driver()
-        driver = safe_get(driver, "https://www.tankauction.com/")
+        driver.get("https://www.tankauction.com/")
         driver.implicitly_wait(1)
         #=====
         login(driver)

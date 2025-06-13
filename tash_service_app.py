@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
-from npl.npl_db_utils import npl_read_db
+from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 #from naver.naver_login import naver_authorization, naver_callback
 #
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
@@ -244,8 +244,8 @@ def update_fav():
 category_mappings = {
     "아파트": ["아파트"],
     "빌라": ["연립주택", "도시형생활주택", "다세대주택", "단독주택", "오피스텔(주거)"],
-    "근린상가": ["근린상가", "근린생활시설", "공장", "창고시설"],
-    "다가구": ["다가구주택", "상가주택"]
+    "다가구": ["다가구주택", "상가주택"],
+    "상업용외": ["근린상가", "근린생활시설", "오피스텔(상업)", "공장", "지식산업센터", "숙박시설", "의료시설", "목욕탕", "종교시설", "창고시설"]
 }
 
 @app.route('/api/auction/categories', methods=['GET'])
@@ -347,6 +347,21 @@ def get_npl_categories():
     print(json_data)
     return json_data
 
+@app.route('/api/npl/region_categories', methods=['GET'])
+def get_npl_region_categories():
+    #
+    category = request.args.get('category', '') # 지역(region), 시군구명(sggNm)
+    sel_code = request.args.get('sel_code', '')
+    parent_sel_code = request.args.get('parent_sel_code', '')
+
+    print('category: ' + category, sel_code, parent_sel_code)
+
+    json_data = query_npl_region_hierarchy(category, sel_code, parent_sel_code)
+    print("Region query 결과:")
+    print(json.dumps(json_data, ensure_ascii=False, indent=2))
+
+    return json_data
+
 @app.route('/api/npl', methods=['GET'])
 def get_npl_data():
     # SQLite DB(auction_data.db)를 참조하여 데이터 읽기
@@ -355,11 +370,20 @@ def get_npl_data():
     sggNm = request.args.get('sggNm', '')
     umdNm = request.args.get('umdNm', '')
     main_category = request.args.get('mainCategory', '')
-    #category = request.args.get('category')
-    dangiName = request.args.get('dangiName', '')
+    opposabilityStatus = request.args.get('opposabilityStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
+    auctionApplicant = request.args.get('auctionApplicant', '')           # 경매신청자
+
+    if region == '전체':
+        region = ''
+    if sggNm == '전체':
+        sggNm = ''
+    if umdNm == '전체':
+        umdNm = ''
+    if opposabilityStatus == 'all':
+        opposabilityStatus = ''
 
     print(
-        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm}, 단지명: {dangiName},  메인 카테고리: {main_category}")
+        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm}, 임차권여부: {opposabilityStatus}, 경매신청자: {auctionApplicant},  메인 카테고리: {main_category}")
 
     categories = []
     if main_category != '':
@@ -374,7 +398,7 @@ def get_npl_data():
     # print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
 
     # 데이타 읽기
-    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, dangiName)
+    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, auctionApplicant)
 
     return jsonify(data)
 

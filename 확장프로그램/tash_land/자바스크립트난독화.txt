@@ -1,5 +1,5 @@
 javascript-obfuscator contents.js --output contents.obf.js
-
+javascript-obfuscator contents_yana.js --output contents_yana.obf.js
 -- 평형분석, 옥션원 동적dom처리
 
 

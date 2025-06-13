@@ -1,5 +1,5 @@
 from selenium import webdriver
-from selenium.common import StaleElementReferenceException, TimeoutException, WebDriverException
+from selenium.common import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -153,18 +153,6 @@ def select_categories(driver):
     time.sleep(2)
 
     # ======================================================================
-    # [추가] 시/도 옵션 선택(특정지역 테스트용)
-    # try:
-    #     stat_select = WebDriverWait(driver, 10).until(
-    #         EC.presence_of_element_located((By.ID, "siCd"))
-    #     )
-    #     select_obj = Select(stat_select)
-    #     select_obj.select_by_value("28")    # 인천(28)
-    #     print("인천광역시(28) 옵션 선택됨.")
-    #     time.sleep(2)
-    # except Exception as e:
-    #     print("시/도 옵션 선택 중 오류 발생:", e)
-
     # [추가] 매각전부 옵션 선택
     try:
         stat_select = WebDriverWait(driver, 10).until(
@@ -176,6 +164,7 @@ def select_categories(driver):
         time.sleep(2)
     except Exception as e:
         print("매각전부 옵션 선택 중 오류 발생:", e)
+
 
     # [추가] 매각일자 설정
     # try:
@@ -194,8 +183,6 @@ def select_categories(driver):
     # except Exception as e:
     #     print("매각일자 설정 중 오류 발생:", e)
     #
-    # ======================================================================
-    # 주거용 카테고리 선택
     try:
         categories = ["아파트", "연립주택", "다세대주택", "오피스텔(주거)", "단독주택", "다가구주택", "도시형생활주택", "상가주택"]
         for category in categories:
@@ -210,21 +197,7 @@ def select_categories(driver):
         print("카테고리 선택 오류:", e)
 
     #-----------------------------------------------------------------------
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
-    # try:
-    #     categories = ["숙박시설"]
-    #     for category in categories:
-    #         checkbox = WebDriverWait(driver, 5).until(
-    #             EC.element_to_be_clickable((By.XPATH,
-    #                                         f"//*[@id='ulGrpCtgr_20']//span[contains(text(), '{category}')]/preceding-sibling::input[@type='checkbox']"))
-    #         )
-    #         if not checkbox.is_selected():
-    #             checkbox.click()
-    #             print(f"'{category}' 체크박스 선택됨.")
-    # except Exception as e:
-    #     print("카테고리 선택 오류:", e)
-
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
+    # 상업및 산업용 체크박스 선택처리
     try:
         # '상업용' 체크박스를 트리거할 label 클릭
         label = WebDriverWait(driver, 30).until(
@@ -288,132 +261,16 @@ def get_total_count(driver):
         print("총건수 가져오기 오류:", e)
         return 0
 
-# ======================================================================
-# 레코드 데이타 처리
-# 결과가 로드될 때까지 대기 (#lsTbody 요소가 로드되길 기다림)
-def record_parsing_list(driver, current_page):
-    global saved_count, data_list
-    #
-    # 결과가 로드될 때까지 대기 (#lsTbody 요소가 로드되길 기다림)
-    tbody = WebDriverWait(driver, 8).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "#lsTbody"))
-    )
-    # tbody 안의 모든 tr 요소 선택
-    rows = tbody.find_elements(By.TAG_NAME, "tr")
-    for idx, row in enumerate(rows, start=1):
-        row_text = row.text.strip()
-
-        #----------------------------
-        # npl파악위한 근저당 채권최고액(말소기준권리), 임의(강제)경매 청구금액, 임의(강제)경매 청구자
-        # tr 안의 hidden input 중 name 또는 id가 Tid_로 시작하는 것을 찾기
-        tid_input = row.find_element(By.XPATH, './/input[starts-with(@id, "Tid_")]')
-        tid = tid_input.get_attribute("value")
-
-        # print(f"{idx}: tid = {tid}")
-        npl_info = npl_extract_info(driver, row_text, tid)
-        if npl_info is None:
-            continue  # NPL 아님, 다음 로우로
-
-        # info 언패킹
-        #deposit_value, min_price, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
-
-        # 상세정보 처리
-        extract_info(row_text, idx, npl_info)
-
-        # 1000건마다 저장 처리
-        if len(data_list) >= BATCH_SIZE:
-            print(f"저장 전 현재까지 저장 건수: {saved_count + len(data_list)} 건, 이번 배치: {len(data_list)} 건")
-            npl_save_to_sqlite(data_list)
-            saved_count += len(data_list)
-            data_list.clear()
-            time.sleep(1)
-
-    total_parsed = (current_page - 1) * int(page_list) + idx
-    print(f"📄 현재 페이지: {current_page}, 현재목록 수: {idx}, 현재까지 읽은 목록 수: {total_parsed}")
-
-# ======================================================================
-# 페이징 이동 및 데이터 처리
-def navigate_pages(driver, total_records):
-    total_pages = (total_records // int(page_list)) + (1 if total_records % int(page_list) > 0 else 0)
-    visited_pages = set()  # 방문한 페이지 번호 저장
-
-    for page_no in range(1, total_pages + 1):
-        try:
-            print(f"\n📌 {page_no}/{total_pages} 페이지 이동 중...")
-
-            # 이미 방문한 페이지는 스킵
-            if str(page_no) in visited_pages:
-                print(f"✅ {page_no} 페이지는 이미 방문하여 스킵.")
-                continue
-            visited_pages.add(str(page_no))
-
-            # JavaScript로 페이지 이동 실행
-            safe_execute_script(driver, f"srchList({page_no}); chkEachlist();")
-            time.sleep(5)  # 페이지 로딩 대기
-
-            # 레코드 파싱 및 데이터 저장
-            record_parsing_list(driver, page_no)
-
-        except WebDriverException as e:
-            print("WebDriver error, retrying page:", e)
-            # (위 safe_execute_script가 이미 재시작까지 처리해 줍니다)
-            continue
-        # except Exception as e:
-        #     print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
-        #     break
-
-# 위.경도 가져오기..
-def get_lat_lng(address: str, api_key: str):
-    """
-    # (google api 사용은 하루에 2,500건, 초당 10건의 요청에 한해서만 무료입니다. 그 이상 사용하려면 유료로 전환해야 합니다.)
-    주소를 입력받아 위도와 경도를 반환하는 함수.
-    :param address: 주소 (예: '서울특별시 강남구 테헤란로 212')
-    :param api_key: Google Maps API 키
-    :return: 위도, 경도 튜플
-    """
-    return 0,0
-
-# 동,층정보 가져오기
-def extract_building_floor(address):
-    # 동 앞 숫자 추출
-    building_match = re.search(r'(\d+)\s?동', address)
-    building = building_match.group(1) if building_match else '1'
-
-    # 층 앞 숫자 추출
-    floor_match = re.search(r'(\d+)\s?층', address)
-    floor = floor_match.group(1) if floor_match else '1'
-
-    # 단지명 처리
-    complex_match = re.search(r'\(([^)]+)\)', address)  # 괄호 안의 내용 추출
-    if complex_match:
-        complex_data = complex_match.group(1)
-        if "," in complex_data:
-            dangi_name = complex_data.split(",")[-1].strip()  # 쉼표 기준으로 마지막 값
-        else:
-            dangi_name = complex_data.strip()
-    else:
-        dangi_name = ""
-
-    return building, floor, dangi_name
-
 
 # tid번호를 이용한 npl여부츨 체크함
-def npl_extract_info(driver, row_text, tid):
+def npl_extract_info(driver, tid):
     try:
-        lines = row_text.split('\n')
-
-        #print('== row_text: ' + row_text)
-
-        # 금액 정보 추출
-        idx_price_start = next(
-            i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line and "매각제외" not in line) + 1
-        appraisal_price = lines[idx_price_start]  # 감정금액
-        min_price = lines[idx_price_start + 1]  # 최저금액
-        bid_count = lines[idx_price_start + 2].replace(',', '')  # 유찰회수
-        bid_text = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
-        bid_rate = bid_text.replace("(", "").replace(")", "")
-        sale_decision_date_text = lines[idx_price_start + 5].replace(',', '')  # 매각기일
-        sale_decision_date = convert_to_iso(sale_decision_date_text)  # 매각기일
+        #
+        appraisal_price = "3,030,768,000"  # 감정금액
+        min_price = "1,039,553,000"  # 최저금액
+        bid_count = "유찰 3회" # 유찰회수
+        bid_rate = "34%"
+        sale_decision_date = '2025-06-11'  # 매각기일
         print('-')
         print('== tid: ' + tid )
         print('== 감정평가금액: ' + appraisal_price)
@@ -646,266 +503,31 @@ def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
     return is_npl
 
 
-# 주소로 시군구 데이타 파싱및 분석
-def extract_info(row_text, idx, npl_info):
-    try:
-        # info 언패킹
-        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status = npl_info
 
-        # 관심 ** 이런게 들어가면 2번째 라인으로 사건번호로 인식되어 제거처리
-        lines = [line for line in row_text.split('\n') if not line.startswith('관심')]
+def main():
+    global json_data, saved_count, data_list  # 전역 변수 사용
+    global detail_driver
 
-        # 기본 정보 추출
-        category = lines[0]  # 구분 (예: 아파트)
-        case_number = lines[1]  # 사건번호
-        address1 = lines[2]  # 주소1
-        address2 = lines[3] if lines[3].startswith('(') else ''  # 주소2 (괄호 포함)
-
-        # 주소 세부 정보 추출 (지역, 시군구, 법정동)
-        address_parts = address1.split()
-
-        # 지역코드 = 시도이름
-        # region = address_parts[0] if len(address_parts) > 0 else ''
-        # city_district = address_parts[1] if len(address_parts) > 1 else ''
-        # legal_dong = address_parts[2] if len(address_parts) > 2 else ''
-
-        # 면적 정보 추출
-        area_match = re.search(r'건물\s([\d\.]+)㎡\(([\d\.]+)평\),\s대지권\s([\d\.]+)㎡\(([\d\.]+)평\)', row_text)
-        if area_match:
-            building_m2, building_py, land_m2, land_py = area_match.groups()
-            area_py = float(building_py)
-        else:
-            building_m2 = building_py = land_m2 = land_py = ''
-            area_py = 0
-
-        # 판매금액및 비율 정보 추출
-        sale_price = 0
-        min_percent = bid_rate
-        sale_percent = ''
-
-        # 기타 정보 추출
-        extra_info = ', '.join([line for line in lines if '계' in line or '토지' in line or '건물' in line or '임차인' in line])
-
-        # 평단가 계산
-        if area_py != 0:
-            pydanga_appraisal = int(int(appraisal_price.replace(",", "")) / (area_py * 10000))
-            pydanga_min = int(int(min_price.replace(",", "")) / (area_py * 10000))
-            pydanga_sale = 0
-        else:
-            pydanga_appraisal = pydanga_min = pydanga_sale = 0
-
-        # 동,층정보 가져오기
-        building, floor, dangi_name = extract_building_floor(address1)
-
-        #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
-
-        # 법정코드(시군구) 및 읍면동 가져오기
-        sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
-        # None 값을 빈 문자열로 변환하여 출력
-        # print(f"{idx:<5}"
-        #       f"{address1:<30}"
-        #       f"{sido_code if sido_code else '':<10}"
-        #       f"{sido_name if sido_name else '':<10}"
-        #       f"{sigungu_code if sigungu_code else '':<10}"
-        #       f"{sigungu_name if sigungu_name else '':<10}"
-        #       f"{eub_myeon_dong if eub_myeon_dong else '없음':<10}")
-
-        # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등)
-        latitude, longitude = get_lat_lng(address1, map_api_key)
-        #print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
-
-        # 데이터 저장
-        # data_entry = {
-        #     "사건번호": case_number,
-        #     "구분": category,
-        #     "주소1": address1,
-        #     "주소2": address2,
-        #     "지역": region,
-        #     "법정동코드": sigungu_code,
-        #     "시군구명": sigungu_name,
-        #     "법정동명": eub_myeon_dong,
-        #     "동": building,
-        #     "층": floor,
-        #     "건물m2": building_m2,
-        #     "건물평수": building_py,
-        #     "대지m2": land_m2,
-        #     "대지평수": land_py,
-        #     "감정금액": appraisal_price,
-        #     "최저금액": min_price,
-        #     "매각금액": sale_price,
-        #     "최저퍼센트": f"{min_percent}%",
-        #     "매각퍼센트": f"{sale_percent}%",
-        #     "감정금액평단가": f"{pydanga_appraisal}", # 만단위
-        #     "최저금액평단가": f"{pydanga_min}",
-        #     "매각금액평단가": f"{pydanga_sale}",
-        #     "매각일자": sales_date,
-        #     "단지명": dangi_name,
-        #     "기타": extra_info
-        # }
-
-        data_entry = {
-            "case_number": case_number,
-            "category": category,
-            "address1": address1,
-            "address2": address2,
-            "region": sido_name,
-            "sigungu_code": sigungu_code,
-            "sigungu_name": sigungu_name,
-            "eub_myeon_dong": eub_myeon_dong,
-            "building": building,
-            "floor": floor,
-            "building_m2": building_m2,
-            "building_py": building_py,
-            "land_m2": land_m2,
-            "land_py": land_py,
-            "appraisal_price": appraisal_price,         # 감정가
-            "min_price": min_price,                     # 최저가
-            "sale_price": sale_price,
-            "min_percent": f"{min_percent}",
-            "sale_percent": f"{sale_percent}",
-            "pydanga_appraisal": f"{pydanga_appraisal}",  # 만단위
-            "pydanga_min": f"{pydanga_min}",
-            "pydanga_sale": f"{pydanga_sale}",
-            "sales_date": sale_decision_date,           # 매각일자
-            "dangi_name": dangi_name,
-            "extra_info": extra_info,
-            "bid_count": bid_count,                     # 유찰회수
-            "bid_rate": bid_rate,                       # 유찰비율
-            "deposit_value": deposit_value,             # 임차보증금금액
-            "bond_total_amount": bond_total_amount,     # 총채권합계금액
-            "bond_max_amount": bond_max_amount,         # 채권최고액
-            "bond_claim_amount": bond_claim_amount,     # 채권청구액
-            "start_decision_date": start_decision_date, # 경매개시일자
-            "sale_decision_date": sale_decision_date,   # 경매매각일자
-            "auction_method": auction_method,           # 경매청구방식(임의경매, 강제경매)
-            "auction_applicant": auction_applicant,     # 경매신청자
-            "notice_text": notice_text,                 # 비고내역(임차권등기/유치권/법정지상권등)
-            "opposability_status": opposability_status, # 임차권등기/대항력있는임차인 여부(Y/N)
-            "latitude": latitude,
-            "longitude": longitude
-        }
-        print("===== extract_info() ======= ")
-        print(data_entry)
-        #
-        data_list.append(data_entry)
-
-        # print(f"idx: {idx}")
-        # print("=" * 80)
-        # for key, value in data_entry.items():
-        #     print(f"{key}: {value}")
-        # print("=" * 80)
-
-    except Exception as e:
-        print("데이터 처리 오류:", e)
-
-# 시군구등 법정코드 json 데이타 로딩
-def load_json_data():
-    json_filepath = "region_codes.json"  # JSON 파일 경로
-    with open(json_filepath, 'r', encoding='utf-8') as file:
-        return json.load(file)
-
-# 시도,시군구,읍면동 파싱처리
-def extract_region_code(address):
-    """
-    주소에서 시도 코드, 시도 이름, 시군구 코드, 시군구 이름, 그리고 읍/면/동을 추출합니다.
-    시군구는 보다 구체적인(길이가 긴) 이름부터 매칭하여 처리합니다.
-    :param address: 분석할 주소 (예: "경기 고양시 일산서구 덕이동 731-5, 에이동 1층101호 (덕이동,일산파크뷰) 외 3필지")
-    :param json_data: 지역 정보를 담은 리스트 (JSON 데이터)
-    :return: (sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong) 튜플
-             해당 정보가 없으면 (None, None, None, None, None)을 반환.
-    """
-    for region in json_data:
-        # "시도 이름"은 예: "경기,경기도"처럼 콤마로 구분되므로 리스트로 변환하고, 더 긴 이름을 사용 (예: "경기도")
-        sido_names = [name.strip() for name in region["시도 이름"].split(",")]
-        if any(sido in address for sido in sido_names):
-            sido_code = region["시도 코드"]
-            #sido_name = max(sido_names, key=len)
-            sido_name = sido_names[1]
-            # 시군구 리스트를 이름 길이 내림차순으로 정렬하여 더 구체적인 이름을 먼저 매칭
-            cities = sorted(region["시군구"], key=lambda x: len(x["시군구 이름"]), reverse=True)
-            for city in cities:
-                city_name = city["시군구 이름"]
-                # 주소에 city_name이 포함되어 있는지 검사 (단순 포함 검사)
-                if city_name in address:
-                    sigungu_code = city["시군구 코드"]
-                    sigungu_name = city_name
-                    # 시군구 이름이 나타난 위치 이후의 문자열에서 읍/면/동 추출
-                    city_index = address.find(city_name)
-                    if city_index != -1:
-                        sub_address = address[city_index + len(city_name):]
-                        # 시군구 뒤에 바로 나오는 읍/면/동 단어 추출 (예: "덕이동")
-                        match = re.search(r'\b([가-힣]+(?:읍|면|동))\b', sub_address)
-                        eub_myeon_dong = match.group(1) if match else None
-                    else:
-                        eub_myeon_dong = None
-
-                    return sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong
-
-    return None, None, None, None, None
-
-
-# 1) 드라이버 초기화 함수
-def init_driver():
+    # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--remote-debugging-port=9222")
+    chrome_options.add_argument("--remote-debugging-port=9222")  # 원격 디버깅 포트
     chrome_options.add_argument("--disable-background-timer-throttling")
-    chrome_options.add_experimental_option("detach", True)
-    return webdriver.Chrome(
-        # service=Service(ChromeDriverManager().install()),
-        options=chrome_options
-    )
+    chrome_options.add_experimental_option("detach", True)  # 크롬 창을 셀레니움 종료 시 닫지 않음
+    # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
-# 2) 안전하게 URL 호출
-def safe_get(driver, url):
+    # from selenium.webdriver.chrome.service import Service
+    # driver = webdriver.Chrome(
+    #     service=Service(ChromeDriverManager().install()),
+    #     options=chrome_options
+    # )
+    driver = webdriver.Chrome()
     try:
-        driver.get(url)
-    except WebDriverException as e:
-        if 'invalid session id' in str(e).lower():
-            driver.quit()
-            # driver = init_driver()
-            # login(driver)
-            # menu_search(driver)
-            # select_categories(driver)
-            # return safe_get(driver, url)
-        else:
-            raise
-    return driver
-
-# 3) 안전하게 execute_script
-def safe_execute_script(driver, script):
-    try:
-        return driver.execute_script(script)
-    except WebDriverException as e:
-        if 'invalid session id' in str(e).lower():
-            driver.quit()
-            driver = init_driver()
-            login(driver)
-            time.sleep(2)
-            #
-            menu_search(driver)
-            # 페이지 전환 및 로딩 대기 (필요 시 조정)
-            time.sleep(2)
-            #
-            select_categories(driver)
-            time.sleep(2)
-
-            return safe_execute_script(driver, script)
-        else:
-            raise
-
-def main():
-    global json_data, saved_count, data_list  # 전역 변수 사용
-    driver = init_driver()
-    try:
-        # 시군구등 법정코드 json 데이타 로딩
-        json_data = load_json_data()
-
-        # driver = init_driver()
-        driver = safe_get(driver, "https://www.tankauction.com/")
+        #
+        driver.get("https://www.tankauction.com/")
         driver.implicitly_wait(1)
         #=====
         login(driver)
@@ -930,18 +552,11 @@ def main():
         # 총 건수 가져오기
         total_records = get_total_count(driver)
 
-        # 페이징 이동 및 데이터 처리
-        navigate_pages(driver, total_records)
-
-        # 마지막 남은 레코드 저장
-        if data_list:
-            print(f"마지막 저장 전 현재까지 저장 건수: {saved_count + len(data_list)} 건, 남은 배치: {len(data_list)} 건")
-            npl_save_to_sqlite(data_list)
-            saved_count += len(data_list)
-            data_list.clear()
-        print(f"총 저장 건수: {saved_count} 건")
-        # 스크립트 종료 전에 현재 sale_edate(현재 날짜)를 파일에 저장
-        save_last_sale_date(sale_edate)
+        # print(f"{idx}: tid = {tid}")
+        tid = '2248276'
+        npl_info = npl_extract_info(driver, tid)
+        if npl_info is None:
+            return  # NPL 아님, 다음 로우로
 
     except Exception as e:
         print("오류 발생:", e)

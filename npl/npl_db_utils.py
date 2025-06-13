@@ -334,7 +334,7 @@ def npl_select_single(case_number):
     finally:
         conn.close()
 
-def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, opposabilityStatus="", dangiName=""):
+def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, opposabilityStatus="", auctionApplicant=""):
     """
     SQLite DB(DB_FILENAME)에서 데이터를 읽어오며, 필터링 조건에 따라 반환합니다.
     year_range: "1"이면 현재년도 1월 1일부터 오늘까지, "2"이면 전년도 1월 1일부터 오늘까지
@@ -366,12 +366,12 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, oppos
         query += " AND opposability_status LIKE ?"
         params.append(f"{opposabilityStatus}")
 
-    if dangiName:
-        query += " AND dangi_name LIKE ?"
-        params.append(f"%{dangiName}%")
+    if auctionApplicant:
+        query += " AND auction_applicant LIKE ?"
+        params.append(f"%{auctionApplicant}%")
 
     # 정렬 (예: 최신 판매일자 내림차순)
-    query += " ORDER BY sales_date DESC"
+    query += " ORDER BY sales_date ASC, category LIMIT 500"
 
     cur.execute(query, params)
     rows = cur.fetchall()
