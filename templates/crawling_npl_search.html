@@ -86,7 +86,7 @@
         #locatadd_nm {
           flex: 7;
         }
-        #aptNm {
+        #auction_applicant {
           flex: 3;
         }
         #suggestions {
@@ -167,7 +167,7 @@
         }
         /* 테이블 컨테이너 */
         .table-container {
-            width: 96%;
+            width: 99%;
             /*max-width: 1200px;*/
             max-height: 990px;
             background-color: #fff;
@@ -306,8 +306,8 @@
             // 매각금액 정렬
             $('#sortPrice').click(function () {
                 window.currentFilteredItems.sort((a, b) => {
-                    let priceA = parseFloat(a.sale_price) || 0;
-                    let priceB = parseFloat(b.sale_price) || 0;
+                    let priceA = parseFloat(a.bond_eval_amount) || 0;
+                    let priceB = parseFloat(b.bond_eval_amount) || 0;
                     return sortPriceAscending ? priceA - priceB : priceB - priceA;
                 });
                 sortPriceAscending = !sortPriceAscending;
@@ -318,7 +318,7 @@
             function updateSortIcons() {
                 $('#sortSalesDate').text(sortSalesDateAscending ? '매각일자 ▲' : '매각일자 ▼');
                 $('#sortHouse').text(sortHouseAscending ? '구분 ▲' : '구분 ▼');
-                $('#sortPrice').text(sortPriceAscending ? '매각금액 ▲' : '매각금액 ▼');
+                $('#sortPrice').text(sortPriceAscending ? '행사원리금액 ▲' : '행사원리금액 ▼');
             }
 
             // 단지명 검색 이벤트 처리
@@ -411,10 +411,10 @@
                 let umdNmText = $('#umdNm option:selected').text();
                 let mainCategory = $('#main-category').val();
                 let opposabilityStatus = $('#sel_opposability_status').val();    // 임차권포함여부(Y/N)
-                let dangiName = $('#aptNm').val();
+                let auctionApplicant = $('#auction_applicant').val();
 
                 // 초기화처리
-                resetFilters();
+                //resetFilters();
 
                 $('#loading').show();
                 $('#noData').hide();
@@ -430,7 +430,7 @@
                         umdNm: umdNmText,
                         mainCategory: mainCategory,
                         opposabilityStatus: opposabilityStatus,
-                        dangiName: dangiName
+                        auctionApplicant: auctionApplicant
                     },
                     dataType: 'json',
                     timeout: 5000,  // 5초 타임아웃 설정
@@ -472,7 +472,7 @@
                 //
                 document.getElementById("result-amt").textContent = "평균금액/단가: 0/0";
                 document.getElementById("result-count").textContent = "건수: 0건";
-                document.getElementById("aptNm").value = "";
+                document.getElementById("auction_applicant").value = "";
 
                 // 'sel_category' 셀렉트 박스 초기화 (전체 옵션만 남김)
                 const selCategory = document.getElementById("sel_category");
@@ -569,7 +569,7 @@
                 tableBody.empty();
                 data.forEach((item, index) => {
                     let fullAddress = `${item.region} ${item.sigungu_name} ${item.eub_myeon_dong}`.trim();
-                    const location = `${item.region} ${item.sigungu_name}`
+                    const location = `${item.region} ${item.sigungu_name}<br><span style="color: red;">[${item.auction_applicant}]</span>`
 
                     const bond_claim_amount = parseNumberWithCommas(item.bond_claim_amount);       // 경매(채권)청구금액
                     const bond_src_amount = parseNumberWithCommas(item.bond_max_amount) / 1.2      // 대출원금: 채권최고액(근저당) * 120%임
@@ -584,19 +584,30 @@
                     item.bond_eval_amount = Math.round(bond_eval_amount);       // 채권평가(채권행사원리)금액
                     item.bond_eval_day = evaluationDaysFromToday;               // 평가일수
                     tableBody.append(`<tr>
-                        <td class="center-align">${item.sales_date}</td>
-                        <td class="center-align">${item.case_number}</td>
-                        <td class="center-align">${item.category}</td>
-                        <td class="left-align">${location}</td>
+                        <td class="center-align" style="width:80px">${item.sales_date}</td>
+                        <td class="center-align" style="width:90px">${item.case_number}</td>
+                        <!-- category 셀 안에 category와 location을 두 줄로 표시 -->
+                        <td class="center-align">
+                            <div style="color: blue;">${item.category}</div>
+                            <div style="
+                                padding: 2px 6px;
+                                background: rgba(255,255,255,0.9);
+                                font-size: 14px;
+                                border-bottom-left-radius: 4px;
+                                z-index: 10;
+                              ">
+                                ${location}
+                            </div>
+                        </td>
                         <!--
                         <td>${fullAddress}</td>
                         --->
                         <td class="right-align">${formatNumber(item.appraisal_price)}</td>
-                        <td class="right-align">${formatNumber(item.min_price)}<br><span class="center-align">(${item.min_percent})</span></td>
+                        <td class="right-align" style="color: red;">${formatNumber(item.min_price)}<span class="center-align">(${item.min_percent})</span></td>
                         <td class="right-align">${formatNumber(item.bond_max_amount)}</td>
-                        <td class="highlight right-align">${formatNumber(item.bond_src_amount)}</td>
-                        <td class="right-align">${formatNumber(item.bond_claim_amount)}</span></td>
-                        <td class="highlight right-align">${formatNumber(item.bond_eval_amount)}</td>
+                        <td class="right-align">${formatNumber(item.bond_src_amount)}</td>
+                        <td class="highlight right-align">${formatNumber(item.bond_claim_amount)}</span></td>
+                        <td class="right-align" style="color: blue;">${formatNumber(item.bond_eval_amount)}</td>
                         <td class="center-align">${item.bond_eval_day}일</td>
                         <!--
                         <td class="center-align">
@@ -744,15 +755,14 @@
 
             // 조건선택 및 단지명입력 목록 처리
             function applyFilters() {
-                let selAptNm = document.getElementById("aptNm").value;
+                //let selAptNm = document.getElementById("aptNm").value;
                 let selCategory = document.getElementById("sel_category").value;
                 let selPyeonSu = document.getElementById("pyeonSu").value;
-                console.log(selAptNm);
                 let filteredItems = window.allFetchedItems.filter(item => {
                     let ok = true;
-                    if (selAptNm.trim() !== "") {
-                        ok = ok && item.dangi_name && item.dangi_name.includes(selAptNm.trim());
-                    }
+                    // if (selAptNm.trim() !== "") {
+                    //     ok = ok && item.dangi_name && item.dangi_name.includes(selAptNm.trim());
+                    // }
                     // 세부 카테고리
                     if (selCategory != 'all') {
                         ok = ok && item.category && item.category.includes(selCategory.trim());
@@ -893,7 +903,7 @@
             -->
             <input type="text" id="locatadd_nm" placeholder="법정동명을 입력하세요">
             <ul id="suggestions"></ul>
-            <input type="text" id="aptNm" placeholder="단지명을 입력하세요">
+            <input type="text" id="auction_applicant" placeholder="경매신청자 입력하세요">
             <button class="search-btn" id="search-btn">검색</button>
             <!-- 프린트 버튼 추가 -->
             <button id="print-btn">프린트</button>
@@ -915,8 +925,8 @@
             <label for="sel_opposability_status">임차권여부:</label>
             <select id="sel_opposability_status">
                 <option value="all">전체</option>
-                <option value="Y" selected>포함안함</option>    <!-- 임차권등기및 대항력있는 임차인 -->
-                <option value="N">포함함</option>
+                <option value="N" selected>포함안함</option>    <!-- 임차권등기및 대항력있는 임차인 -->
+                <option value="Y">포함함</option>
             </select>
             <!-- 평규단가 표시 요소 -->
             <span id="result-amt">평균단가/금액: 0/0</span>
@@ -931,7 +941,6 @@
                     <th id="sortSalesDate">매각일자 ▼</th>
                     <th>사건번호</th>
                     <th id="sortHouse" style="cursor: pointer;">구분 ▼</th>
-                    <th>지역</th>
                     <th>감정금액</th>
                     <th>최저금액</th>
                     <th>채권최고액</th>

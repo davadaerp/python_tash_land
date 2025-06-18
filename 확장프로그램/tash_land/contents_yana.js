@@ -1288,10 +1288,66 @@ function searchNaverListings() {
   onoffPanel.appendChild(naverSearch);
 }
 
+// NPL 매물검색 처리
+function nplSearchListings() {
+
+  // 실거래검색 버튼 요소 가져오기
+  const naverSearch = document.getElementById("naverSearch");
+
+  // NPL매물검색 버튼 생성
+  const nplSearch = document.createElement('span');
+  nplSearch.id = 'nplSearch'; // id 지정
+  nplSearch.textContent = 'NPL검색';
+  nplSearch.style.marginTop = '15px';
+  nplSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+  nplSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
+  nplSearch.style.color = '#fff'; // 검정색 텍스트
+  nplSearch.style.padding = '5px 6px'; // 내부 여백
+  nplSearch.style.fontSize = '12px'; // 글씨 크기
+  nplSearch.style.borderRadius = '8px'; // 둥근 모서리
+  nplSearch.style.cursor = 'pointer'; // 커서
+  nplSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+  nplSearch.style.verticalAlign = 'middle'; // 정렬 보정
+  nplSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+  nplSearch.addEventListener('click', function() {
+     // 로그인여부 체크
+     if (!loginValid()) return;
+
+    // 지역선택 가져오기
+    const {region, sigungu, umdNm} = getSelectedRegions();
+    //alert(region + ',' + sigungu + ',' + umdNm);
+    // '경기도,김포시,구래동'
+    const regions = region + ',' + sigungu + ',' + umdNm;
+
+    let search_menu = "menu=npl_search&regions=" + regions + '&api_key=' + sanga_key;
+
+    // 확장툴url
+    let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+    //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
+
+    const popupWidth = 1490;   // 원하는 팝업 너비
+    const popupHeight = 1200;  // 원하는 팝업 높이
+    const left = (screen.width - popupWidth) / 2;
+    const top = (screen.height - popupHeight) / 2;
+    // window.open(ext_url, "realDataPopup",
+    //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    window.open(
+          ext_url,
+          "nplDataPopup",
+          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+        );
+  });
+
+  // 네이버매물검색 버튼 바로 뒤에 NPL검색 버튼 추가
+  naverSearch.parentNode.insertBefore(nplSearch, naverSearch.nextSibling);
+}
+
 // 수익율분석 처리
 function analyzeProfitDemand() {
   // 실거래검색 버튼 요소 가져오기
-  const naverSearch = document.getElementById("naverSearch");
+  const nplSearch = document.getElementById("nplSearch");
 
   // 수익율분석 버튼 생성
   const analyzeProfit = document.createElement('span');
@@ -1318,8 +1374,13 @@ function analyzeProfitDemand() {
     const {region, sigungu, umdNm} = getSelectedRegions();
     const regions = region + ',' + sigungu + ',' + umdNm;
 
-    // 확장툴url
-    let ext_url = BASE_URL + "/api/ext_tool?menu=profit&regions=" + regions ;
+    // 확장툴url => sanga:상가수익율표, general:아파트/발라 수익율표
+    let ext_url = "";
+     if (tabGubun === 'sanga') {
+         ext_url = BASE_URL + "/api/ext_tool?menu=sanga_profit&regions=" + regions ;
+     } else {
+         ext_url = BASE_URL + "/api/ext_tool?menu=general_profit&regions=" + regions ;
+     }
     //
     const popupWidth = 970;
     const popupHeight = 790;
@@ -1329,8 +1390,8 @@ function analyzeProfitDemand() {
       `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
   });
 
-  // 네이버매물검색 버튼 바로 뒤에 수익율분석 버튼 추가
-  naverSearch.parentNode.insertBefore(analyzeProfit, naverSearch.nextSibling);
+  // NPL매물검색 버튼 바로 뒤에 수익율분석 버튼 추가
+  nplSearch.parentNode.insertBefore(analyzeProfit, nplSearch.nextSibling);
 }
 
 // 문자보내기(중개사및 대출상담사) 처리
@@ -1559,6 +1620,8 @@ function topButtonCreate() {
     //login();
     // 네이버매물 팝업
     searchNaverListings();
+    // NPL 매물검색 처리
+    nplSearchListings();
     // 수익율분석 처리
     analyzeProfitDemand();
     // 문자보내기(중개사및 대출상담사) 처리
@@ -1771,10 +1834,7 @@ function extractPropertyInfoDetailTank() {
 	let areaPy;
 
 	const tbody = document.querySelector('.Btbl_list');
-
 	const headerCells = tbody.querySelectorAll('th');
-
-
 	for (const headerCell of headerCells) {
 		if (headerCell.textContent.includes('토지면적')) {
 			const areaLand = headerCell.nextElementSibling;

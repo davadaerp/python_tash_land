@@ -73,6 +73,7 @@ def create_npl_table():
                 auction_applicant TEXT,
                 notice_text TEXT,
                 opposability_status TEXT,
+                personal_status TEXT DEFAULT 'N',
                 expected_price TEXT DEFAULT '0', -- 예상낙찰가 
                 latitude TEXT,
                 longitude TEXT
@@ -137,9 +138,10 @@ def npl_insert_single(entry):
             deposit_value, bond_total_amount,
             bond_max_amount, bond_claim_amount,
             start_decision_date, sale_decision_date, auction_method,
-            auction_applicant, notice_text, opposability_status, expected_price,
+            auction_applicant, notice_text, opposability_status, personal_status,
+            expected_price,
             latitude, longitude
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     try:
         cursor.execute(insert_query, (
@@ -181,6 +183,7 @@ def npl_insert_single(entry):
             entry.get("auction_applicant"),
             entry.get("notice_text"),
             entry.get("opposability_status"),
+            entry.get("personal_status"),
             entry.get("expected_price"),    # 예상낙찰가
             entry.get("latitude"),
             entry.get("longitude")
@@ -237,6 +240,7 @@ def npl_update_single(entry):
             auction_applicant = ?,
             notice_text = ?,
             opposability_status = ?,
+            personal_status = ?,
             expected_price = ?,
             latitude = ?,
             longitude = ?
@@ -279,6 +283,7 @@ def npl_update_single(entry):
             entry.get("auction_applicant"),
             entry.get("notice_text"),
             entry.get("opposability_status"),
+            entry.get("personal_status"),
             entry.get("expected_price"),
             entry.get("latitude"),
             entry.get("longitude"),

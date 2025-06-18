@@ -481,8 +481,15 @@ def ext_tool():
     # 아파트 국토부 실거래 팝업 검색
     if menu == 'apt':
         return render_template("realdata_apt.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
-    if menu == 'profit':
+    # NPL 경매데이타 검색
+    if menu == 'npl_search':
+        return render_template("crawling_npl_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
+    # 상가 수익율계산표
+    if menu == 'sanga_profit':
         return render_template("sanga_profit_sheet.html")
+    # 아파트,빌라 수익율계산표
+    if menu == 'general_profit':
+        return render_template("general_profit_sheet.html")
     if menu == 'realtor':
         return render_template("crawling_realtor_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     if menu == 'form_down':

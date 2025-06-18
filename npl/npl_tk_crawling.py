@@ -714,6 +714,16 @@ def extract_info(row_text, idx, npl_info):
         latitude, longitude = get_lat_lng(address1, map_api_key)
         #print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
 
+        # 임의경매신청자가 개인인경우(default N)
+        # 한글 3자이며 '신협', '금고', '은행' 포함하지 않을 경우 'Y', 아니면 'N'
+        if (
+                re.fullmatch(r'[가-힣]{3}', auction_applicant) and
+                not any(keyword in auction_applicant for keyword in ['신협', '금고', '은행'])
+        ):
+            personal_status = 'Y'
+        else:
+            personal_status = 'N'
+
         # 데이터 저장
         # data_entry = {
         #     "사건번호": case_number,
@@ -781,6 +791,7 @@ def extract_info(row_text, idx, npl_info):
             "auction_applicant": auction_applicant,     # 경매신청자
             "notice_text": notice_text,                 # 비고내역(임차권등기/유치권/법정지상권등)
             "opposability_status": opposability_status, # 임차권등기/대항력있는임차인 여부(Y/N)
+            "personal_status": personal_status,         # 임의경매신청자가 개인인경우(default N)
             "latitude": latitude,
             "longitude": longitude
         }
