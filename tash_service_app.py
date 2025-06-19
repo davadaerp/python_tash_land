@@ -202,8 +202,10 @@ def menu(current_user):
         return render_template("crawling_realtor_search.html")
     if menu == 'jumpo':
         return render_template("crawling_jumpo_search.html")
-    if menu == 'profit':
+    if menu == 'sanga_profit':
         return render_template("sanga_profit_sheet.html")
+    if menu == 'general_profit':
+        return render_template("general_profit_sheet.html")
     if menu == 'api_key':
         #type = request.args.get("type", "")
         return render_template("realdata_pop_key.html")

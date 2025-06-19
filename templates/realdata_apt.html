@@ -344,6 +344,8 @@
                 //document.getElementById("search-btn").dispatchEvent(new Event('click'));
             }, 500);
         }
+
+        $("#profit-link").on("click", openProfitPopup);
     };
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -840,12 +842,36 @@
       }, 500);
     }
 
+    //
+    function openProfitPopup() {
+        let popup = window.open("/api/menu?menu=general_profit", "profitPopup",
+            "resizable=yes, scrollbars=yes, menubar=no, location=no, toolbar=no");
+
+        if (popup) {
+            popup.onload = function () {
+                // let width = popup.document.documentElement.scrollWidth - 500;
+                // let height = popup.document.documentElement.scrollHeight - 370;
+                let width = 980;
+                let height = 850;
+
+                // 팝업을 현재 화면의 중앙에 배치
+                let left = window.screenX + (window.innerWidth - width) / 2;
+                let top = window.screenY + (window.innerHeight - height) / 2;
+
+                popup.resizeTo(width, height);
+                popup.moveTo(left, top);
+            };
+        } else {
+            alert("팝업이 차단되었습니다. 팝업 차단을 해제해주세요.");
+        }
+    }
+
   </script>
 </head>
 <body>
 <h1 style="font-size: 30px; padding: 10px 0 1px 0;">
   국토부 실거래 데이터(
-  <span id="api-link" style="color: blue; font-size: 25px; cursor: pointer;">아파트</span>)
+  <span id="profit-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">아파트</span>)
 </h1>
 <div class="search-container">
   <!--    <div class="input-wrapper">-->
