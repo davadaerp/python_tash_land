@@ -30,7 +30,7 @@
         const apt_key = response.apt_key;
         const villa_key = response.villa_key;
         const sanga_key = response.sanga_key;
-        localStorage.setItem("access_token", access_token.trim());
+        // localStorage.setItem("access_token", access_token.trim());
         // localStorage.setItem("apt_key", response.apt_key);
         // localStorage.setItem("villa_key", response.villa_key);
         // localStorage.setItem("sanga_key", response.sanga_key);
@@ -99,13 +99,25 @@
 
   // window.onload에서 전역 함수를 호출합니다.
   window.onload = function() {
-      const accessToken = localStorage.getItem("access_token");
-      console.log('=== access_token: ', accessToken);
-      if (accessToken === null || accessToken === '') {
-        login_auth();
-      } else {
-        login(accessToken);
-      }
+      // const accessToken = localStorage.getItem("access_token");
+      // console.log('=== access_token: ', accessToken);
+      // if (accessToken === null || accessToken === '') {
+      //   login_auth();
+      // } else {
+      //   login(accessToken);
+      // }
+      // chrome.storage.local 에서 "access_token" 키의 값을 가져옵니다.
+      chrome.storage.local.get(['access_token'], function(result) {
+        const accessToken = result.access_token;
+        console.log('=== access_token:', accessToken);
+        if (!accessToken) {
+          // access_token 값이 없거나 빈 문자열이면 인증 페이지로 이동하거나 로그인 함수 호출
+          login_auth();
+        } else {
+          // access_token 값이 있으면 정상 로그인 처리 함수에 전달
+          login(accessToken);
+        }
+      });
   };
 
   // 로그아웃처리

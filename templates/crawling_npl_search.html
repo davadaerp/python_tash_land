@@ -329,11 +329,7 @@
             $("#aptNm").on("keyup", applyFilters);
             $("#sel_floor").on("change", applyFilters);
             $("#sel_category").on("change", applyFilters);
-            // 평수검색
-            document.getElementById("pyeonSu").addEventListener("keyup", function () {
-                //document.getElementById("pyeon").value = 'all';
-                applyFilters()
-            });
+
             // 프린트 버튼 클릭 이벤트 추가
             $("#print-btn").on("click", printPreview);
 
@@ -411,6 +407,7 @@
                 let umdNmText = $('#umdNm option:selected').text();
                 let mainCategory = $('#main-category').val();
                 let opposabilityStatus = $('#sel_opposability_status').val();    // 임차권포함여부(Y/N)
+                let persionalStatus = $('#sel_personal_status').val();    // 개인(Y/N)
                 let auctionApplicant = $('#auction_applicant').val();
 
                 // 초기화처리
@@ -430,6 +427,7 @@
                         umdNm: umdNmText,
                         mainCategory: mainCategory,
                         opposabilityStatus: opposabilityStatus,
+                        persionalStatus: persionalStatus,
                         auctionApplicant: auctionApplicant
                     },
                     dataType: 'json',
@@ -757,7 +755,6 @@
             function applyFilters() {
                 //let selAptNm = document.getElementById("aptNm").value;
                 let selCategory = document.getElementById("sel_category").value;
-                let selPyeonSu = document.getElementById("pyeonSu").value;
                 let filteredItems = window.allFetchedItems.filter(item => {
                     let ok = true;
                     // if (selAptNm.trim() !== "") {
@@ -766,16 +763,6 @@
                     // 세부 카테고리
                     if (selCategory != 'all') {
                         ok = ok && item.category && item.category.includes(selCategory.trim());
-                    }
-
-                    // 평수
-                    if (selPyeonSu.trim() !== "") {
-                        // selPyeon이 "all"이고 selPyeonSu가 입력되었을 경우,
-                        // 예: 15평이면 15.0 이상 16.0 미만으로 필터링
-                        let p = parseFloat(item.building_py);
-                        if (isNaN(p)) return false;
-                        let custom = parseFloat(selPyeonSu);
-                        ok = ok && (p >= custom && p < (custom + 1));
                     }
                     //
                     return ok;
@@ -921,12 +908,17 @@
             <select id="sel_category">
                 <option value="">전체</option>
             </select>
-            <input type="text" id="pyeonSu" placeholder="평형">
             <label for="sel_opposability_status">임차권여부:</label>
             <select id="sel_opposability_status">
                 <option value="all">전체</option>
                 <option value="N" selected>포함안함</option>    <!-- 임차권등기및 대항력있는 임차인 -->
                 <option value="Y">포함함</option>
+            </select>
+            <label for="sel_personal_status">개인여부:</label>
+            <select id="sel_personal_status">
+                <option value="" selected>전체</option>
+                <option value="Y">개인</option>    <!-- 임차권등기및 대항력있는 임차인 -->
+                <option value="N">법인</option>
             </select>
             <!-- 평규단가 표시 요소 -->
             <span id="result-amt">평균단가/금액: 0/0</span>

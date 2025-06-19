@@ -373,6 +373,7 @@ def get_npl_data():
     umdNm = request.args.get('umdNm', '')
     main_category = request.args.get('mainCategory', '')
     opposabilityStatus = request.args.get('opposabilityStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
+    persionalStatus = request.args.get('persionalStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
     auctionApplicant = request.args.get('auctionApplicant', '')           # 경매신청자
 
     if region == '전체':
@@ -400,7 +401,7 @@ def get_npl_data():
     # print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
 
     # 데이타 읽기
-    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, auctionApplicant)
+    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, persionalStatus, auctionApplicant)
 
     return jsonify(data)
 

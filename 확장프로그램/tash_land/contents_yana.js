@@ -362,12 +362,17 @@ function summaryTable() {
         const summaryBtn = newBox.querySelector('#summaryBtn');
         if (summaryBtn) {
             summaryBtn.addEventListener('click', function() {
-                summaryListShowStatus = true;
-                if(tabGubun === 'sanga') {
-                    sangaSummaryList();
-                } else {
-                    villaSummaryList();
-                }
+                // 로그인여부 체크
+                loginValid().then(valid => {
+                    if (!valid) return;   // 로그인 실패 시 여기서 중단
+                    //
+                    summaryListShowStatus = true;
+                    if(tabGubun === 'sanga') {
+                        sangaSummaryList();
+                    } else {
+                        villaSummaryList();
+                    }
+                });
             });
         }
     }
@@ -444,18 +449,12 @@ function summaryListHeader() {
       const pyeongButton = newBox2.querySelector('#pyeongButton');
       if (pyeongButton) {
         pyeongButton.addEventListener('click', () => {
-            // 로그인여부 체크
-            if (!loginValid()) return;
-
             sangaPyeongPopup(); // 평형분석 팝업 호출 (정의되어 있어야 함)
         });
       }
       const realButton = newBox2.querySelector('#realButton');
       if (realButton) {
         realButton.addEventListener('click', () => {
-            // 로그인여부 체크
-            if (!loginValid()) return;
-
             // 실거래분석(국토부및경매데이터)
             analyzeRealdealDemand();
         });
@@ -463,9 +462,6 @@ function summaryListHeader() {
       const baehuButton = newBox2.querySelector('#baehuButton');
       if (baehuButton) {
         baehuButton.addEventListener('click', () => {
-            // 로그인여부 체크
-            if (!loginValid()) return;
-
             // 배후분석(마이프차접속)
             analyzeCatchmentDemand();
         });
@@ -1250,38 +1246,40 @@ function searchNaverListings() {
 
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   naverSearch.addEventListener('click', function() {
-     // 로그인여부 체크
-     if (!loginValid()) return;
+    // 로그인여부 체크
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
+        //
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        //alert(region + ',' + sigungu + ',' + umdNm);
+        // '경기도,김포시,구래동'
+        const regions = region + ',' + sigungu + ',' + umdNm;
 
-    // 지역선택 가져오기
-    const {region, sigungu, umdNm} = getSelectedRegions();
-    //alert(region + ',' + sigungu + ',' + umdNm);
-    // '경기도,김포시,구래동'
-    const regions = region + ',' + sigungu + ',' + umdNm;
+        let search_menu = "";
+        if (tabGubun === 'sanga') {
+            search_menu = "menu=sanga_search&regions=" + regions + '&api_key=' + sanga_key;
+        } else if (tabGubun === 'villa') {
+            search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
+        }  if (tabGubun === 'apt') {
+            search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
+        }
+        // 확장툴url
+        let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+        //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
 
-    let search_menu = "";
-    if (tabGubun === 'sanga') {
-        search_menu = "menu=sanga_search&regions=" + regions + '&api_key=' + sanga_key;
-    } else if (tabGubun === 'villa') {
-        search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
-    }  if (tabGubun === 'apt') {
-        search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
-    }
-    // 확장툴url
-    let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-    //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
-
-    const popupWidth = tabGubun === 'sanga' ? 1490 : 1100;   // 원하는 팝업 너비
-    const popupHeight = 1200;  // 원하는 팝업 높이
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-    // window.open(ext_url, "realDataPopup",
-    //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-    window.open(
-          ext_url,
-          "realDataPopup",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-        );
+        const popupWidth = tabGubun === 'sanga' ? 1490 : 1100;   // 원하는 팝업 너비
+        const popupHeight = 1200;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        // window.open(ext_url, "realDataPopup",
+        //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        window.open(
+              ext_url,
+              "realDataPopup",
+              `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+            );
+    });
   });
 
   // onoffPanel에 실거래검색 버튼 추가
@@ -1312,32 +1310,35 @@ function nplSearchListings() {
 
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   nplSearch.addEventListener('click', function() {
-     // 로그인여부 체크
-     if (!loginValid()) return;
 
-    // 지역선택 가져오기
-    const {region, sigungu, umdNm} = getSelectedRegions();
-    //alert(region + ',' + sigungu + ',' + umdNm);
-    // '경기도,김포시,구래동'
-    const regions = region + ',' + sigungu + ',' + umdNm;
+    // 로그인여부 체크
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
 
-    let search_menu = "menu=npl_search&regions=" + regions + '&api_key=' + sanga_key;
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        //alert(region + ',' + sigungu + ',' + umdNm);
+        // '경기도,김포시,구래동'
+        const regions = region + ',' + sigungu + ',' + umdNm;
 
-    // 확장툴url
-    let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-    //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
+        let search_menu = "menu=npl_search&regions=" + regions + '&api_key=' + sanga_key;
 
-    const popupWidth = 1490;   // 원하는 팝업 너비
-    const popupHeight = 1200;  // 원하는 팝업 높이
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-    // window.open(ext_url, "realDataPopup",
-    //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-    window.open(
-          ext_url,
-          "nplDataPopup",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-        );
+        // 확장툴url
+        let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+        //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
+
+        const popupWidth = 1490;   // 원하는 팝업 너비
+        const popupHeight = 1200;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        // window.open(ext_url, "realDataPopup",
+        //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        window.open(
+              ext_url,
+              "nplDataPopup",
+              `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+            );
+    });
   });
 
   // 네이버매물검색 버튼 바로 뒤에 NPL검색 버튼 추가
@@ -1368,26 +1369,28 @@ function analyzeProfitDemand() {
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   analyzeProfit.addEventListener('click', function() {
     // 로그인여부 체크
-    if (!loginValid()) return;
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
 
-    // 지역선택 가져오기
-    const {region, sigungu, umdNm} = getSelectedRegions();
-    const regions = region + ',' + sigungu + ',' + umdNm;
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        const regions = region + ',' + sigungu + ',' + umdNm;
 
-    // 확장툴url => sanga:상가수익율표, general:아파트/발라 수익율표
-    let ext_url = "";
-     if (tabGubun === 'sanga') {
-         ext_url = BASE_URL + "/api/ext_tool?menu=sanga_profit&regions=" + regions ;
-     } else {
-         ext_url = BASE_URL + "/api/ext_tool?menu=general_profit&regions=" + regions ;
-     }
-    //
-    const popupWidth = 970;
-    const popupHeight = 790;
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-    window.open(ext_url, "analyzeProfit",
-      `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        // 확장툴url => sanga:상가수익율표, general:아파트/발라 수익율표
+        let ext_url = "";
+        if (tabGubun === 'sanga') {
+            ext_url = BASE_URL + "/api/ext_tool?menu=sanga_profit&regions=" + regions;
+        } else {
+            ext_url = BASE_URL + "/api/ext_tool?menu=general_profit&regions=" + regions;
+        }
+        //
+        const popupWidth = 970;
+        const popupHeight = 790;
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open(ext_url, "analyzeProfit",
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    });
   });
 
   // NPL매물검색 버튼 바로 뒤에 수익율분석 버튼 추가
@@ -1418,27 +1421,28 @@ function smsSend() {
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   smsSendSearch.addEventListener('click', function() {
     // 로그인여부 체크
-    if (!loginValid()) return;
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
 
-    // 지역선택 가져오기
-    const {region, sigungu, umdNm} = getSelectedRegions();
-    const regions = region + ',' + sigungu + ',' + umdNm;
-    //
-    // 확장툴url
-    let ext_url = BASE_URL + "/api/ext_tool?menu=realtor&regions=" + regions ;
-    //
-    const popupWidth = 1000;
-    const popupHeight = 1180;
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-    window.open(ext_url, "smsSendSearch",
-      `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        const regions = region + ',' + sigungu + ',' + umdNm;
+        //
+        // 확장툴url
+        let ext_url = BASE_URL + "/api/ext_tool?menu=realtor&regions=" + regions;
+        //
+        const popupWidth = 1000;
+        const popupHeight = 1180;
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open(ext_url, "smsSendSearch",
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    });
   });
 
   // 수익율분석 버튼 바로 뒤에 추가
   analyzeProfit.parentNode.insertBefore(smsSendSearch, analyzeProfit.nextSibling);
 }
-
 
 // 양식다운로드 처리
 function formDownload() {
@@ -1463,22 +1467,23 @@ function formDownload() {
 
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   formDownload.addEventListener('click', function() {
-    // 로그인여부 체크
-    if (!loginValid()) return;
-
-    // 지역선택 가져오기
-    const {region, sigungu, umdNm} = getSelectedRegions();
-    const regions = region + ',' + sigungu + ',' + umdNm;
-    //
-    // 확장툴url
-    let ext_url = BASE_URL + "/api/ext_tool?menu=form_down&regions=" + regions ;
-    //
-    const popupWidth = 500;
-    const popupHeight = 450;
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-    window.open(ext_url, "analyzeProfit",
-    `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+            const regions = region + ',' + sigungu + ',' + umdNm;
+            //
+            // 확장툴url
+            let ext_url = BASE_URL + "/api/ext_tool?menu=form_down&regions=" + regions;
+            //
+            const popupWidth = 500;
+            const popupHeight = 450;
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            window.open(ext_url, "analyzeProfit",
+                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        });
   });
 
   // 문자검색 버튼 바로 뒤에 수익율분석 버튼 추가
@@ -1616,7 +1621,7 @@ function extractPropertyInfo() {
 }
 
 function topButtonCreate() {
-    // 로그인처리
+    // 로그인처리(사용안함-비동기문제발생)
     //login();
     // 네이버매물 팝업
     searchNaverListings();
@@ -1632,11 +1637,13 @@ function topButtonCreate() {
 
 function loginValid() {
     //
-    // if (!isLoggedInStatus) {
-    //      alert('로그인 후 사용바랍니다.');
-    //      return false;
-    // }
-    return true;
+    return login().then(isOk => {
+        if (!isOk) {
+          alert('로그인(회원가입) 후 사용바랍니다.');
+          return false;
+        }
+        return true;
+    });
 }
 
 // content_yana.js 내 코드
@@ -1649,7 +1656,7 @@ function login() {
             sanga_key = data.sanga_key;
 
             console.log('accessToken: ' + accessToken);
-            if (accessToken === '' || accessToken === null) {
+            if (accessToken === '' || accessToken === null || accessToken === 'undefined') {
                 //alert('로그인 후 사용바랍니다.');
                 return resolve(false);  // reject 대신 resolve
             }
@@ -1665,7 +1672,7 @@ function login() {
                         isLoggedInStatus = true;
                         resolve(true);
                     } else {
-                        alert('로그인 후 사용바랍니다.');
+                        // alert('로그인 후 사용바랍니다.');
                         isLoggedInStatus = false;
                         resolve(false);
                     }
