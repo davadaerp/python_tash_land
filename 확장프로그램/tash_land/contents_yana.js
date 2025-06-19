@@ -1376,16 +1376,21 @@ function analyzeProfitDemand() {
         const {region, sigungu, umdNm} = getSelectedRegions();
         const regions = region + ',' + sigungu + ',' + umdNm;
 
+        let popupWidth = 0;
+        let popupHeight = 0;
+
         // 확장툴url => sanga:상가수익율표, general:아파트/발라 수익율표
         let ext_url = "";
         if (tabGubun === 'sanga') {
+            popupWidth = 970;
+            popupHeight = 790;
             ext_url = BASE_URL + "/api/ext_tool?menu=sanga_profit&regions=" + regions;
         } else {
+            popupWidth = 620;
+            popupHeight = 780;
             ext_url = BASE_URL + "/api/ext_tool?menu=general_profit&regions=" + regions;
         }
         //
-        const popupWidth = 970;
-        const popupHeight = 790;
         const left = (screen.width - popupWidth) / 2;
         const top = (screen.height - popupHeight) / 2;
         window.open(ext_url, "analyzeProfit",

@@ -203,9 +203,9 @@ def menu(current_user):
     if menu == 'jumpo':
         return render_template("crawling_jumpo_search.html")
     if menu == 'sanga_profit':
-        return render_template("sanga_profit_sheet.html")
+        return render_template("profit_sanga_sheet.html")
     if menu == 'general_profit':
-        return render_template("general_profit_sheet.html")
+        return render_template("profit_general_sheet.html")
     if menu == 'api_key':
         #type = request.args.get("type", "")
         return render_template("realdata_pop_key.html")
@@ -471,10 +471,10 @@ def ext_tool():
     #===== 확장툴 접근
     # 빌라 국토부 실거래(내부 확장툴 접근)
     if menu == 'villa_real_deal':
-        return render_template("villa_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+        return render_template("extool_villa_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 상가 국토부 실거래(내부 확장툴 접근)
     if menu == 'sanga_real_deal':
-        return render_template("sanga_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+        return render_template("extool_sanga_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 상가 네이버 매물 데이타 검색
     if menu == 'sanga_search':
         return render_template("crawling_sanga_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
@@ -489,10 +489,10 @@ def ext_tool():
         return render_template("crawling_npl_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     # 상가 수익율계산표
     if menu == 'sanga_profit':
-        return render_template("sanga_profit_sheet.html")
+        return render_template("profit_sanga_sheet.html")
     # 아파트,빌라 수익율계산표
     if menu == 'general_profit':
-        return render_template("general_profit_sheet.html")
+        return render_template("profit_general_sheet.html")
     if menu == 'realtor':
         return render_template("crawling_realtor_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     if menu == 'form_down':
