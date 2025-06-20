@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>지도 팝업</title>
+  <style>
+    body { margin:0; }
+    #map { width:100%; height:100vh; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button id="btn-refresh">검색(전체)</button>
+    <select id="filter">
+      <option value="all">전체</option>
+      <option value="first2">부분(처음 2개만)</option>
+    </select>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- 네이버 지도 SDK -->
+  <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dd72ip9z43"></script>
+  <script>
+    // 1) opener에서 보낸 addressData 수신
+    // const addresses = window.opener.addressData || [];
+    // console.log("받은 주소들:", addresses);
+    // alert("받은 주소들:", addresses);
+
+    const addresses = [
+        { name: "경기도 김포시 운양동 반도유보라6차 903동 403호" },
+        { name: "서울특별시 강서구 방화동 하이포트" },
+        { name: "서울특별시 강남구 강남대로 396 강남역 1번출구" }
+    ];
+    //alert("받은 주소들:", addresses);
+    // 2) 지도 초기화
+    const map = new naver.maps.Map('map', {
+      center: new naver.maps.LatLng(37.5665, 126.9780),
+      zoom: 12
+    });
+
+    // 3) 지오코딩 객체 생성
+    const geocoder = new naver.maps.services.Geocoder();
+
+    // 4) 주소마다 마커 찍기
+    addresses.forEach((item) => {
+      geocoder.geocode({ query: item.name }, (status, response) => {
+        if (status === naver.maps.services.Status.OK) {
+          const result = response.v2.addresses[0];
+          const coord = new naver.maps.LatLng(result.y, result.x);
+          const marker = new naver.maps.Marker({
+            position: coord,
+            map: map,
+            title: item.name
+          });
+          const infowindow = new naver.maps.InfoWindow({
+            content: `<div style="padding:5px;">${item.name}</div>`
+          });
+          naver.maps.Event.addListener(marker, 'click', () => {
+            infowindow.open(map, marker);
+          });
+          // 지도 범위 조정
+          map.setCenter(coord);
+        } else {
+          console.error('Geocode 오류:', status);
+        }
+      });
+    });
+
+        // “검색(전체)” 버튼 클릭
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+      const mode = document.getElementById('filter').value;
+      if (mode === 'all') {
+        plotMarkers(data);
+      } else if (mode === 'first2') {
+        plotMarkers(data.slice(0, 2));
+      }
+    });
+
+    // 선택 목록 변경 시 자동 검색
+    document.getElementById('filter').addEventListener('change', () => {
+      document.getElementById('btn-refresh').click();
+    });
+  </script>
+</body>
+</html>

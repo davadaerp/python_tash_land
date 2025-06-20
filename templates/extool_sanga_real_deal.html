@@ -1117,7 +1117,20 @@
 
             // 실거래와 경매데이타 지도로 보여주게 처리
             document.getElementById("extool-map-btn").addEventListener("click", function () {
-                alert('지도로 보여주기 준비중입니다.');
+                //alert('지도로 보여주기 준비중입니다.');
+
+                // 1. JSON 형식 주소 데이터 정의
+                window.addressData = [
+                    { name: "경기도 김포시 운양동 반도유보라6차 903동 403호" },
+                    { name: "서울특별시 강서구 방화동 하이포트" },
+                    { name: "서울특별시 강남구 강남대로 396 강남역 1번출구" }
+                ];
+                // 팝업창 열기
+                window.open(
+                    '/api/ext_tool/map?menu=map_popup',
+                    'mapPopup',
+                    'width=1000,height=900,top=300,left=500'
+                );
             });
         });
 

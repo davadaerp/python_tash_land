@@ -430,6 +430,7 @@ def ext_tool_main():
 # @token_required
 def ext_tool():
     menu = request.args.get("menu", "")
+    print(menu)
 
     # 시도 매핑 딕셔너리
     region_map = {
@@ -497,6 +498,10 @@ def ext_tool():
         return render_template("crawling_realtor_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     if menu == 'form_down':
         return render_template("form_download.html")
+
+@app.route("/api/ext_tool/map", methods=["GET"])
+def ext_tool_map():
+    return render_template("map_popup.html")
 
 @app.route('/api/sms_send', methods=['POST'])
 def sms_send():
