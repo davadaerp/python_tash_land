@@ -88,7 +88,7 @@
   function logout() {
     // localStorage에서 토큰 제거 등 로그아웃 처리
     localStorage.removeItem("access_token");
-    chrome.storage.local.set({ access_token: "" }, function() {
+    chrome.storage.local.set({ access_token: "", apt_key: "", villa_key: "", sanga_key: "" }, function() {
       alert("로그아웃되었습니다.")
     });
     // 로그인 입력 영역 및 로그인 버튼 복원, 상태 메시지와 로그아웃 버튼 숨김

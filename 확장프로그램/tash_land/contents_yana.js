@@ -1985,5 +1985,31 @@ window.addEventListener('load', function() {
         window.location.href.startsWith('https://www.tankauction.com/pa/paView.php')) {
 		extractPropertyInfoDetailTank();
 	}
+});
 
+// html페이지에서 데이타 전달위함.. listen for requests from the page
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  const msg = event.data;
+  // 페이지가 토큰을 요청했을 때만 처리
+  if (msg.direction === "PAGE_TO_EXT" && msg.type === "REQUEST_EXT_TOKEN") {
+    // chrome.storage.local 에서 4개 키 읽기
+    chrome.storage.local.get(
+      ["access_token", "apt_key", "villa_key", "sanga_key"],
+      ({ access_token, apt_key, villa_key, sanga_key }) => {
+        const payload = {
+          access_token: access_token || "",
+          apt_key:       apt_key       || "",
+          villa_key:     villa_key     || "",
+          sanga_key:     sanga_key     || ""
+        };
+        // 페이지에 응답 메시지 전송
+        window.postMessage({
+          direction: "EXT_TO_PAGE",
+          type:      "EXT_ACCESS_TOKEN",
+          payload
+        }, "*");
+      }
+    );
+  }
 });

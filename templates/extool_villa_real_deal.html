@@ -213,10 +213,30 @@
     <script src="/static/js/indexed_db_utils.js"></script>
     <script>
         //
+        let sortDealDateAscending = false;
         let sortPriceAscending = false;
+        let sortAuctionSaleDateAscending = false;
         let sortAuctionPriceAscending = false;
         window.currentDealFilteredItems = [];
         window.currentAuctionFetchedItems = [];
+
+        // 상가,아파트,빌라키 처리
+        let existingKey = null;
+
+        // 확장(extension)에서 로컬데이타 보내오는 응답을 수신
+        window.addEventListener("message", (event) => {
+          if (event.source !== window) return;
+          const msg = event.data;
+          if (msg.direction === "EXT_TO_PAGE" && msg.type === "EXT_ACCESS_TOKEN") {
+            const { access_token, apt_key, villa_key, sanga_key } = msg.payload;
+            console.log("access_token:", access_token);
+            console.log("apt_key:      ", apt_key);
+            console.log("villa_key:    ", villa_key);
+            console.log("sanga_key:    ", sanga_key);
+            //alert(`받은 토큰:\n${access_token}\n${apt_key}\n${villa_key}\n${sanga_key}`);
+            existingKey = villa_key;
+          }
+        });
 
         $(document).ready(function() {
 
@@ -237,8 +257,17 @@
             //     });
             // });
 
-            //
-            openRentPricePopup(null);
+            // 메시지 요청
+            window.postMessage({
+                direction: "PAGE_TO_EXT",     // 식별용 필드
+                type: "REQUEST_EXT_TOKEN"
+            }, "*");
+
+            // 1초 후에 토큰 요청 보내기
+            setTimeout(() => {
+                // 메시지 요청
+                openRentPricePopup(null);
+            }, 500);
 
             // 지도위치
             function openMap(item) {
@@ -562,6 +591,11 @@
             // 실거래 데이타 팝업목록 함수
             async function applyDealPricePopupList(selectedItem) {
 
+                // 상가,아파트,빌라 국토부 키체크
+                if (existingKey == '' || existingKey == null) {
+                    alert('빌라키가 존재하지 않습니다.')
+                    return;
+                }
                 const lawdCd = selectedLawdCd.slice(0,5);
                 const umdNm = selectedUmdNm;
                 let allItems = [];
@@ -575,8 +609,6 @@
                     console.log("데이터가 존재합니다.", allItems);
                     //
                 } else {
-                    // 상가,아파트,빌라 국토부 키체크
-                    const existingKey = localStorage.getItem(`villa_key`);
                     const url = "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade";
                     //const serviceKey = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==";
                     const serviceKey = existingKey;
@@ -664,6 +696,20 @@
                     pyengRentRealPopupView(filteredItems, 'deal');
                 });
 
+                // 거래일자 정렬
+                $('#sortDealDate').click(function () {
+                    // 정렬
+                    const filteredItems = window.currentDealFilteredItems;
+                    filteredItems.sort((a, b) => {
+                        let da = a.dealDate;
+                        let db = b.dealDate;
+                        return sortDealDateAscending ? da.localeCompare(db) : db.localeCompare(da);
+                    });
+                    sortDealDateAscending = !sortDealDateAscending;
+                    $('#sortDealDate').text(sortDealDateAscending ? '거래일자 ▲' : '거래일자 ▼');
+                    renderDealTable(filteredItems);
+                });
+
                 // 평단가금액 정렬
                 $('#sortPyeongPrice').click(function () {
                     // 정렬
@@ -677,6 +723,7 @@
                     $('#sortPyeongPrice').text(sortPriceAscending ? '평단가 ▲' : '평단가 ▼');
                     renderDealTable(filteredItems);
                 });
+
 
                 // 실거래데이타 출력
                 function renderDealTable(allItems) {
@@ -797,7 +844,7 @@
                 //
                 let searchTerm = "";
                 let yearRange = 2;
-                let mainCategory = "근린상가";
+                let mainCategory = "빌라";
                 let dangiName = "";
 
                 $('#loading').show();
@@ -808,7 +855,7 @@
                 const umdNm = selectedUmdNm;
                 // indexedDB auction_sanga(경매데이타-상가)에 조회및 저장
                 let allItems = [];
-                 let storeName = 'auction_sanga';
+                let storeName = 'auction_sanga';
                 const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
                 if (exists) {
                     allItems = await getAllItems(lawdCd, umdNm, storeName);
@@ -864,6 +911,20 @@
                 // 층, 평형 select변경
                 $("#auction_sel_floor, #auction_sel_area").on("change", function () {
                     renderAuctionTable(allItems);
+                });
+
+                // 매각일자 정렬
+                $('#sortAuctionSaleDate').click(function () {
+                    // 정렬
+                    const filteredItems = window.currentAuctionFetchedItems;
+                    filteredItems.sort((a, b) => {
+                        let da = a.sales_date;
+                        let db = b.sales_date;
+                        return sortAuctionSaleDateAscending ? da.localeCompare(db) : db.localeCompare(da);
+                    });
+                    sortAuctionSaleDateAscending = !sortAuctionSaleDateAscending;
+                    $('#sortAuctionSaleDate').text(sortAuctionSaleDateAscending ? '매각일자 ▲' : '매각일자 ▼');
+                    renderAuctionTable(filteredItems);
                 });
 
                 // 평단가금액 정렬
@@ -1045,6 +1106,11 @@
             document.getElementById("close-btn").addEventListener("click", function () {
               window.close(); // 팝업창이 window.open()으로 열렸을 경우에만 동작합니다.
             });
+
+            // 실거래와 경매데이타 지도로 보여주게 처리
+            document.getElementById("extool-map-btn").addEventListener("click", function () {
+                alert('지도로 보여주기 준비중입니다.');
+            });
         });
     </script>
 </head>
@@ -1055,7 +1121,17 @@
     <h2 style="margin: 0; font-size: 20px;">
         [빌라]실거래/경매 데이터 검색(<span id="popup-lawName" style="color:blue;"></span>)
     </h2>
-    <button id="close-btn" style="padding:5px 10px; background:#007bff; color:#fff; border:none; border-radius:4px; cursor:pointer;">닫기</button>
+    <!-- 버튼 둘을 감싸는 wrapper 추가 -->
+    <div style="display: flex; gap: 8px;">
+        <button id="extool-map-btn"
+                style="padding:5px 10px; background:#ffae00; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+          지도보기
+        </button>
+        <button id="close-btn"
+                style="padding:5px 10px; background:#007bff; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+          닫기
+        </button>
+    </div>
   </div>
   <!-- 내부 콘텐츠: flex 컨테이너 (세로배열, 비율 5:3:2) -->
   <div class="popup-content" style="display:flex; flex-direction:column; height:95%;">
@@ -1088,7 +1164,7 @@
                 <thead style="position:sticky; top:0; background:#f2f2f2; z-index:10;">
                     <tr style="border:none;">
                         <th style="flex:0.5;">순번</th>
-                        <th style="flex:1.5;">거래일자</th>
+                        <th style="flex:1.5;" id="sortDealDate">거래일자 ▲</th>
                         <th style="flex:1;">건축년도</th>
                         <th style="flex:1;">층</th>
                         <th style="flex:1.5;">건물면적(평)</th>
@@ -1127,7 +1203,7 @@
                 <thead style="position:sticky; top:0; background:#f2f2f2; z-index:10;">
                     <tr style="border:none;">
                         <th style="flex:0.5;">순번</th>
-                        <th style="flex:1.5; text-align:center;" id="sortSalesDate">매각일자</th>
+                        <th style="flex:1.5; text-align:center;" id="sortAuctionSaleDate">매각일자 ▲</th>
                         <th style="flex:1.5; text-align:center;">사건번호</th>
                         <th style="flex:1.5; text-align:center;">층</th>
                         <th style="flex:1.5; text-align:center;">건물평수</th>

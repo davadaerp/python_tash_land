@@ -27,6 +27,7 @@
   "content_scripts": [
   	{
 		"matches" : [
+            "https://erp-dev.bacchuserp.com/*",
 			"https://new.land.naver.com/*",
 			"https://m.land.naver.com/*",
 			"https://www.auction1.co.kr/*",
@@ -39,7 +40,7 @@
             "/login/popup.js",
 			"contents_yana.js"
         ],
-       "run_at": "document_idle",
+       "run_at": "document_start",
        "type": "module"
 	}
   ],
