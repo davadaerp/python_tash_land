@@ -76,7 +76,8 @@ def create_npl_table():
                 personal_status TEXT DEFAULT 'N',
                 expected_price TEXT DEFAULT '0', -- 예상낙찰가 
                 latitude TEXT,
-                longitude TEXT
+                longitude TEXT,
+                tid TEXT
             )
         """)
         # 인덱스
@@ -140,8 +141,9 @@ def npl_insert_single(entry):
             start_decision_date, sale_decision_date, auction_method,
             auction_applicant, notice_text, opposability_status, personal_status,
             expected_price,
-            latitude, longitude
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            latitude, longitude,
+            tid
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     try:
         cursor.execute(insert_query, (
@@ -186,7 +188,8 @@ def npl_insert_single(entry):
             entry.get("personal_status"),
             entry.get("expected_price"),    # 예상낙찰가
             entry.get("latitude"),
-            entry.get("longitude")
+            entry.get("longitude"),
+            entry.get("tid")
         ))
         conn.commit()
         print(f"단일 레코드 삽입 완료: case_number={entry.get('case_number')}")
@@ -243,7 +246,8 @@ def npl_update_single(entry):
             personal_status = ?,
             expected_price = ?,
             latitude = ?,
-            longitude = ?
+            longitude = ?,
+            tid = ?
         WHERE case_number = ?
     """
     try:
@@ -287,7 +291,7 @@ def npl_update_single(entry):
             entry.get("expected_price"),
             entry.get("latitude"),
             entry.get("longitude"),
-            entry.get("case_number")
+            entry.get("tid")
         ))
         conn.commit()
         print(f"단일 레코드 수정 완료: case_number={entry.get('case_number')}")

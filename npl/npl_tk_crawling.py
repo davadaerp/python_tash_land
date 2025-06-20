@@ -415,7 +415,7 @@ def npl_extract_info(driver, row_text, tid):
         sale_decision_date_text = lines[idx_price_start + 5].replace(',', '')  # 매각기일
         sale_decision_date = convert_to_iso(sale_decision_date_text)  # 매각기일
         print('-')
-        print('== tid: ' + tid )
+        print('== TID: ' + tid )
         print('== 감정평가금액: ' + appraisal_price)
         print('== 최저낙찰가:  ' + min_price)
         print('== 최저유찰회수: ' + bid_count)
@@ -578,7 +578,7 @@ def npl_extract_info(driver, row_text, tid):
             return None
 
         # NPL일 때 필요한 값 반환
-        return deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status
+        return deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status, tid
 
     except Exception as e:
             print("데이터 처리 오류:", e)
@@ -650,7 +650,7 @@ def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
 def extract_info(row_text, idx, npl_info):
     try:
         # info 언패킹
-        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status = npl_info
+        deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status, tid = npl_info
 
         # 관심 ** 이런게 들어가면 2번째 라인으로 사건번호로 인식되어 제거처리
         lines = [line for line in row_text.split('\n') if not line.startswith('관심')]
@@ -793,7 +793,8 @@ def extract_info(row_text, idx, npl_info):
             "opposability_status": opposability_status, # 임차권등기/대항력있는임차인 여부(Y/N)
             "personal_status": personal_status,         # 임의경매신청자가 개인인경우(default N)
             "latitude": latitude,
-            "longitude": longitude
+            "longitude": longitude,
+            "tid": tid
         }
         print("===== extract_info() ======= ")
         print(data_entry)

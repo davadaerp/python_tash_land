@@ -584,6 +584,28 @@
                     tableBody.append(`<tr>
                         <td class="center-align" style="width:80px">${item.sales_date}</td>
                         <td class="center-align" style="width:90px">${item.case_number}</td>
+                        <!--
+                        <td class="center-align" style="width:90px">
+                          <a href="javascript:void(0)"
+                             onclick="(function(){
+                               var w = 1000, h = 1200;
+                               var left = Math.round((screen.width - w) / 2);
+                               var top  = Math.round((screen.height - h) / 2) - 100;
+                               window.open(
+                                 'https://www.tankauction.com/ca/caView.php?tid=${item.tid}',
+                                 'detailPopup',
+                                 'width=' + w +
+                                 ',height=' + h +
+                                 ',scrollbars=yes' +
+                                 ',left=' + left +
+                                 ',top='  + top
+                               );
+                             })()"
+                          >
+                            ${item.case_number}
+                          </a>
+                        </td>
+                        -->
                         <!-- category 셀 안에 category와 location을 두 줄로 표시 -->
                         <td class="center-align">
                             <div style="color: blue;">${item.category}</div>
