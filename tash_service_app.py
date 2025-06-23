@@ -604,6 +604,8 @@ def form_download():
         filename = '명도확인서.docx'
     elif form_type == 'yieldcalc':
         filename = '수익율계산.xls'
+    elif form_type == 'checklist':
+        filename = '투자체크리스트.xls'
     else:
         # 잘못된 파라미터면 404 에러
         abort(404)

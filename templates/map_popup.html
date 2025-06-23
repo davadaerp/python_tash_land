@@ -2,86 +2,202 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>지도 팝업</title>
+  <title>네이버 지도 팝업</title>
   <style>
-    body { margin:0; }
-    #map { width:100%; height:100vh; }
+    body { margin:0; display:flex; flex-direction:column; height:100vh; }
+    #controls {
+      padding:10px;
+      background:#f0f0f0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    #controls label { margin-right: 4px; }
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 14px;
+    }
+    .legend-marker {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    #map { flex:1; }
+    /* InfoWindow 내 닫기 버튼 */
+    .info-close-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      line-height: 14px;
+    }
+    .info-content {
+      position: relative;
+      padding-top: 20px; /* 닫기 버튼 위한 여유 */
+    }
   </style>
 </head>
 <body>
+
   <div id="controls">
-    <button id="btn-refresh">검색(전체)</button>
+    <label for="filter">표시유형:</label>
     <select id="filter">
       <option value="all">전체</option>
       <option value="real">실거래</option>
       <option value="auction">경매</option>
     </select>
-  </div>
 
+    <!-- 레전드 추가 -->
+    <div class="legend">
+      <span class="legend-marker" style="background: green;"></span>
+      <span>실거래</span>
+    </div>
+    <div class="legend">
+      <span class="legend-marker" style="background: red;"></span>
+      <span>경매</span>
+    </div>
+  </div>
   <div id="map"></div>
 
-  <!-- 네이버 지도 SDK -->
-  <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dd72ip9z43"></script>
+  <!-- 네이버 지도 SDK (v3 openAPI) -->
+  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dd72ip9z43&submodules=geocoder"></script>
   <script>
-    // 1) opener에서 보낸 addressData 수신
-    // const addresses = window.opener.addressData || [];
-    // console.log("받은 주소들:", addresses);
-    // alert("받은 주소들:", addresses);
+    // 전역에 현재 열려 있는 InfoWindow 참조
+    let currentInfoWindow = null;
 
-    const addresses = [
-        { name: "경기도 김포시 운양동 반도유보라6차 903동 403호" },
-        { name: "서울특별시 강서구 방화동 하이포트" },
-        { name: "서울특별시 강남구 강남대로 396 강남역 1번출구" }
-    ];
-    //alert("받은 주소들:", addresses);
+    // 닫기 버튼에서 호출할 전역 함수
+    function closeInfoWindow() {
+      if (currentInfoWindow) {
+        currentInfoWindow.close();
+        currentInfoWindow = null;
+      }
+    }
+
+    // 1) JSON 형식 데이터
+    // const addresses = [
+    //   { type: "real",    address: "경기 김포시 운양동 1307-3",                         date: "2025-06-04", year: 2010, floor: "3층", area: "13.36평", price: "158,000,000원" },
+    //   { type: "real",    address: "경기 김포시 운양동 1435-1",                         date: "2025-06-04", year: 2012, floor: "5층", area: "17.01평", price: "195,000,000원" },
+    //   { type: "real",    address: "경기 김포시 운양동 1297-7",                         date: "2025-06-04", year: 2008, floor: "2층", area: "11.63평", price: "130,000,000원" },
+    //   { type: "auction", address: "경기 김포시 운양동 1307-5, 1층114호 (운양동,에이치씨티)", date: "2024-12-04", year: 2009, floor: "1층", area: "15.16평", price: "120,000,000원" },
+    //   { type: "auction", address: "경기 김포시 운양동 1307-4, 2층210호 (운양동,그랜드타워)", date: "2024-12-04", year: 2011, floor: "2층", area: "14.49평", price: "135,000,000원" },
+    //   { type: "auction", address: "경기 김포시 운양동 1298-3, 1층107호 (운양동,김포헤리움타운)", date: "2024-12-04", year: 2013, floor: "1층", area: "12.70평", price: "110,000,000원" }
+    // ];
+    let addresses = null;
+
     // 2) 지도 초기화
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.5665, 126.9780),
       zoom: 12
     });
 
-    // 3) 지오코딩 객체 생성
-    const geocoder = new naver.maps.services.Geocoder();
+    let markers = [], bounds = new naver.maps.LatLngBounds();
 
-    // 4) 주소마다 마커 찍기
-    addresses.forEach((item) => {
-      geocoder.geocode({ query: item.name }, (status, response) => {
-        if (status === naver.maps.services.Status.OK) {
-          const result = response.v2.addresses[0];
-          const coord = new naver.maps.LatLng(result.y, result.x);
+    // 3) 지오코딩 & 마커 생성
+    function geocodeAndMark(item, done) {
+      naver.maps.Service.geocode({ query: item.address }, (status, response) => {
+        if (status === naver.maps.Service.Status.OK && response.v2.addresses.length) {
+          const addr = response.v2.addresses[0];
+          const pos  = new naver.maps.LatLng(+addr.y, +addr.x);
+
           const marker = new naver.maps.Marker({
-            position: coord,
-            map: map,
-            title: item.name
+            position: pos,
+            map,
+            title: item.address,
+            icon: {
+              content: `<div style="
+                background:${item.type==='real'?'green':'red'};
+                width:20px;height:20px;border-radius:15px;
+              "></div>`
+            }
           });
-          const infowindow = new naver.maps.InfoWindow({
-            content: `<div style="padding:5px;">${item.name}</div>`
+
+          // 조건부로 건축년도 라인 포함
+          const yearLine = item.type === 'real' ? `건축년도: ${item.year}년<br>` : ``;
+
+          // 닫기 버튼 포함한 InfoWindow 콘텐츠
+          const infoContent = `
+            <div class="info-content">
+              <div class="info-close-btn" onclick="closeInfoWindow()">✖</div>
+              <div style="padding:1px;">
+                <strong>${item.address}</strong><br>
+                거래일자: ${item.date}<br>
+                ${yearLine}
+                층/면적: ${item.floor}/${item.area}<br>
+                거래금액: ${item.price}/@1000
+              </div>
+            </div>
+          `;
+          const infoWindow = new naver.maps.InfoWindow({ content: infoContent });
+
+          marker.addListener('click', () => {
+            // 이전 InfoWindow 닫기
+            if (currentInfoWindow) currentInfoWindow.close();
+            // 새로 열기
+            infoWindow.open(map, marker);
+            currentInfoWindow = infoWindow;
           });
-          naver.maps.Event.addListener(marker, 'click', () => {
-            infowindow.open(map, marker);
-          });
-          // 지도 범위 조정
-          map.setCenter(coord);
+
+          markers.push(marker);
+          bounds.extend(pos);
         } else {
-          console.error('Geocode 오류:', status);
+          console.error('Geocode error for', item.address, status);
         }
+        done && done();
       });
+    }
+
+    // 4) 타입별 마커 찍기
+    function plotByType(type) {
+      // 기존 마커 제거 및 InfoWindow 초기화
+      markers.forEach(m => m.setMap(null));
+      markers = [];
+      bounds = new naver.maps.LatLngBounds();
+      if (currentInfoWindow) { currentInfoWindow.close(); currentInfoWindow = null; }
+
+      const subset = addresses.filter(a => type==='all' || a.type===type);
+      let completed = 0;
+      subset.forEach(item => geocodeAndMark(item, () => {
+        completed++;
+        if (completed===subset.length && markers.length) {
+          map.fitBounds(bounds);
+        }
+      }));
+    }
+
+    // 5) 초기 실거래 표시
+    //plotByType('all');
+
+    // 6) 필터 변경시 다시 그리기
+    document.getElementById('filter').addEventListener('change', function(){
+      plotByType(this.value);
     });
 
-        // “검색(전체)” 버튼 클릭
-    document.getElementById('btn-refresh').addEventListener('click', () => {
-      const mode = document.getElementById('filter').value;
-      if (mode === 'all') {
-        plotMarkers(data);
-      } else if (mode === 'first2') {
-        plotMarkers(data.slice(0, 2));
+    // 7) 지도 클릭 시 InfoWindow 닫기
+    naver.maps.Event.addListener(map, 'click', () => {
+      if (currentInfoWindow) {
+        currentInfoWindow.close();
+        currentInfoWindow = null;
       }
     });
 
-    // 선택 목록 변경 시 자동 검색
-    document.getElementById('filter').addEventListener('change', () => {
-      document.getElementById('btn-refresh').click();
+    //
+    window.addEventListener('message', function(event) {
+        const data = event.data;
+        if (data.addresses) {
+          console.log("수신된 주소 목록:", data.addresses);
+          // 이후 마커 렌더링 등 처리
+          addresses =  data.addresses;
+
+          // 5) 초기 실거래 표시
+          plotByType('all');
+        }
     });
+
   </script>
 </body>
 </html>

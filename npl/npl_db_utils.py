@@ -384,7 +384,7 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, oppos
         params.append(f"%{auctionApplicant}%")
 
     # 정렬 (예: 최신 판매일자 내림차순)
-    query += " ORDER BY sales_date ASC, category LIMIT 500"
+    query += " ORDER BY sales_date DESC, category LIMIT 500"
 
     cur.execute(query, params)
     rows = cur.fetchall()

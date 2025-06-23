@@ -1472,6 +1472,10 @@ function formDownload() {
 
   // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
   formDownload.addEventListener('click', function() {
+
+        // background.js에 오픈팝업처리 호출(탱크옥션 네이버부동산 연동시 윈도우팝업에 툴바없으면 나오지를 않음 ㅠ.ㅠ)
+        //chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_POPUP' });
+
         // 로그인여부 체크
         loginValid().then(valid => {
             if (!valid) return;   // 로그인 실패 시 여기서 중단
