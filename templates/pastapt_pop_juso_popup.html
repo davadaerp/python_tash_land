@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>도로명주소 팝업</title>
+  <script>
+    function init() {
+      //const url = location.href;
+      const url = "http://localhost:8080/api/pastapt/juso_display";
+      const confmKey = "U01TX0FVVEgyMDE5MDIxMjE1MTkzOTEwODUwMjI="; // 승인키
+      const resultType = "4"; // 1:도로명, 2:도로명+지번, 3:도로명+상세건물명, 4:전체
+      document.getElementById("confmKey").value = confmKey;
+      document.getElementById("returnUrl").value = url;
+      document.getElementById("resultType").value = resultType;
+      document.getElementById("addrForm").action = "https://business.juso.go.kr/addrlink/addrLinkUrl.do";
+      document.getElementById("addrForm").submit();
+    }
+  </script>
+</head>
+<body onload="init();">
+  <form id="addrForm" method="POST">
+    <input type="hidden" id="confmKey" name="confmKey" value="">
+    <input type="hidden" id="returnUrl" name="returnUrl" value="">
+    <input type="hidden" id="resultType" name="resultType" value="">
+    <!-- 인코딩이 EUC-KR인 경우만 사용 -->
+    <!-- <input type="hidden" id="encodingType" name="encodingType" value="EUC-KR"> -->
+  </form>
+</body>
+</html>

@@ -68,17 +68,17 @@
     .search-btn:hover {
       background-color: #0056b3;
     }
-    /* 프린트 버튼 스타일 */
-    #print-btn {
+    /* 등기부출력 버튼 스타일 */
+    #property-btn {
       padding: 8px 16px;
-      background-color: #28a745;
+      background-color: #a74e28;
       color: #fff;
       border: none;
       border-radius: 4px;
       cursor: pointer;
       margin-bottom: 0px;
     }
-    #print-btn:hover {
+    #property-btn:hover {
       background-color: #218838;
     }
     .filter-group {
@@ -525,6 +525,22 @@
         var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
         if (popupWindow) { popupWindow.focus(); }
     }
+
+    // 등기부등본발급
+    function openPropertyRegistgerPopup() {
+        const url = "/api/pastapt/juso_popup";
+        const width = 570;
+        const height = 420;
+        // 화면 중앙 계산
+        const left = Math.floor((window.screen.width  - width)  / 2);
+        const top  = Math.floor((window.screen.height - height) / 2);
+        window.open(
+          url,
+          "pop",
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+        );
+    }
+
   </script>
 </head>
 <body>
@@ -567,9 +583,7 @@
       -->
       <span id="result-count" style="margin-left: auto;">건수: 0</span>
       <button id="search-btn">검색</button>
-      <!--
-      <button id="print-btn">프린트</button>
-      -->
+      <button id="property-btn" onclick="openPropertyRegistgerPopup()">등기부발급</button>
     </div>
   </div>
   <div id="header-container">

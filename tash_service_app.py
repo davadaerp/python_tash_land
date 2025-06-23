@@ -28,6 +28,7 @@ from config import TEMPLATES_NAME, FORM_DIRECTORY, SAVE_MODE
 
 # common/commonResponse.py에 정의된 CommonResponse와 Result를 import
 from common.commonResponse import CommonResponse
+from 등기부등본.등기부등본다운 import getIros1, requestIros1
 
 app = Flask(__name__, template_folder=TEMPLATES_NAME)
 
@@ -737,6 +738,68 @@ def get_pastapt_apt_pir():
     #
     results.sort(key=lambda x: x["month"])  # 또는 int(x["month"][:4]) 도 가능
     return render_template("pastdata_pop_pir.html", apt_data=results)
+
+@app.route('/api/pastapt/juso_popup', methods=['GET'])
+def get_pastapt_juso_popup():
+    #
+    return render_template("pastapt_pop_juso_popup.html")
+
+@app.route('/api/pastapt/juso_display', methods=['POST'])
+def get_pastapt_juso_display():
+    inputYn = request.form.get("inputYn")
+    roadFullAddr = request.form.get("roadFullAddr")
+    roadAddrPart1 = request.form.get("roadAddrPart1")
+    roadAddrPart2 = request.form.get("roadAddrPart2")
+    addrDetail = request.form.get("addrDetail")
+    jibunAddr = request.form.get("jibunAddr")
+    zipNo = request.form.get("zipNo")
+    print("📋 받은 내용:", inputYn, zipNo)
+    #
+    return render_template("pastapt_pop_juso_display.html",
+                           inputYn=inputYn,
+                           roadFullAddr=roadFullAddr,
+                           roadAddrPart1=roadAddrPart1,
+                           roadAddrPart2=roadAddrPart2,
+                           addrDetail=addrDetail,
+                           jibunAddr=jibunAddr,
+                           zipNo=zipNo)
+
+
+@app.route('/api/pastapt/property/create', methods=['GET'])
+def get_pastapt_property_create():
+    roadFullAddr = request.args.get('roadFullAddr', '')
+    print("📋 다운로드:", roadFullAddr)
+
+    type = '건물'
+    filename = roadFullAddr.strip().replace(' ', '_') + '.pdf'
+    save_path = '등기부등본/' + filename
+
+    err = getIros1(roadFullAddr, type, save_path)
+    print(err)
+    if err:
+        rtn_data = {
+            'status': 'Fail',
+            'message': err
+        }
+    else:
+        rtn_data = {
+            'status': 'Success',
+            'message': filename
+        }
+    print(rtn_data)
+
+    return jsonify(rtn_data)
+
+@app.route('/api/pastapt/property/download', methods=['GET'])
+def get_pastapt_property_download():
+    filename = request.args.get('filename', '')
+    print("📋 다운로드:", filename)
+
+    try:
+        # 파일을 첨부파일로 전송 (다운로드 처리)
+        return send_from_directory("등기부등본", filename, as_attachment=True)
+    except Exception as e:
+        abort(404)
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
