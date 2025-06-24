@@ -2,109 +2,128 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>주소 입력 샘플</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>등기부등본 발급 팝업</title>
   <style>
-    /* 바탕 배경 이미지 */
-    .pop-address-search {
-      background-image: url(http://www.0000.com/img/backImg.png);
-      background-color: #ECECEC;
-      min-height: 15vh;
-      display: flex;
-      align-items: flex-start;    /* 버튼을 상단으로 */
-      justify-content: center;
+    body {
+      margin: 0;
+      padding: 0;
       font-family: Arial, sans-serif;
-      padding-top: 20px;          /* 상단 여백 */
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      height: 100vh;
     }
-    .pop-address-search-inner {
+    .popup-container {
       background: #fff;
-      padding: 20px;
       border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       width: 600px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      height: 400px;
+      margin-top: 1px;
+      padding: 15px;
+      position: relative;
     }
-    /* 회사 로고 이미지 */
-    .pop-address-search .logo {
-      background: url(http://www.0000.com/img/logo.png) no-repeat center;
-      background-size: contain;
-      height: 60px;
-      margin-bottom: 20px;
+    .popup-title {
+      font-size: 20pt;
+      text-align: center;
+      margin: 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e0e0e0;
     }
-    /* 버튼 영역 */
-    .pop-address-search .wrap {
-      text-align: right;
-      margin-bottom: 5px;        /* 버튼과 form 간격 축소 */
+    .button-group {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin: 20px 0;
     }
-    .pop-address-search .wrap button {
-      background-color: #4CAF50;
-      color: white;
+    .btn {
+      padding: 8px 16px;
       border: none;
-      padding: 6px 14px;         /* 약간 작게 */
+      color: #fff;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 13px;
-      margin-left: 8px;
+      font-size: 0.9rem;
+      transition: background-color 0.2s ease, filter 0.2s ease;
     }
-    .pop-address-search .wrap button:disabled {
-      background-color: #ccc;
+    .btn:disabled {
+      opacity: 0.6;
       cursor: not-allowed;
     }
-    /* 로딩 메시지 */
-    #loadingMessage {
-      display: none;
-      margin-bottom: 10px;
-      color: #007bff;
-      font-weight: bold;
-      text-align: center;
-    }
-    /* 결과 영역 */
-    .pop-address-search .result table {
+    .btn:hover { filter: brightness(90%); }
+    .btn-primary { background-color: #007bff; }
+    .btn-primary:hover { background-color: #0069d9; }
+    .btn-danger { background-color: #dc3545; }
+    .btn-danger:hover { background-color: #bd2130; }
+    .info-table {
       width: 100%;
       border-collapse: collapse;
+      margin: 10px 0 20px;
     }
-    .pop-address-search .result th,
-    .pop-address-search .result td {
-      padding: 8px;              /* 패딩 축소 */
+    .info-table col:first-child { width: 20%; }
+    .info-table col:nth-child(2) { width: 80%; }
+    .info-table thead th {
+      padding: 8px;
       border: 1px solid #ddd;
-      text-align: left;
-      font-size: 14px;
-    }
-    .pop-address-search .result td input {
-      width: 95%;
-      box-sizing: border-box;
-    }
-    .pop-address-search .result th {
-      width: 120px;              /* th 폭 조정 */
-      white-space: nowrap;
-    }
-    .pop-address-search .result tr:nth-child(odd) td {
-      background: #FFFFFF;
-    }
-    .pop-address-search .result tr:nth-child(even) td {
-      background: #FFFFFF;
-    }
-    /* 에러 메시지 */
-    #errorMessage {
-      display: none;
-      margin-top: 10px;
-      color: red;
+      background-color: #e9ecef;
       text-align: center;
     }
-    /* 등기부출력 버튼 스타일 */
-    /*#printBtn {*/
-    /*  padding: 8px 16px;*/
-    /*  background-color: #a74e28;*/
-    /*  color: #fff;*/
-    /*  border: none;*/
-    /*  border-radius: 4px;*/
-    /*  cursor: pointer;*/
-    /*  margin-bottom: 0px;*/
-    /*}*/
-  </style>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-  <script>
-    function goPopup(){
-      window.open("/api/pastapt/juso_popup","pop","width=570,height=420,scrollbars=yes,resizable=yes");
+    .info-table td {
+      padding: 8px;
+      border: 1px solid #ddd;
+      vertical-align: middle;
     }
+    .loading { color: #007bff; font-weight: bold; }
+    .error { color: #dc3545; margin-top: 10px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="popup-container">
+    <h1 class="popup-title">등기부등본발급</h1>
+    <div class="button-group">
+      <button id="jusoBtn" class="btn btn-primary">주소검색</button>
+      <button id="printBtn" class="btn btn-danger">등기부등본발급</button>
+    </div>
+    <table class="info-table">
+      <colgroup>
+        <col />
+        <col />
+      </colgroup>
+      <thead>
+        <tr><th>구분</th><th>내용</th></tr>
+      </thead>
+      <tbody>
+        <tr id="loadingRow" style="display:none;"><td colspan="2" style="text-align:center;"><div id="loadingMessage" class="loading"></div></td></tr>
+        <tr>
+          <td>도로명 전체</td>
+          <td><input id="roadFullAddr" type="text" readonly style="width:100%; border:none; background:#f9f9f9;" /></td>
+        </tr>
+        <tr>
+          <td>도로명</td>
+          <td><input id="roadAddrPart1" type="text" readonly style="width:100%; border:none; background:#f9f9f9;" /></td>
+        </tr>
+          <tr>
+          <td>지번주소</td>
+          <td><input id="jibunAddr" type="text" readonly style="width:100%; border:none; background:#f9f9f9;" /></td>
+        </tr>
+        <tr>
+          <td>상세주소</td>
+          <td><input id="addrDetail" type="text" readonly style="width:100%; border:none; background:#f9f9f9;" /></td>
+        </tr>
+        <tr>
+          <td>우편번호</td>
+          <td><input id="zipNo" type="text" readonly style="width:100%; border:none; background:#f9f9f9;" /></td>
+        </tr>
+      </tbody>
+    </table>
+    <div id="errorMessage" class="error" style="display:none;"></div>
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script>
+
     function init(){
       var inputYn      = '{{ inputYn }}';
       if(inputYn==='Y'){
@@ -113,58 +132,69 @@
         document.getElementById('addrDetail').value    = '{{ addrDetail }}';
         document.getElementById('jibunAddr').value     = '{{ jibunAddr }}';
         document.getElementById('zipNo').value         = '{{ zipNo }}';
+
+        // 컨테이너 높이에 맞춰 팝업 윈도우 높이 재조정 (+5px 여유)
+        const container = document.querySelector('.popup-container');
+        const newHeight = container.offsetHeight + 70;
+        window.resizeTo(window.outerWidth, newHeight);
       }
     }
-    function goPropertyPrint() {
-      if (!confirm("등기부등본을 출력하시겠습니까?")) return;
-      const jusoBtn = $('#jusoBtn'), printBtn = $('#printBtn'),
-            loading = $('#loadingMessage'), error = $('#errorMessage');
+
+    $('#jusoBtn').on('click', function() {
+        window.open("/api/pastapt/juso_popup","pop","width=570,height=420,scrollbars=yes,resizable=yes");
+    });
+
+    $('#printBtn').on('click', function() {
+      if (!confirm('등기부등본을 출력하시겠습니까?')) return;
+      const jusoBtn = $('#jusoBtn'), printBtn = $('#printBtn');
+      const loading = $('#loadingMessage'), loadingRow=$('#loadingRow'), error = $('#errorMessage');
       error.hide();
 
-      const roadAddrPart1  = $('#roadAddrPart1').val().trim();  // 도로명주소
-      const jibunAddr  = $('#jibunAddr').val().trim();
-      const addrDetail = $('#addrDetail').val().trim();
-      let roadFullAddr = jibunAddr + ' ' + addrDetail;
+      const roadAddrPart1  = $('#roadAddrPart1').val().trim();
+      const jibunAddr      = $('#jibunAddr').val().trim();
+      const addrDetail     = $('#addrDetail').val().trim();
+      let roadFullAddr     = jibunAddr + ' ' + addrDetail;
       if (!jibunAddr) {
         error.text('지번이 비어 있습니다.').show();
         return;
       }
+
       jusoBtn.prop('disabled', true);
       printBtn.prop('disabled', true);
-      loading.text('등기부등본 다운로드 중입니다(윈도우를 닫지마세요).').show();
+      loading.text('등기부등본 다운로드 중입니다(윈도우를 닫지마세요).');
+      loadingRow.show();
 
       $.ajax({
-        url: '/api/pastapt/property/create',
+        url: BASE_URL + '/api/pastapt/property/create',
         method: 'GET',
         data: { roadFullAddr: roadFullAddr },
         dataType: 'json',
         timeout: 0,
         success: function(data) {
           if (data.status === 'Success') {
-            var filename = data.message;
-            downloadFile(filename);
-            alert('다운로드 성공: ' + filename);
+            downloadFile(data.message);
           } else {
-            error.text('발급 실패: ' + (data.message)).show();
+            let err_msg = data.message + '(주소확인바람)';
+            error.text('발급 실패: ' + err_msg).show();
           }
         },
-        error: function (xhr, status, err) {
-          error.text("데이터를 가져오는 중 오류가 발생했습니다: " + err).show();
+        error: function(xhr, status, err) {
+          error.text('데이터를 가져오는 중 오류가 발생했습니다: ' + err).show();
         },
         complete: function() {
           loading.hide();
+          loadingRow.hide();
           jusoBtn.prop('disabled', false);
           printBtn.prop('disabled', false);
         }
       });
-    }
+    });
 
-    // 파일 다운로드를 처리하는 함수
     function downloadFile(filename) {
-      var url = '/api/pastapt/property/download?filename=' + filename;
+      var url = BASE_URL + '/api/pastapt/property/download?filename=' + filename;
       var a = document.createElement('a');
       a.href = url;
-      a.download = ''; // 서버에서 제공하는 파일명이 사용됩니다.
+      a.download = '';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -172,42 +202,5 @@
 
     $(document).ready(init);
   </script>
-</head>
-<body>
-  <div class="pop-address-search">
-    <div class="pop-address-search-inner">
-      <div class="logo"></div>
-      <div class="wrap">
-        <button type="button" id="jusoBtn" onclick="goPopup()">주소재검색</button>
-        <button type="button" id="printBtn" onclick="goPropertyPrint()">등기부발급</button>
-      </div>
-      <div id="loadingMessage"></div>
-      <div class="result">
-        <table>
-          <tr>
-            <th>도로명주소 전체</th>
-            <td><input type="text" id="roadFullAddr" name="roadFullAddr" readonly /></td>
-          </tr>
-          <tr>
-            <th>도로명주소</th>
-            <td><input type="text" id="roadAddrPart1" name="roadAddrPart1" readonly /></td>
-          </tr>
-          <tr>
-            <th>지번</th>
-            <td><input type="text" id="jibunAddr" name="jibunAddr" readonly /></td>
-          </tr>
-          <tr>
-            <th>상세주소</th>
-            <td><input type="text" id="addrDetail" name="addrDetail" readonly /></td>
-          </tr>
-          <tr>
-            <th>우편번호</th>
-            <td><input type="text" id="zipNo" name="zipNo" readonly /></td>
-          </tr>
-        </table>
-      </div>
-      <div id="errorMessage"></div>
-    </div>
-  </div>
 </body>
 </html>
