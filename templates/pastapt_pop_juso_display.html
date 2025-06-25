@@ -145,12 +145,11 @@
     });
 
     $('#printBtn').on('click', function() {
-      if (!confirm('등기부등본을 출력하시겠습니까?')) return;
+      if (!confirm('등기부등본을 발급하시겠습니까?')) return;
       const jusoBtn = $('#jusoBtn'), printBtn = $('#printBtn');
       const loading = $('#loadingMessage'), loadingRow=$('#loadingRow'), error = $('#errorMessage');
       error.hide();
 
-      const roadAddrPart1  = $('#roadAddrPart1').val().trim();
       const jibunAddr      = $('#jibunAddr').val().trim();
       const addrDetail     = $('#addrDetail').val().trim();
       let roadFullAddr     = jibunAddr + ' ' + addrDetail;
@@ -162,6 +161,7 @@
       jusoBtn.prop('disabled', true);
       printBtn.prop('disabled', true);
       loading.text('등기부등본 다운로드 중입니다(윈도우를 닫지마세요).');
+      loading.show();
       loadingRow.show();
 
       $.ajax({
@@ -172,14 +172,12 @@
         timeout: 0,
         success: function(data) {
           if (data.status === 'Success') {
+            //error.text('발급 성공(상단다운로드확인)').show();
             downloadFile(data.message);
           } else {
             let err_msg = data.message + '(주소확인바람)';
             error.text('발급 실패: ' + err_msg).show();
           }
-        },
-        error: function(xhr, status, err) {
-          error.text('데이터를 가져오는 중 오류가 발생했습니다: ' + err).show();
         },
         complete: function() {
           loading.hide();

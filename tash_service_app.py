@@ -24,11 +24,11 @@ from pastapt.past_average_annual_income_db_utils import fetch_all_income_data
 # auth.py에서 토큰 관련 함수 가져오기
 from common.auth import token_required, create_access_token, extract_user_info_from_token
 #
-from config import TEMPLATES_NAME, FORM_DIRECTORY, SAVE_MODE
+from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, SAVE_MODE
 
 # common/commonResponse.py에 정의된 CommonResponse와 Result를 import
 from common.commonResponse import CommonResponse
-from 등기부등본.등기부등본다운 import getIros1, requestIros1
+from legal_docs.legal_docs_down import getIros1, requestIros1
 
 app = Flask(__name__, template_folder=TEMPLATES_NAME)
 
@@ -787,7 +787,7 @@ def get_pastapt_property_create():
 
     type = '건물'
     filename = roadFullAddr.strip().replace(' ', '_') + '.pdf'
-    save_path = '등기부등본/' + filename
+    save_path = LEGAL_DIRECTORY + '/' + filename
 
     err = getIros1(roadFullAddr, type, save_path)
     print(err)
@@ -812,7 +812,7 @@ def get_pastapt_property_download():
 
     try:
         # 파일을 첨부파일로 전송 (다운로드 처리)
-        return send_from_directory("등기부등본", filename, as_attachment=True)
+        return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
     except Exception as e:
         abort(404)
 

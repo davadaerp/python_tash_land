@@ -41,6 +41,9 @@ TEMPLATES_NAME = "templates"
 # 파일들이 위치한 디렉터리 경로 (예: 'downloads' 폴더)
 FORM_DIRECTORY = 'forms'
 
+# 법적서류(등기부등본) 다운로드 파일들이 위치한 디렉터리 경로
+LEGAL_DIRECTORY = 'legal_docs'
+
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
 
