@@ -63,7 +63,7 @@ class ErrorCode:
 
 if __name__ == "__main__":
     # 성공 응답 예제
-    data_success = {"user": "Alice", "id": 123}
+    data_success = {"master": "Alice", "id": 123}
     response_success = CommonResponse.success(data_success, "Operation completed successfully.")
     print("Success Response:")
     print(response_success)

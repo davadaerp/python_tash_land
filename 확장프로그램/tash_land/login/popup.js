@@ -97,6 +97,27 @@
     $("#logout-section").hide();
   }
 
+  // 회원가입 함수
+  function signup() {
+    const popupWidth = 1200;
+    const popupHeight= 1100;
+
+    // 현재 화면의 크기 기준으로 중앙 계산
+    const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+    const top  = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
+    const url = BASE_URL + '/api/user/register';
+
+    window.open(
+      url,
+      'mapPopup',
+      `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+    );
+    /*
+    //chrome.tabs API 사용 (background 권한 필요)
+    chrome.tabs.create({ url: BASE_URL + '/api/user/register' });
+     */
+  }
+
   // window.onload에서 전역 함수를 호출합니다.
   window.onload = function() {
       // const accessToken = localStorage.getItem("access_token");
@@ -123,6 +144,11 @@
   // 로그아웃처리
   document.getElementById("logoutBtn").addEventListener("click", function () {
       logout();
+  });
+
+  // 회원가입
+  document.getElementById("signup").addEventListener("click", function () {
+      signup();
   });
 
   // 폼 제출 시 로그인 요청 실행

@@ -21,12 +21,17 @@ def user_create_table():
             user_passwd TEXT,
             nick_name TEXT,
             access_token TEXT,
+            apt_key TEXT,
+            villa_key   TEXT,
+            sanga_key   TEXT,
+            registration_date TEXT,
+            cancellation_date TEXT, -- 탈퇴일자
+            recharge_amount TEXT,   -- 충전금액
             etc TEXT
         )
     """)
     conn.commit()
     conn.close()
-
 
 def user_insert_record(record):
     """

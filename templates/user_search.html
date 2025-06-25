@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국토부 실거래 데이터</title>
+  <style>
+    /* 전체 페이지 중앙 정렬 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 15px;
+    }
+    /* 검색 컨테이너 스타일 */
+    .search-container {
+      margin-bottom: 5px;
+      background-color: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      position: relative;
+    }
+    .search-input-group label {
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      text-align: left;
+    }
+    .search-input-group input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #locatadd_nm { flex: 7; }
+    .search-btn, .message-btn, .excel-btn {
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    .search-btn:hover, .message-btn:hover, .excel-btn:hover {
+      background-color: #0056b3;
+    }
+    #result-count {
+      width: 40px;
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      margin-left: auto;
+      margin-right: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 30px;
+    }
+    #header-container {
+      width: 95%;
+      max-width: 940px;
+      display: flex;
+      background-color: #f2f2f2;
+      font-weight: bold;
+      padding: 12px 0;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      margin-bottom: 1px;
+    }
+    #header-container span {
+      text-align: center;
+      padding: 0 5px;
+      flex: 1;
+      border-right: 1px solid #ddd;
+    }
+    #header-container span:last-child { border-right: none; }
+    .table-container {
+      width: 95%;
+      max-width: 940px;
+      max-height: 980px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      padding: 0;
+      margin-top: 1px;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+      font-size: 14px;
+    }
+    th { background-color: #f2f2f2; font-weight: bold; }
+    .highlight { color: red; font-weight: bold; }
+    .right-align { text-align: right; }
+    .left-align { text-align: left; }
+    .center-align { text-align: center; }
+    .no-data-message, .loading-message {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #007bff;
+      margin: 50px auto;
+    }
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+    #message-popup {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      z-index: 2000;
+      width: 90%;
+      max-width: 500px;
+      padding: 20px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .popup-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 10px 0;
+      position: relative;
+      text-align: center;
+    }
+    .popup-header h3 {
+      margin: 0;
+      flex: 1;
+    }
+    .popup-count {
+      position: absolute;
+      right: 0;
+      font-size: 14px;
+      color: #555;
+    }
+    #message-popup .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    #selected-list-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .selected-list-header, .selected-list-item {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+    }
+    .selected-list-header span,
+    .selected-list-item span {
+      text-align: center;
+      border-right: 1px solid #ddd;
+    }
+    .selected-list-header span:nth-child(1),
+    .selected-list-item span:nth-child(1) { width: 30px; }
+    .selected-list-header span:nth-child(2),
+    .selected-list-item span:nth-child(2) { flex: 2; }
+    .selected-list-header span:nth-child(3),
+    .selected-list-item span:nth-child(3) { flex: 2; }
+    .selected-list-item .delete-btn {
+      margin-left: auto;
+      cursor: pointer;
+      color: red;
+      font-weight: bold;
+      padding: 0 8px;
+    }
+    #message-popup textarea {
+      width: 100%;
+      height: 200px;
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    .attachment-container {
+      margin-top: 10px;
+    }
+    .attachment-container input[type="file"] {
+      display: block;
+      margin-bottom: 10px;
+    }
+    .thumbnail-slider {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .thumbnail-list {
+      display: flex;
+      transition: transform 0.3s ease;
+    }
+    .thumbnail-item {
+      width: calc((100% - 15px) / 4);
+      height: 80px;
+      margin-right: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .thumbnail-item:last-child { margin-right: 0; }
+    .thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    .thumb-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 25px;
+      height: 25px;
+      background-color: rgba(0,0,0,0.5);
+      color: #fff;
+      text-align: center;
+      line-height: 25px;
+      cursor: pointer;
+      border-radius: 50%;
+      user-select: none;
+      z-index: 1;
+    }
+    .thumb-nav.left { left: 5px; }
+    .thumb-nav.right { right: 5px; }
+    #image-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      border: 5px solid #fff;
+      border-radius: 8px;
+    }
+    tbody tr:nth-child(odd) { background-color: #ffffff; }
+    tbody tr:nth-child(even) { background-color: azure; }
+    tbody tr:hover { background-color: #d9d9d9; }
+    /* 메시지 팝업 추가 입력 영역 */
+    .add-entry {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .add-entry label {
+      font-weight: bold;
+    }
+    .add-entry input {
+      padding: 4px 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #add-entry-btn {
+      padding: 6px 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #add-entry-btn:hover { background-color: #218838; }
+
+    /* 확인 모달 스타일 */
+    #confirm-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      z-index: 3000;
+      width: 90%;
+      max-width: 500px;
+      padding: 20px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .confirm-modal-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 15px;
+      position: relative;
+      text-align: center;
+    }
+
+    .confirm-modal-header h3 {
+      margin: 0;
+      color: #007bff;
+      font-size: 20px;
+    }
+
+    .confirm-modal-content {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .confirm-info-row {
+      margin-bottom: 10px;
+    }
+
+    .confirm-info-row label {
+      font-weight: bold;
+      color: #555;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .confirm-info-row textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      resize: none;
+      min-height: 100px;
+    }
+
+    .confirm-thumbnail-slider {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-top: 15px;
+    }
+
+    .confirm-thumbnail-list {
+      display: flex;
+      transition: transform 0.3s ease;
+      padding: 5px;
+    }
+
+    .confirm-thumbnail-item {
+      width: calc((100% - 15px) / 4);
+      height: 80px;
+      margin-right: 5px;
+      flex-shrink: 0;
+    }
+
+    .confirm-thumbnail-item:last-child { margin-right: 0; }
+
+    .confirm-thumbnail-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .confirm-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .confirm-send-btn {
+      padding: 10px 20px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+
+    .confirm-send-btn:hover {
+      background-color: #218838;
+    }
+
+    .confirm-close-btn {
+      padding: 10px 20px;
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+      margin-right: 10px;
+    }
+
+    .confirm-close-btn:hover {
+      background-color: #c82333;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script>
+
+    // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
+    window.onload = function() {
+        var lawName = "{{ lawName }}";
+        var umdNm = "{{ umdNm }}";
+        var lawCd = "{{ law_cd }}";
+        //alert(lawName + ',' + umdNm + ',' + lawCd);
+    };
+
+    //
+    function fetchData() {
+      const selType = $('#sel_type').val();
+      let searchTitle = $('#locatadd_nm').val();
+      let dangiName = $('#dangiName').val();
+      $('#loading').show();
+      $('#noData').hide();
+      $('table').hide();
+      $.ajax({
+        url:  BASE_URL + '/api/realtor',
+        method: 'GET',
+        data: { lawdCd: selectedLawdCd, selType:selType, searchTitle: searchTitle, dangiName: dangiName },
+        dataType: 'json',
+        timeout: 5000,
+        beforeSend: function () {
+          $('#loading').show();
+          $('#noData').hide();
+          $('#errorMessage').hide();
+          $('table').hide();
+        },
+        success: function (data) {
+          $('#loading').hide();
+          if (data.length === 0) {
+            $('#noData').show();
+            $('#errorMessage').hide();
+          } else {
+            $('#noData').hide();
+            $('#errorMessage').hide();
+            $('table').show();
+            renderTable(data);
+          }
+          // 업데이트: 검색 결과 건수를 #search-count에 출력
+          $("#result-count").text(data.length);
+        },
+        error: function (xhr, status, error) {
+          $('#loading').hide();
+          if (status === "timeout") {
+            $('#errorMessage').text("서버 응답이 없습니다. 서버가 실행 중인지 확인하세요.").show();
+          } else {
+            $('#errorMessage').text("데이터를 가져오는 중 오류가 발생했습니다: " + error).show();
+          }
+        }
+      });
+    }
+
+    function renderTable(data) {
+      let sel_type = document.getElementById("sel_type").value; // .value로 값 가져오기
+      let tableBody = $('#dataBody');
+      tableBody.empty();
+      data.forEach((item, index) => {
+        const address2 = item.address2?.trim();
+        const address = sel_type === 'realtor' ? item.address1 : item.address1 + (address2 ? '-' + address2 : '');
+        tableBody.append(`
+          <tr>
+            <td class="center-align"><input type="checkbox" class="row-checkbox"></td>
+            <td class="center-align">${index}</td>
+            <td class="center-align">${item.title.length > 10 ? item.title.substring(0, 10) + '...' : item.title}</td>
+            <td class="center-align">${item.representative.replace(/\s/g, "")}</td>
+            <td class="left-align">${address.length > 25 ? address.substring(0, 25) + '...' : address}</td>
+            <td class="center-align">${item.landline_phone}</td>
+            <td class="center-align">${item.mobile_phone}</td>
+            <td><button class="map-btn" data-map="${item.address1}">위치</button></td>
+          </tr>
+        `);
+      });
+      document.querySelectorAll('.map-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          let address = this.getAttribute('data-map');
+          openMap(address);
+        });
+      });
+    }
+
+   document.addEventListener("DOMContentLoaded", function() {
+      // #search-btn 클릭 이벤트
+      document.getElementById('search-btn').addEventListener('click', function() {
+        // let searchTerm = document.getElementById('locatadd_nm').value.trim();
+        // if (!searchTerm) {
+        //   alert("법정동명을 입력하세요.");
+        //   document.getElementById('locatadd_nm').focus();
+        //   return;
+        // }
+        // let dangiName = document.getElementById('dangiName').value.trim();
+        // if (!dangiName) {
+        //   alert("읍면동을 입력하세요.");
+        //   document.getElementById('dangiName').focus();
+        //   return;
+        // }
+        fetchData();
+      });
+      // 중개사 검색
+      document.getElementById('dangiName').addEventListener('keyup', function(event) {
+        if (event.keyCode === 13) {
+            let dangiName = document.getElementById('dangiName').value.trim();
+            if (!dangiName) {
+              alert("중개사 읍명동을 입력하세요.");
+              document.getElementById('dangiName').focus();
+              return;
+            }
+            fetchData();
+        }
+      });
+      // #sel_type변경 이벤트
+      document.getElementById('sel_type').addEventListener('change', function() {
+          $('#dataBody').empty();
+          $('#result-count').text("0");
+          document.getElementById('dangiName').value = "";
+          //
+          if(this.value === "loaner") {
+              $('#dangiName').attr('placeholder', '지역을 입력하세요(서울등)');
+          } else {
+              // 상담사가 아닐 경우 기본값 또는 다른 값으로 설정할 수 있습니다.
+              $('#dangiName').attr('placeholder', '읍면동을 입력하세요');
+          }
+      });
+
+      // 회원가입
+      document.getElementById('register-btn').addEventListener('click', function() {
+            const popupWidth = 1200;
+            const popupHeight= 1100;
+
+            // 현재 화면의 크기 기준으로 중앙 계산
+            const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+            const top  = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
+
+            const popup = window.open(
+              '/api/user/register',
+              'mapPopup',
+              `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+            );
+      });
+    });
+
+  </script>
+</head>
+<body>
+  <h2>
+    회원관리
+    <span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;"></span>
+  </h2>
+  <div class="search-container">
+    <div class="search-input-group">
+      <label for="sel_type" style="margin-right:1px;">구분:</label>
+      <select id="sel_type" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+        <option value="realtor">중개사</option>
+        <option value="loaner">상담사</option>
+        <option value="lawer">세무사</option>
+      </select>
+      <input type="text" id="dangiName" placeholder="사용자명을 입력하세요">
+      <!-- 건수 표시용 span 추가 -->
+<!--      <span id="result-count" style="margin-left:10px; font-weight:bold;">0</span>-->
+      <span id="result-count" style="margin-left: auto;">0</span>
+      <button class="search-btn" id="search-btn">검색</button>
+      <button class="register-btn" id="register-btn">회원가입</button>
+      <!-- 엑셀 버튼을 이미지 형태로 -->
+      <button class="excel-btn" id="download-btn">
+        <img src="excel_icon.png" alt="엑셀 저장" style="width:24px; height:24px; vertical-align: middle;">
+      </button>
+    </div>
+  </div>
+  <div class="table-container">
+    <table>
+      <tbody id="dataBody"></tbody>
+    </table>
+    <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
+    <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
+    <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+  </div>
+</body>
+</html>

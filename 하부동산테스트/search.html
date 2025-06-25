@@ -97,7 +97,7 @@
                 alert(`You selected: ${selectedSuggestion}`);  // Show an alert with the selected suggestion
             });
 
-            // Close suggestions if user clicks outside the search container
+            // Close suggestions if master clicks outside the search container
             $(document).on('click', function(event) {
                 if (!$(event.target).closest('#search-container').length) {
                     $('#suggestions').empty().hide();

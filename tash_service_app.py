@@ -13,7 +13,7 @@ from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
 from auction.auction_db_utils import auction_read_db, auction_read_csv
 from realtor.realtor_db_utils import realtor_read_db
-from persistence.users_db_utils import user_insert_record
+from master.user_db_utils import user_insert_record
 #
 from sms.alim_talk import alimtalk_send
 from sms.purio_sms import purio_sms_send
@@ -96,7 +96,7 @@ def login_token():
     if errmsg == 'Success':
         print("User ID:", userid)
         print("Exptime:", exptime)
-        print("login_token() Success to extract user info from token.")
+        print("login_token() Success to extract master info from token.")
 
         # 차후에 중복로그인 체크 => 토큰 유효성 & 중복 로그인 확인
         # if active_tokens.get(userid) != access_token:
@@ -116,7 +116,7 @@ def login_token():
         #return jsonify(CommonResponse.success(data, "로그인 성공").to_dict())
         return jsonify({"result": "Success", "errmag": errmsg, "data": data})
     else:
-        print("login_token() Failed to extract user info from token.")
+        print("login_token() Failed to extract master info from token.")
         return jsonify({"result": "Failed", "errmag": errmsg})
         #return jsonify(CommonResponse.fail("400", "login_token() Failed:" + errmsg).to_dict())
 
@@ -187,6 +187,8 @@ def main(current_user):
 def menu(current_user):
     menu = request.args.get("menu", "")
     print(menu)
+    if menu == 'user':
+        return render_template("user_search.html")
     if menu == 'apt':
         return render_template("realdata_apt.html")
     if menu == 'villa':
@@ -212,6 +214,19 @@ def menu(current_user):
         return render_template("realdata_pop_key.html")
     if menu == 'past_apt':
         return render_template("pastdata_apt.html")
+
+#===== 사용자(회원) 데이타 처리 =============
+@app.route('/api/user/register', methods=['GET'])
+def user_register_form():
+    return render_template("user_register.html")
+
+@app.route('/api/user/crud', methods=['POST'])
+def user_register_crud():
+    userId = request.form.get("userId")
+    userName = request.form.get("userName")
+    print("📋 받은 내용:", userId, userName)
+
+    return None
 
 #===== 상가 데이타 처리 =============
 @app.route('/api/sanga', methods=['GET'])
@@ -502,7 +517,7 @@ def ext_tool():
 
 @app.route("/api/ext_tool/map", methods=["GET"])
 def ext_tool_map():
-    return render_template("map_popup.html")
+    return render_template("extool_map_popup.html")
 
 @app.route('/api/sms_send', methods=['POST'])
 def sms_send():

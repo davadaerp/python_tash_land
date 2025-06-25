@@ -5,7 +5,7 @@ BASE_PATH = "/Users/wfight/IdeaProjects/PythonProject/Auction"
 #BASE_PATH = "/home/ubuntu/tash"
 
 # 환경변수 SANGA_DB_PATH가 설정되어 있으면 사용하고, 없으면 기본 경로를 사용
-PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/persistence")
+PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/master")
 SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
 NPL_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/npl")

@@ -217,7 +217,7 @@ def callback():
         create_social_account(user['id'], 'naver', naver_id)
 
     session['user_id'] = user['id']
-    return jsonify({'status': 'ok', 'user': {'id': user['id'], 'email': user['email']}})
+    return jsonify({'status': 'ok', 'master': {'id': user['id'], 'email': user['email']}})
 
 # 로그인 정보 조회
 @app.route('/me')
