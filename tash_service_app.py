@@ -13,7 +13,7 @@ from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
 from auction.auction_db_utils import auction_read_db, auction_read_csv
 from realtor.realtor_db_utils import realtor_read_db
-from master.user_db_utils import user_insert_record
+from master.user_db_utils import user_insert_record, user_read_db
 #
 from sms.alim_talk import alimtalk_send
 from sms.purio_sms import purio_sms_send
@@ -220,13 +220,48 @@ def menu(current_user):
 def user_register_form():
     return render_template("user_register.html")
 
+@app.route('/api/user/dup_check', methods=['POST'])
+def user_dup_check():
+    data = request.get_json()
+    # print(f"🔍data: {data}")
+    userId = data.get("userId")
+    print("📋 userId:", userId)
+    # 사용자 중복검색
+    result = user_read_db(userId)
+    print(result)
+    if result:
+        rtn_data = {
+            'status': 'Fail',
+            'message': ''
+        }
+    else:
+        rtn_data = {
+            'status': 'Success',
+            'message': ''
+        }
+    print(rtn_data)
+
+    return jsonify(rtn_data)
+
 @app.route('/api/user/crud', methods=['POST'])
 def user_register_crud():
-    userId = request.form.get("userId")
-    userName = request.form.get("userName")
-    print("📋 받은 내용:", userId, userName)
+    data = request.get_json()
+    print(f"🔍/api/user/crud data: {data}")
+    mode = data.get("mode")
+    if mode == "C":
+        print(f"신규입력합니다.")
+    elif mode == "U":
+        print(f"수정합니다.")
+    elif mode == "D":
+        print(f"삭제합니다.")
+    else:
+        print(f"조회합니다.")
 
-    return None
+    rtn_data = {
+        'status': 'Success',
+        'message': ''
+    }
+    return jsonify(rtn_data)
 
 #===== 상가 데이타 처리 =============
 @app.route('/api/sanga', methods=['GET'])
@@ -783,12 +818,21 @@ def get_pastapt_juso_display():
 @app.route('/api/pastapt/property/create', methods=['GET'])
 def get_pastapt_property_create():
     roadFullAddr = request.args.get('roadFullAddr', '')
-    print("📋 다운로드:", roadFullAddr)
+    print("📋 등기생성:", roadFullAddr)
 
     type = '건물'
     filename = roadFullAddr.strip().replace(' ', '_') + '.pdf'
     save_path = LEGAL_DIRECTORY + '/' + filename
+    # 이미 생성된 파일이 있으면 바로 성공 응답
+    if os.path.isfile(save_path):
+        rtn_data = {
+            'status': 'Success',
+            'message': filename
+        }
+        print("파일 존재:", save_path)
+        return jsonify(rtn_data)
 
+    # 없으면 외부 API 호출하여 생성
     err = getIros1(roadFullAddr, type, save_path)
     print(err)
     if err:
@@ -808,13 +852,15 @@ def get_pastapt_property_create():
 @app.route('/api/pastapt/property/download', methods=['GET'])
 def get_pastapt_property_download():
     filename = request.args.get('filename', '')
+    file_path = os.path.join(LEGAL_DIRECTORY, filename)
     print("📋 다운로드:", filename)
 
-    try:
-        # 파일을 첨부파일로 전송 (다운로드 처리)
-        return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
-    except Exception as e:
-        abort(404)
+    if not os.path.isfile(file_path):
+        # 파일이 없으면 404 상태와 JSON 메시지 리턴
+        return jsonify({'status': 'Fail', 'message': '파일이 존재하지 않습니다.'}), 404
+
+    # 파일이 존재하면 첨부파일로 전송
+    return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)

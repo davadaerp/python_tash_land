@@ -131,7 +131,7 @@
     </div>
     <div class="input-group">
       <input type="text" id="user-id" placeholder="아이디 입력(이메일)">
-      <button id="check-duplicate">중복확인</button>
+      <button id="check-duplicate" >중복확인</button>
     </div>
     <div class="input-group">
       <input type="text" id="password" placeholder="패스워드 입력">-
@@ -146,8 +146,8 @@
   <div class="section">
     <div class="consent-label">* 본인확인 인증</div>
     <div class="input-group">
-      <input type="text" id="mobile-phone-no" placeholder="휴대폰번호">
-      <button id="check-phone" class="button-blue">휴대폰 인증</button>
+      <input type="text" id="phone-number" placeholder="휴대폰번호">
+      <button id="check-phone-btn" class="button-blue">휴대폰 인증</button>
     </div>
   </div>
 
@@ -157,20 +157,65 @@
   </div>
 
   <script>
-    const BASE_URL = '';
 
-    // 네이버 로그인 버튼 클릭 시
+    let isDupChecked = false;
+    let isPhoneChecked = false;
+
+    // 아이디 입력이 바뀌면 중복확인 플래그 초기화
+    $('#user-id').on('input', () => {
+      isDupChecked = false;
+    });
+
+    // 휴대폰인증
+    $('#check-phone-btn').click(function() {
+      alert('휴대폰 인증을 합니다.');
+      isPhoneChecked = true;
+    });
+
+    // 회원가입 버튼 클릭 시
     $('#register-btn').click(function(){
+
+      // 동의여부 체크
+      if(!validateConsent()) {
+        return;
+      }
+
+      //  중복확인 필수
+      if (!isDupChecked) {
+        alert('아이디 중복확인을 해주세요.');
+        return;
+      }
+
+      const userId = $('#user-id').val().trim();
+      const passwd = $('#password').val().trim();
+      const phoneNumber = $('#phone-number').val().trim();
+      const data = {
+        mode: 'C',
+        userId: userId,
+        passwd: passwd,
+        phoneNumber: phoneNumber
+      }
+
+      if (!isPhoneChecked) {
+        alert('휴대폰 인증을 먼저 해주세요.');
+        return;
+      }
+
       $.ajax({
-        url: BASE_URL + '/api/login/naver',
-        method: 'GET'
-      }).done(function(res){
-        if (res.auth_url) {
-          window.location.href = res.auth_url;
+        url: BASE_URL + '/api/user/crud',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data)
+      }).done(function(data){
+        if (data.status === 'Success') {
+          alert('등록이 성공하였습니다.');
+        } else {
+          alert('등록이 실패하였습니다.');
         }
       }).fail(function(){
-        alert('네이버 로그인 요청 중 오류가 발생했습니다.');
-      });
+        alert('중복확인 요청 중 오류가 발생했습니다.');
+      }); // end ajax
+
     });
 
     // 가입취소 클릭 시 이동
@@ -194,20 +239,46 @@
       }
 
       $.ajax({
-        url: BASE_URL + '/api/login/check',
+        url: BASE_URL + '/api/user/dup_check',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({ userId: userId })
-      }).done(function(res){
-        if (res.is_duplicate) {
+      }).done(function(data){
+        if (data.status === 'Fail') {
           alert('이미 사용 중인 아이디입니다.');
         } else {
           alert('사용 가능한 아이디입니다.');
+          isDupChecked = true;
         }
       }).fail(function(){
         alert('중복확인 요청 중 오류가 발생했습니다.');
-      });
+        isDupChecked = false;
+      }); // end ajax
     });
+
+    // 동의여부 체크
+    function validateConsent() {
+      const termChoice    = document.querySelector('input[name="agree_terms"]:checked');
+      const privacyChoice = document.querySelector('input[name="agree_privacy"]:checked');
+
+      if (!termChoice) {
+        alert('이용약관 동의 여부를 선택해주세요.');
+        return false;
+      }
+      if (termChoice.value !== 'yes') {
+        alert('이용약관에 동의하셔야 회원가입이 가능합니다.');
+        return false;
+      }
+      if (!privacyChoice) {
+        alert('개인정보 수집 및 이용 동의 여부를 선택해주세요.');
+        return false;
+      }
+      if (privacyChoice.value !== 'yes') {
+        alert('개인정보 수집 및 이용에 동의하셔야 회원가입이 가능합니다.');
+        return false;
+      }
+      return true; // 모두 통과하면 폼 제출 허용
+    }
   </script>
 </body>
 </html>

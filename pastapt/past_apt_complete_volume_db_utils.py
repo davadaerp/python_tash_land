@@ -7,7 +7,6 @@ from config import PAST_APT_BASE_PATH
 DB_FILENAME = os.path.join(PAST_APT_BASE_PATH, "past_apt_data.db")
 TABLE_NAME = "apt_complete_volume"
 
-
 def create_apt_complete_volume_table():
     """
     apt_complete_volume 테이블을 생성합니다.
@@ -94,7 +93,6 @@ def process_apt_complete_volume_txt(txt_file_path: str):
             print(f"{region} | {address} | {apt_name} | {year_month} | {volume}")
 
             insert_apt_complete_volume_record(region, address, apt_name, year_month, volume)
-
 
 if __name__ == '__main__':
     # 예시 파일 경로: PAST_APT_BASE_PATH/아파트입주물량.txt

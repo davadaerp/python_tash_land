@@ -1,4 +1,4 @@
-# kb부동산 주간별 매매시세
+# kb부동산 주간별 매매시세(https://data.kbland.kr/kbstats/wmh?tIdx=HT01&tsIdx=weekAptSalePriceInx)
 import requests
 from collections import defaultdict
 

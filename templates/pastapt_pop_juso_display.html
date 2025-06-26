@@ -124,6 +124,9 @@
   <script src="/static/js/common.js"></script>
   <script>
 
+    // 파일다운 3초기다림
+    let downTimeout = 3000;   // 3초
+
     function init(){
       var inputYn      = '{{ inputYn }}';
       if(inputYn==='Y'){
@@ -163,6 +166,8 @@
       loading.text('등기부등본 다운로드 중입니다(윈도우를 닫지마세요).');
       loading.show();
       loadingRow.show();
+      //
+      downTimeout = 0;
 
       $.ajax({
         url: BASE_URL + '/api/pastapt/property/create',
@@ -179,6 +184,13 @@
             error.text('발급 실패: ' + err_msg).show();
           }
         },
+        error: function(xhr, status, err) {
+          // 차후 해당파일 다시한번 가져오기 체크요망(등기 pdf는 다운되었는데 로컬에는 다운이 안되어서리 ㅠ.ㅠ)
+          const filename = roadFullAddr.trim().replace(/ /g, '_') + '.pdf';
+          downTimeout = 5000;
+          downloadFile(filename);
+          //error.text('데이터를 가져오는 중 오류가 발생했습니다: ' + err).show();
+        },
         complete: function() {
           loading.hide();
           loadingRow.hide();
@@ -189,13 +201,43 @@
     });
 
     function downloadFile(filename) {
-      var url = BASE_URL + '/api/pastapt/property/download?filename=' + filename;
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const url = BASE_URL + '/api/pastapt/property/download?filename=' + encodeURIComponent(filename);
+      const error = $('#errorMessage');
+      //error.hide();
+      // 2초 지연 후에 실제 fetch 실행
+      setTimeout(() => {
+        fetch(url)
+                .then(response => {
+                  if (!response.ok) {
+                    if (response.status === 404) {
+                      // 서버에서 404를 리턴했다면 파일이 없는 것이므로 사용자에게 알림
+                      alert('파일이 존재하지 않습니다.');
+                    } else {
+                      alert('다운로드 중 오류가 발생했습니다: ' + response.statusText);
+                    }
+                    throw new Error('파일 다운로드 실패');
+                  }
+                  return response.blob();
+                })
+                .then(blob => {
+                  // 2) Blob 을 받아서 실제 다운로드 트리거
+                  const downloadUrl = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = downloadUrl;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  window.URL.revokeObjectURL(downloadUrl);
+                  // 다운로드 성공 메시지
+                  error.text('발급 성공(상단 다운로드 확인)').show();
+                })
+                .catch(err => {
+                  console.error(err);
+                  // 다운로드 실패 메시지
+                  error.text(err).show();
+                });
+      }, downTimeout);  // 3000ms = 3초 지연
     }
 
     $(document).ready(init);

@@ -1,10 +1,10 @@
 import os
 import sqlite3
 
-from config import PERSISTENCE_DB_PATH
+from config import MASTER_DB_PATH
 
 # 공통 변수 설정
-DB_FILENAME = os.path.join(PERSISTENCE_DB_PATH, "tash_data.db")
+DB_FILENAME = os.path.join(MASTER_DB_PATH, "tash_data.db")
 TABLE_NAME = "users_data"
 
 def user_create_table():
@@ -19,14 +19,16 @@ def user_create_table():
             user_id TEXT PRIMARY KEY,
             user_name TEXT,
             user_passwd TEXT,
+            user_phone_number TEXT,
             nick_name TEXT,
             access_token TEXT,
             apt_key TEXT,
             villa_key   TEXT,
             sanga_key   TEXT,
             registration_date TEXT,
-            cancellation_date TEXT, -- 탈퇴일자
-            recharge_amount TEXT,   -- 충전금액
+            cancellation_date TEXT,  -- 탈퇴일자
+            sms_charge_count TEXT,   -- 충전건수(건당 100원)
+            recharge_amount TEXT,   -- 충전금액(건당 1000원)
             etc TEXT
         )
     """)
