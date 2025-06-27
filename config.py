@@ -5,7 +5,8 @@ BASE_PATH = "/Users/wfight/IdeaProjects/PythonProject/Auction"
 #BASE_PATH = "/home/ubuntu/tash"
 
 # 환경변수 SANGA_DB_PATH가 설정되어 있으면 사용하고, 없으면 기본 경로를 사용
-PERSISTENCE_DB_PATH = os.environ.get("PERSISTENCE_DB_PATH", BASE_PATH + "/master")
+MASTER_DB_PATH = os.environ.get("MASTER_DB_PATH", BASE_PATH + "/master")
+APT_BASE_PATH = os.environ.get("APT_BASE_PATH", BASE_PATH + "/apt")
 SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
 NPL_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/npl")
@@ -15,8 +16,11 @@ JUMPO_BASE_PATH = os.environ.get("JUMPO_BASE_PATH", BASE_PATH + "/jumpo")
 PAST_APT_BASE_PATH = os.environ.get("PAST_APT_BASE_PATH", BASE_PATH + "/pastapt")
 
 # SANGA_BASE_PATH 디렉토리 경로라면 마지막에 os.sep (예: '/')를 추가하여 안전하게 사용
-if not PERSISTENCE_DB_PATH.endswith(os.sep):
-    PERSISTENCE_DB_PATH += os.sep
+if not MASTER_DB_PATH.endswith(os.sep):
+    MASTER_DB_PATH += os.sep
+
+if not APT_BASE_PATH.endswith(os.sep):
+    APT_BASE_PATH += os.sep
 
 if not SANGA_BASE_PATH.endswith(os.sep):
     SANGA_BASE_PATH += os.sep

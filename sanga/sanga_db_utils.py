@@ -7,8 +7,8 @@ from config import SANGA_BASE_PATH
 
 # 공통 변수 설정
 CSV_FILENAME = "sanga_data.csv"
-#DB_FILENAME = "/Users/wfight/IdeaProjects/PythonProject/Auction/sanga/sanga_data.db"
-DB_FILENAME = os.path.join(SANGA_BASE_PATH, "sanga_data.db")
+#DB_FILENAME = "/Users/wfight/IdeaProjects/PythonProject/Auction/sanga/apt_data.db"
+DB_FILENAME = os.path.join(SANGA_BASE_PATH, "apt_data.db")
 TABLE_NAME = "sanga_data"
 
 def sanga_create_table():

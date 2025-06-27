@@ -6,6 +6,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
+from apt.apt_db_utils import apt_read_db
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
 from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 #from naver.naver_login import naver_authorization, naver_callback
@@ -195,6 +196,8 @@ def menu(current_user):
         return render_template("realdata_villa.html")
     if menu == 'sanga':
         return render_template("realdata_sanga.html")
+    if menu == 'apt_search':
+        return render_template("crawling_apt_search.html")
     if menu == 'sanga_search':
         return render_template("crawling_sanga_search.html")
     if menu == 'auction':
@@ -262,6 +265,22 @@ def user_register_crud():
         'message': ''
     }
     return jsonify(rtn_data)
+
+#===== 아파트 데이타 처리 =============
+@app.route('/api/apt', methods=['GET'])
+def get_apt_data():
+    lawdCd = request.args.get('lawdCd', '')
+    umdNm = request.args.get('umdNm', '')
+    trade_type = request.args.get('trade_type', '')
+    sale_year = request.args.get('saleYear', '')
+    category = request.args.get('category')
+    dangiName = request.args.get('dangiName')
+
+    print(f"🔍 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 📅 매물 연도: {sale_year}, 🏠 카테고리: {category},")
+
+    data = apt_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+
+    return jsonify(data)
 
 #===== 상가 데이타 처리 =============
 @app.route('/api/sanga', methods=['GET'])
@@ -391,14 +410,8 @@ def geocode():
 #===== NPL(부실채권투자) 데이타 처리 =============
 @app.route('/api/npl/categories', methods=['GET'])
 def get_npl_categories():
-    # "빌라"와 "근린상가"의 맨 앞에 "전체" 추가
-    categoryOptions = {
-        key: (["전체"] + values if key in ["빌라", "근린상가"] else values)
-        for key, values in category_mappings.items()
-    }
-    json_data = json.dumps(categoryOptions, ensure_ascii=False, indent=4)
-    print(json_data)
-    return json_data
+    # 바로 JSON으로 응답
+    return jsonify(category_mappings)
 
 @app.route('/api/npl/region_categories', methods=['GET'])
 def get_npl_region_categories():
@@ -422,7 +435,8 @@ def get_npl_data():
     region = request.args.get('region', '')
     sggNm = request.args.get('sggNm', '')
     umdNm = request.args.get('umdNm', '')
-    main_category = request.args.get('mainCategory', '')
+    mainCategory = request.args.get('mainCategory', '')
+    subCategory = request.args.get('subCategory', '')
     opposabilityStatus = request.args.get('opposabilityStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
     persionalStatus = request.args.get('persionalStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
     auctionApplicant = request.args.get('auctionApplicant', '')           # 경매신청자
@@ -437,19 +451,16 @@ def get_npl_data():
         opposabilityStatus = ''
 
     print(
-        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm}, 임차권여부: {opposabilityStatus}, 경매신청자: {auctionApplicant},  메인 카테고리: {main_category}")
+        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm},  경매신청자: {auctionApplicant},  메인 카테고리: {mainCategory}, 서브 카테고리: {subCategory}, 임차권여부: {opposabilityStatus}")
 
     categories = []
-    if main_category != '':
-        categories = category_mappings[main_category]
-
-    # if main_category in ["아파트", "빌라", "근린상가", "다가구"]:
-    #     if not category:
-    #         categories = category_mappings[main_category]
-    #     else:
-    #         categories = [c for c in category_mappings[main_category] if c in category]
-
-    # print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
+    if mainCategory == '' and subCategory == '':
+        categories = ''
+    elif mainCategory != '' and subCategory == '':
+        categories = category_mappings[mainCategory]
+    else:
+        # subCategory 단일값을 배열 형태로
+        categories = [subCategory]
 
     # 데이타 읽기
     data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, persionalStatus, auctionApplicant)

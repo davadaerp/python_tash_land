@@ -70,7 +70,7 @@ BATCH_SIZE = 500     # 레코드 1000개마다 저장
 PAGE_DELAY_SIZE = 5  # 5페이지당 딜레이 처리
 
 # 전체삭제 후 크롤링 처리 여부
-data_all_deletes = False
+data_all_deletes = True
 
 # 누적 저장된 레코드 건수
 saved_count = 0
@@ -326,8 +326,7 @@ def main():
     for umdNm, cortarNo in areas.items():
         for page in range(1, totPage):  # 페이지 1~99
             # SG:SMS:GM : 상가,사무실,건물
-            #url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'
-            url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=rank&realEstateType=SG:SMS&priceType=RETAIL&page={page}'
+            url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'
             headers = get_random_headers()
             response = session.get(url, headers=headers)
             #response = session.get(url, headers=headers, proxies={"https": get_random_proxy()})

@@ -1,3 +1,8 @@
+# 과거매매지수 가져오기(년단위,6개월,3개월,월단위,주단위 선택하여 가져오기 가능)
+#
+# 현재기준 매매및 전세시세 가져오기 => 이 부문은 과거매매지수 가져온데이타 기준으로 past_apt에 매매(하/상안가)및 전세(하/상안가)를 세팅한다.(현재월)
+# 현재월 update하면서 past_apt_price에 해당월 insert하여 pir조회에 사용한다.
+#
 import os
 
 # 부동산뱅크 접속id(wfight66/몽셍이69)
@@ -454,6 +459,7 @@ def main():
     driver = webdriver.Chrome(options=chrome_options)
     #driver = webdriver.Chrome()
     try:
+        # 부동산뱅크사이트
         driver.get("https://www.neonet.co.kr/novo-rebank/view/member/MemberLogin.neo")
         driver.implicitly_wait(1)
         #=====
