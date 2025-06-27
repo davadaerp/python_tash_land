@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import datetime
 
 from config import MASTER_DB_PATH
 
@@ -19,16 +20,16 @@ def user_create_table():
             user_id TEXT PRIMARY KEY,
             user_name TEXT,
             user_passwd TEXT,
-            user_phone_number TEXT,
+            phone_number TEXT,
             nick_name TEXT,
             access_token TEXT,
             apt_key TEXT,
             villa_key   TEXT,
             sanga_key   TEXT,
-            registration_date TEXT,
+            registration_date TEXT,  -- 가입일자
             cancellation_date TEXT,  -- 탈퇴일자
-            sms_charge_count TEXT,   -- 충전건수(건당 100원)
-            recharge_amount TEXT,   -- 충전금액(건당 1000원)
+            recharge_sms_count INTEGER DEFAULT 0,   -- 충전문자건수(건당 100원)
+            recharge_amount INTEGER DEFAULT 0,   -- 충전금액(등기부발급-건당 1000원)
             etc TEXT
         )
     """)
@@ -64,21 +65,133 @@ def user_insert_record(record):
     if count == 0:
         insert_query = f"""
             INSERT INTO {TABLE_NAME} (
-                user_id, user_name, user_passwd, nick_name, access_token, etc
-            ) VALUES (?,?,?,?,?,?)
+                user_id, user_name, user_passwd, phone_number, nick_name, access_token, 
+                apt_key, villa_key, sanga_key, registration_date, cancellation_date, 
+                recharge_sms_count, recharge_amount,
+                etc
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """
         cursor.execute(insert_query, (
             user_id,
             record.get("user_name"),
             record.get("user_passwd"),
+            record.get("phone_number"),
             record.get("nick_name"),
             record.get("access_token"),
+            record.get("apt_key"),
+            record.get("villa_key"),
+            record.get("sanga_key"),
+            record.get("registration_date") or datetime.datetime.now().strftime("%Y-%m-%d"),
+            record.get("cancellation_date"),
+            record.get("recharge_sms_count") if record.get("recharge_sms_count") is not None else 0,
+            record.get("recharge_amount") if record.get("recharge_amount") is not None else 0,
             record.get("etc")
         ))
         conn.commit()
         print(f"user_id {user_id} 값의 레코드가 성공적으로 삽입되었습니다.")
     else:
         print(f"user_id {user_id} 는 이미 존재합니다. 삽입을 건너뜁니다.")
+
+    conn.close()
+
+
+def user_update_record(record):
+    """
+    단일 레코드를 user_id를 기준으로 업데이트합니다.
+    user_id가 존재하지 않을 경우 업데이트를 건너뜁니다.
+
+    파라미터:
+        record (dict): {
+            "user_id": str,
+            "user_name": str,
+            "user_passwd": str,
+            "phone_number": str,
+            "nick_name": str,
+            "access_token": str,
+            "apt_key": str,
+            "villa_key": str,
+            "sanga_key": str,
+            "registration_date": str,
+            "cancellation_date": str,
+            "recharge_sms_count": int,
+            "recharge_amount": float,
+            "etc": str
+        }
+    """
+    # 테이블이 없으면 생성
+    #user_create_table()
+
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    user_id = record.get("user_id")
+    # 존재 여부 확인
+    cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE user_id = ?", (user_id,))
+    exists = cursor.fetchone()[0]
+
+    if exists == 0:
+        print(f"user_id {user_id} 는 존재하지 않습니다. 업데이트를 건너뜁니다.")
+    else:
+        update_query = f"""
+            UPDATE {TABLE_NAME}
+               SET user_name            = ?,
+                   user_passwd          = ?,
+                   phone_number         = ?,
+                   nick_name            = ?,
+                   access_token         = ?,
+                   apt_key              = ?,
+                   villa_key            = ?,
+                   sanga_key            = ?,
+                   registration_date    = ?,
+                   cancellation_date    = ?,
+                   recharge_sms_count   = ?,
+                   recharge_amount      = ?,
+                   etc                  = ?
+             WHERE user_id = ?
+        """
+        cursor.execute(update_query, (
+            record.get("user_name"),
+            record.get("user_passwd"),
+            record.get("phone_number"),
+            record.get("nick_name"),
+            record.get("access_token"),
+            record.get("apt_key"),
+            record.get("villa_key"),
+            record.get("sanga_key"),
+            record.get("registration_date"),
+            record.get("cancellation_date"),
+            record.get("recharge_sms_count"),
+            record.get("recharge_amount"),
+            record.get("etc"),
+            user_id
+        ))
+        conn.commit()
+        print(f"user_id {user_id} 레코드를 성공적으로 업데이트했습니다.")
+
+    conn.close()
+
+# 삭제
+def user_delete_record(user_id):
+    """
+    user_id를 기준으로 레코드를 삭제합니다.
+    존재하지 않을 경우 삭제를 건너뜁니다.
+
+    파라미터:
+        user_id (str): 삭제할 사용자 ID
+    """
+    # 테이블이 없으면 생성
+    #user_create_table()
+
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    # 삭제 실행
+    cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE user_id = ?", (user_id,))
+    if cursor.rowcount == 0:
+        print(f"user_id {user_id} 는 존재하지 않습니다. 삭제를 건너뜁니다.")
+    else:
+        conn.commit()
+        print(f"user_id {user_id} 레코드를 성공적으로 삭제했습니다.")
 
     conn.close()
 

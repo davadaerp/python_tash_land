@@ -14,7 +14,8 @@ from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
 from auction.auction_db_utils import auction_read_db, auction_read_csv
 from realtor.realtor_db_utils import realtor_read_db
-from master.user_db_utils import user_insert_record, user_read_db
+from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
+    user_delete_record
 #
 from sms.alim_talk import alimtalk_send
 from sms.purio_sms import purio_sms_send
@@ -249,22 +250,65 @@ def user_dup_check():
 @app.route('/api/user/crud', methods=['POST'])
 def user_register_crud():
     data = request.get_json()
-    print(f"🔍/api/user/crud data: {data}")
+    print(f"🔍 /api/user/crud data: {data}")
     mode = data.get("mode")
-    if mode == "C":
-        print(f"신규입력합니다.")
-    elif mode == "U":
-        print(f"수정합니다.")
-    elif mode == "D":
-        print(f"삭제합니다.")
-    else:
-        print(f"조회합니다.")
 
-    rtn_data = {
-        'status': 'Success',
-        'message': ''
-    }
-    return jsonify(rtn_data)
+    try:
+        # 테이블 보장
+        user_create_table()
+
+        if mode == "C":
+            # record 전체를 딕셔너리로 전달
+            user_insert_record(data)
+            rtn_message = "신규 입력이 완료되었습니다."
+
+        elif mode == "U":
+            user_update_record(data)
+            rtn_message = "수정이 완료되었습니다."
+
+        elif mode == "D":
+            user_id = data.get("user_id")
+            if not user_id:
+                raise ValueError("삭제할 user_id가 없습니다.")
+            user_delete_record(user_id)
+            rtn_message = "삭제가 완료되었습니다."
+
+        else:  # mode가 'R'이거나 지정되지 않은 경우 조회
+            results = user_read_db(
+                user_id=data.get("user_id", ""),
+                userName=data.get("user_name", ""),
+                nickName=data.get("nick_name", "")
+            )
+            return jsonify({
+                "status": "Success",
+                "message": "조회가 완료되었습니다.",
+                "data": results
+            })
+
+        return jsonify({
+            "status": "Success",
+            "message": rtn_message
+        })
+
+    except Exception as e:
+        # 오류 발생 시 status를 Fail로 반환
+        return jsonify({
+            "status": "Fail",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/users', methods=['GET'])
+def get_users_data():
+    searchTitle = request.args.get('searchTitle', '')   # 중개사 타이틀
+    userName = request.args.get('dangiName')           # 중개사주소
+
+    print(f"🔍 중개사: {searchTitle}, 사용자명: {userName}")
+
+    data = user_read_db("", userName, "")
+
+    print(data)
+
+    return jsonify(data)
 
 #===== 아파트 데이타 처리 =============
 @app.route('/api/apt', methods=['GET'])

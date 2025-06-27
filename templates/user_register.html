@@ -191,9 +191,11 @@
       const phoneNumber = $('#phone-number').val().trim();
       const data = {
         mode: 'C',
-        userId: userId,
-        passwd: passwd,
-        phoneNumber: phoneNumber
+        user_id: userId,
+        user_passwd: passwd,
+        phone_number: phoneNumber,
+        recharge_sms_count: 1000, // 초기 충전문자건수
+        recharge_amount: 100000
       }
 
       if (!isPhoneChecked) {
@@ -201,6 +203,10 @@
         return;
       }
 
+
+      if (!confirm('회원 등록을 하시겠습니까?')) {
+        return;
+      }
       $.ajax({
         url: BASE_URL + '/api/user/crud',
         method: 'POST',

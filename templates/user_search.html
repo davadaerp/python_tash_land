@@ -459,9 +459,9 @@
       $('#noData').hide();
       $('table').hide();
       $.ajax({
-        url:  BASE_URL + '/api/realtor',
+        url:  BASE_URL + '/api/users',
         method: 'GET',
-        data: { lawdCd: selectedLawdCd, selType:selType, searchTitle: searchTitle, dangiName: dangiName },
+        data: { searchTitle: searchTitle, dangiName: dangiName },
         dataType: 'json',
         timeout: 5000,
         beforeSend: function () {
@@ -500,26 +500,15 @@
       let tableBody = $('#dataBody');
       tableBody.empty();
       data.forEach((item, index) => {
-        const address2 = item.address2?.trim();
-        const address = sel_type === 'realtor' ? item.address1 : item.address1 + (address2 ? '-' + address2 : '');
         tableBody.append(`
           <tr>
-            <td class="center-align"><input type="checkbox" class="row-checkbox"></td>
             <td class="center-align">${index}</td>
-            <td class="center-align">${item.title.length > 10 ? item.title.substring(0, 10) + '...' : item.title}</td>
-            <td class="center-align">${item.representative.replace(/\s/g, "")}</td>
-            <td class="left-align">${address.length > 25 ? address.substring(0, 25) + '...' : address}</td>
-            <td class="center-align">${item.landline_phone}</td>
-            <td class="center-align">${item.mobile_phone}</td>
-            <td><button class="map-btn" data-map="${item.address1}">위치</button></td>
+            <td class="center-align">${item.user_name}</td>
+            <td class="center-align">${item.user_passwd}</td>
+            <td class="center-align">${item.user_name}</td>
+            <td class="center-align">${item.phone_number}</td>
           </tr>
         `);
-      });
-      document.querySelectorAll('.map-btn').forEach(button => {
-        button.addEventListener('click', function () {
-          let address = this.getAttribute('data-map');
-          openMap(address);
-        });
       });
     }
 
@@ -610,8 +599,18 @@
       </button>
     </div>
   </div>
+
   <div class="table-container">
     <table>
+      <thead>
+        <tr id="header-row">
+          <th class="center-align">번호</th>
+          <th class="center-align">이름</th>
+          <th class="center-align">패스워드</th>
+          <th class="center-align">닉네임</th>
+          <th class="center-align">휴대폰</th>
+        </tr>
+      </thead>
       <tbody id="dataBody"></tbody>
     </table>
     <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
