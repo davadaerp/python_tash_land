@@ -43,7 +43,9 @@
       align-items: center;
       margin-top: 10px;
     }
-    .input-group input[type="text"] {
+    .input-group input[type="text"],
+    .input-group input[type="tel"],
+    .input-group input[type="number"] {
       width: 200px;
       padding: 8px;
       font-size: 14px;
@@ -53,6 +55,11 @@
       padding: 8px 12px;
       font-size: 14px;
       cursor: pointer;
+      margin-right: 10px;
+    }
+    .timer {
+      font-size: 14px;
+      color: #555;
     }
     .note {
       font-size: 13px;
@@ -147,7 +154,14 @@
     <div class="consent-label">* 본인확인 인증</div>
     <div class="input-group">
       <input type="text" id="phone-number" placeholder="휴대폰번호">
-      <button id="check-phone-btn" class="button-blue">휴대폰 인증</button>
+      <button id="send-code-btn" class="button-blue">휴대폰 인증</button>
+    </div>
+
+      <!-- 인증 입력부 (초기엔 감춤) -->
+    <div class="input-group" id="verify-group" style="display:none;">
+      <input type="number" id="verify-code-input" placeholder="인증번호 입력" />
+      <button id="verify-btn">확인</button>
+      <span class="timer" id="timer-display">02:00</span>
     </div>
   </div>
 
@@ -158,18 +172,16 @@
 
   <script>
 
+    let authCode = null;
+    let timerInterval = null;
+    let timeLeft = 120; // 120초
+
     let isDupChecked = false;
     let isPhoneChecked = false;
 
     // 아이디 입력이 바뀌면 중복확인 플래그 초기화
     $('#user-id').on('input', () => {
       isDupChecked = false;
-    });
-
-    // 휴대폰인증
-    $('#check-phone-btn').click(function() {
-      alert('휴대폰 인증을 합니다.');
-      isPhoneChecked = true;
     });
 
     // 회원가입 버튼 클릭 시
@@ -194,8 +206,8 @@
         user_id: userId,
         user_passwd: passwd,
         phone_number: phoneNumber,
-        recharge_sms_count: 1000, // 초기 충전문자건수
-        recharge_amount: 100000
+        recharge_sms_count: 0, // 초기 충전문자건수
+        recharge_amount: 0
       }
 
       if (!isPhoneChecked) {
@@ -213,7 +225,7 @@
         contentType: 'application/json',
         data: JSON.stringify(data)
       }).done(function(data){
-        if (data.status === 'Success') {
+        if (data.result === 'Success') {
           alert('등록이 성공하였습니다.');
         } else {
           alert('등록이 실패하였습니다.');
@@ -250,7 +262,7 @@
         contentType: 'application/json',
         data: JSON.stringify({ userId: userId })
       }).done(function(data){
-        if (data.status === 'Fail') {
+        if (data.result === 'Fail') {
           alert('이미 사용 중인 아이디입니다.');
         } else {
           alert('사용 가능한 아이디입니다.');
@@ -285,6 +297,72 @@
       }
       return true; // 모두 통과하면 폼 제출 허용
     }
+
+    // 인증번호 입력 필드와 버튼 초기화
+    function startTimer() {
+      timeLeft = 120;
+      $('#timer-display').text(formatTime(timeLeft));
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        $('#timer-display').text(formatTime(timeLeft));
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          alert('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+          resetSmsFlow();
+        }
+      }, 1000);
+    }
+
+    function formatTime(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function resetSmsFlow() {
+      clearInterval(timerInterval);
+      authCode = null;
+      $('#verify-group').hide();
+      $('#send-code-btn').prop('disabled', false).text('인증번호 전송');
+      $('#phone-number').prop('disabled', false);
+    }
+
+    // 1) 인증번호 전송 버튼 클릭
+    $('#send-code-btn').click(() => {
+      const phone = $('#phone-number').val().trim();
+      if (!/^01[0-9]{8,9}$/.test(phone)) {
+        alert('유효한 휴대폰 번호를 입력해주세요.');
+        return;
+      }
+      // 시뮬레이션: 랜덤 6자리 코드
+      authCode = String(Math.floor(100000 + Math.random() * 900000));
+      alert(`시뮬레이션 인증번호: ${authCode}`);
+
+      // UI 전환
+      $('#phone-number').prop('disabled', true);
+      $('#send-code-btn').prop('disabled', true).text('인증번호 재전송');
+      $('#verify-group').show();
+
+      // 타이머 시작
+      startTimer();
+    });
+
+    // 2) 인증번호 확인 버튼 클릭
+    $('#verify-btn').click(() => {
+      const entered = $('#verify-code-input').val().trim();
+      if (entered === authCode) {
+        isPhoneChecked = true;
+        clearInterval(timerInterval);
+        alert('휴대폰 인증이 완료되었습니다.');
+        // 인증 완료 처리: 버튼 비활성화
+        $('#verify-btn').prop('disabled', true);
+        $('#verify-code-input').prop('disabled', true);
+      } else {
+        alert('인증번호가 올바르지 않습니다. 다시 시도해주세요.');
+        resetSmsFlow();
+      }
+    });
+
   </script>
 </body>
 </html>

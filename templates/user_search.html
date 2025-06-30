@@ -570,6 +570,27 @@
               `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
             );
       });
+
+      // 마이페이지
+      document.getElementById('mypage-link').addEventListener('click', function() {
+            // 마이페이지 팝업 열기
+            const popupWidth = 1200;
+            const popupHeight= 1100;
+
+            // 현재 화면의 크기 기준으로 중앙 계산
+            const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+            const top  = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
+
+            // 사용자 ID를 URL에 추가
+            const userId = 'admin';  // 서버에서 사용자 ID를 템플릿으로 전달받음
+            let url = '/api/user/mypage' + '?user_id=' + userId;
+            // 팝업 창 열기
+            const popup = window.open(
+              url,
+              'mapPopup',
+              `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+            );
+      });
     });
 
   </script>
@@ -577,7 +598,7 @@
 <body>
   <h2>
     회원관리
-    <span id="api-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;"></span>
+    <span id="mypage-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">(마이페이지)</span>
   </h2>
   <div class="search-container">
     <div class="search-input-group">

@@ -4,6 +4,7 @@ import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import json
+import re
 
 from apt_db_utils import apt_save_to_csv, apt_save_to_sqlite, apt_drop_table
 
@@ -196,6 +197,53 @@ def convert_to_korean_amount(amount):
         result = str(amount)
     return result
 
+
+def extract_active_third_components(filepath):
+    """
+    파일을 읽어들여
+    1) 총 행 수
+    2) 폐지여부가 '존재'인 행만 골라
+    3) fullname.split() 했을 때 3번째 요소가 '동','읍','면','가'로 끝나면
+       (code, third) 리스트로 반환
+    """
+    pattern = re.compile(r'.+(동|읍|면|리|가)$')
+    extracted = []
+    total = 0
+    exist_count = 0
+    abolished_count = 0
+
+    with open(filepath, encoding='utf-8') as f:
+        header = f.readline()  # 헤더 스킵
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            total += 1
+            parts = line.split('\t')
+            if len(parts) != 3:
+                continue
+            code, fullname, status = parts
+
+            if status == '존재':
+                exist_count += 1
+            elif status == '폐지':
+                abolished_count += 1
+
+            if status != '존재':
+                continue
+
+            # '존재'인 경우에만 마지막 토큰 검사
+            name_tokens = fullname.split()
+            if not name_tokens:
+                continue
+            last = name_tokens[-1]
+            #print(last)
+            if pattern.match(last):
+                extracted.append((last, code, line))
+
+    return total, exist_count, abolished_count, extracted
+
+
 def main():
     global saved_count
 
@@ -204,8 +252,11 @@ def main():
         apt_drop_table()
         print("apt 테이블을 삭제했습니다.")
 
+    FILENAME = '주요투자법정동코드.txt'
+    total, exist_cnt, abolished_cnt, results = extract_active_third_components(FILENAME)
+
     # 크롤링 시작
-    for umdNm, cortarNo in areas.items():
+    for umdNm, cortarNo, line in results:
         for page in range(1, totPage):  # 페이지 1~99
             # APT:SG:SMS:GM : 상가,사무실,건물
             #url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'

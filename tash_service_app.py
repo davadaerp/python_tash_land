@@ -53,33 +53,34 @@ def loginForm():
 
 @app.route("/api/token", methods=["POST"])
 def token_create():
-    create_token_response = create_access_token()
-    # 예외 응답 처리: Response 객체가 튜플일 수 있으므로 분리
-    if isinstance(create_token_response, tuple):
-        response_data, status_code = create_token_response
-        if status_code >= 400:
-            print(f"Error creating token: {response_data.get_json()}")
-            return create_token_response
-        else:
-            create_token_response = response_data
+    # 1) create_access_token 호출
+    resp = create_access_token()
 
-    token_json = create_token_response.get_data(as_text=True)
-    data = json.loads(token_json)
-    # 로그인 성공 시 국토부실거래 키
-    data.setdefault("apt_key", "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
-    data.setdefault("villa_key","B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
-    data.setdefault("sanga_key","B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
+    # 2) JSON 파싱
+    payload = json.loads(resp.get_data(as_text=True))
+    print('/api/token:', payload)
 
-    updated_token_json = json.dumps(data)
-    create_token_response.set_data(updated_token_json)
+    # 3) 실패인 경우, 400
+    if payload.get("result") == "Fail":
+        # errcode 를 HTTP status 로 사용
+        #return jsonify(data), payload.get("errcode", 400)
+        return jsonify(payload)
+
+    # 4) 성공인 경우, 키 추가
+    payload.setdefault("apt_key",   "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
+    payload.setdefault("villa_key", "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
+    payload.setdefault("sanga_key", "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==")
+
+    # 5) user_id와 access_token을 메모리에 저장 (중복 방지)
+    #access_token = payload.get('access_token')
 
     # user_id 추출 및 토큰을 메모리저장(중복방지)
     # user_id = data.get("user_id")
     # access_token = data.get("access_token")
     # active_tokens[user_id] = access_token
 
-    print('/api/token: ' + updated_token_json)
-    return create_token_response
+    # 5) 최종 응답, 200
+    return jsonify(payload)
 
 @app.route("/api/login_token", methods=["GET"])
 def login_token():
@@ -105,18 +106,9 @@ def login_token():
         #     result = "Failed"
         #     errmsg = '다른 세션에서 로그인되었습니다.'
 
-        # 기존 사용자 정보
-        data = {
-            "user_id": userid,
-            "user_name": "관리자",
-            "access_token": access_token
-        }
-        # 사용자등록
-        user_insert_record(data)
-
         # 로그인 성공 시 리다이렉트 URL을 JSON으로 반환
         #return jsonify(CommonResponse.success(data, "로그인 성공").to_dict())
-        return jsonify({"result": "Success", "errmag": errmsg, "data": data})
+        return jsonify({"result": "Success", "errmag": errmsg})
     else:
         print("login_token() Failed to extract master info from token.")
         return jsonify({"result": "Failed", "errmag": errmsg})
@@ -138,46 +130,6 @@ def logout():
     response.set_cookie('access_token', '', expires=0, path='/')
 
     return response
-
-@app.route("/api/login/naver")
-def naver_login():
-    auth_url = naver_authorization()
-    return redirect(auth_url)
-
-@app.route("/api/login/naver/code")
-def callback():
-    """
-    네이버 로그인 후 콜백 처리: 토큰과 프로필을 받아와 JSON으로 반환합니다.
-    """
-    code = request.args.get('code')
-    if not code:
-        return "Error: missing code", 400
-    #
-    user_info, token = naver_callback(code)
-
-    print("===== NAVER USER PROFILE =====")
-    # 5) 개별 값 추출
-    user_id = user_info.get('id')
-    nickname = user_info.get('nickname')
-    email = user_info.get('email')
-    mobile = user_info.get('mobile')
-    mobile_e164 = user_info.get('mobile_e164')
-    real_name = user_info.get('name')
-
-    print(f"ID            : {user_id}")
-    print(f"Nickname      : {nickname}")
-    print(f"Email         : {email}")
-    print(f"Mobile        : {mobile}")
-    print(f"Mobile (E164) : {mobile_e164}")
-    print(f"Name          : {real_name}")
-    print("================================")
-
-    # 6) 클라이언트에 돌려줄 데이터
-    data = {
-        'token': token,
-        'profile': user_info
-    }
-    return jsonify(data)
 
 @app.route("/api/main")
 @token_required
@@ -224,6 +176,16 @@ def menu(current_user):
 def user_register_form():
     return render_template("user_register.html")
 
+@app.route('/api/user/mypage', methods=['GET'])
+def user_mypage_form():
+    userId = request.args.get('user_id', '')  # 사용자 ID
+    access_token = request.cookies.get('access_token')
+    # 리스트 dictionary로 변환되어 넘어옴
+    userInfo = user_read_db(userId)
+    print(userInfo)
+
+    return render_template("user_mypage.html", userInfo=userInfo[0])
+
 @app.route('/api/user/dup_check', methods=['POST'])
 def user_dup_check():
     data = request.get_json()
@@ -235,12 +197,12 @@ def user_dup_check():
     print(result)
     if result:
         rtn_data = {
-            'status': 'Fail',
+            'result': 'Fail',
             'message': ''
         }
     else:
         rtn_data = {
-            'status': 'Success',
+            'result': 'Success',
             'message': ''
         }
     print(rtn_data)
@@ -280,20 +242,20 @@ def user_register_crud():
                 nickName=data.get("nick_name", "")
             )
             return jsonify({
-                "status": "Success",
+                "result": "Success",
                 "message": "조회가 완료되었습니다.",
                 "data": results
             })
 
         return jsonify({
-            "status": "Success",
+            "result": "Success",
             "message": rtn_message
         })
 
     except Exception as e:
         # 오류 발생 시 status를 Fail로 반환
         return jsonify({
-            "status": "Fail",
+            "result": "Fail",
             "message": str(e)
         }), 500
 
@@ -427,28 +389,22 @@ def get_realtordata():
 
     return jsonify(data)
 
+MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F"
 @app.route('/api/geocode')
 def geocode():
-    address = request.args.get('q')
-    if not address:
-        return jsonify({"error": "No address provided"}), 400
-
-    nominatim_url = 'https://nominatim.openstreetmap.org/search'
+    addr = request.args.get('address','')
     params = {
-        'q': address,
-        'format': 'json',
-        'addressdetails': 1
+        "service":"address",
+        "request":"getcoord",
+        "format":"json",
+        "crs":"epsg:4326",
+        "type":"parcel",
+        "address":addr,
+        "key":MAP_API_KEY
     }
-    headers = {
-        'User-Agent': 'YourApp/1.0 (your@email.com)'  # OSM 정책상 필수
-    }
-    try:
-        response = requests.get(nominatim_url, params=params, headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        return jsonify(data)
-    except requests.RequestException as e:
-        return jsonify({"error": "Geocoding failed", "details": str(e)}), 500
+    r = requests.get("https://api.vworld.kr/req/address", params=params, timeout=5)
+    data = r.json()
+    return jsonify(data)
 
 
 #===== NPL(부실채권투자) 데이타 처리 =============
@@ -916,6 +872,8 @@ def get_pastapt_property_download():
 
     # 파일이 존재하면 첨부파일로 전송
     return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
+
+
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)

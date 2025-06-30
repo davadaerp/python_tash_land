@@ -1,3 +1,4 @@
+import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -13,7 +14,7 @@ from auction_db_utils import auction_save_to_sqlite
 from config import AUCTION_DB_PATH
 
 # 저장파일명
-last_file_name = os.path.join(AUCTION_DB_PATH, "last_npl_date.txt")
+last_file_name = os.path.join(AUCTION_DB_PATH, "last_auction_date.txt")
 
 # ------------------------------
 # 텍스트 파일에서 마지막 날짜를 읽어오는 함수
@@ -209,7 +210,7 @@ def select_categories(driver):
         print("카테고리 선택 오류:", e)
 
     # [추가] <ul id="ulGrpCtgr_20"> 내에서 "근린생활시설"과 "근린상가" 항목 체크
-    for category in ["근린생활시설", "근린상가", "공장", "창고"]:
+    for category in ["근린생활시설", "근린상가", "숙박시설", "업무시설", "공장", "창고"]:
         try:
             checkbox = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable(
@@ -232,7 +233,7 @@ def select_categories(driver):
         EC.presence_of_element_located((By.CSS_SELECTOR, "#lsTbody"))
     )
     # 형식적경매 결과는 출력하지 않고 잠시 대기만 함
-    time.sleep(2)
+    time.sleep(3)
 
     # ======================================================================
     # [추가] 목록수를 100으로 설정 (select 태그 처리)
@@ -319,30 +320,46 @@ def navigate_pages(driver, total_records):
             break
 
 # 위.경도 가져오기..
-def get_lat_lng(address: str, api_key: str):
+# 발급받은 API Key
+MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F"
+def get_lat_lng(address: str) -> tuple[float, float]:
     """
-    # (google api 사용은 하루에 2,500건, 초당 10건의 요청에 한해서만 무료입니다. 그 이상 사용하려면 유료로 전환해야 합니다.)
-    주소를 입력받아 위도와 경도를 반환하는 함수.
-    :param address: 주소 (예: '서울특별시 강남구 테헤란로 212')
-    :param api_key: Google Maps API 키
-    :return: 위도, 경도 튜플
+    vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
+    :param address: 조회할 도로명 주소 문자열
+    :return: (latitude, longitude)
+    :raises Exception: API 오류 또는 좌표 미발견 시
     """
-    return 0,0
-    # Geocoding API URL
-    # url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
-    #
-    # # 요청 보내기
-    # response = requests.get(url)
-    # data = response.json()
-    #
-    # # 결과 확인 및 위도, 경도 반환
-    # if data['status'] == 'OK':
-    #     lat = data['results'][0]['geometry']['location']['lat']
-    #     lng = data['results'][0]['geometry']['location']['lng']
-    #     return lat, lng
-    # else:
-    #     print(f"Geocoding API 요청 오류: {data['status']}")
-    #     return 0, 0
+    url = "https://api.vworld.kr/req/address"
+    params = {
+        "service": "address",
+        "request": "getcoord",  # 좌표 변환 요청
+        "format": "json",  # JSON 응답
+        "crs": "epsg:4326",  # WGS84 좌표계
+        "type": "parcel",  # road: 도로명, parcel: 지번
+        "address": address,
+        "key": MAP_API_KEY
+    }
+
+    resp = requests.get(url, params=params, timeout=5)
+    resp.raise_for_status()
+
+    data = resp.json()
+    # 응답 구조: data["response"]["status"] == "OK" 인지 확인
+    if data.get("response", {}).get("status") != "OK":
+        # raise Exception(f"API error: {data.get('response', {}).get('error', 'Unknown error')}")
+        return 0.0, 0.0
+
+    # 좌표는 data["response"]["result"]["point"]["y"], ["x"]
+    result = data["response"]["result"]
+    point = result.get("point")
+    if not point or "x" not in point or "y" not in point:
+        # raise Exception("좌표를 찾을 수 없습니다.")
+        return 0.0, 0.0
+
+    lat = float(point["y"])
+    lng = float(point["x"])
+    return lat, lng
+
 
 # 동,층정보 가져오기
 def extract_building_floor(address):
@@ -445,8 +462,8 @@ def extract_info(row_text, idx):
         #       f"{eub_myeon_dong if eub_myeon_dong else '없음':<10}")
 
         # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등)
-        latitude, longitude = get_lat_lng(address1, map_api_key)
-        #print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
+        latitude, longitude = get_lat_lng(address1)
+        print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
 
         # 데이터 저장
         # data_entry = {
@@ -598,7 +615,7 @@ def main():
         # ======================================================================
         # 카테고리 선택 창 열기
         select_categories(driver)
-        time.sleep(1)
+        time.sleep(5)
 
         # 총 건수 가져오기
         total_records = get_total_count(driver)

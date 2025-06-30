@@ -80,15 +80,6 @@
       }
     }
 
-    // 1) JSON 형식 데이터
-    // const addresses = [
-    //   { type: "real",    address: "경기 김포시 운양동 1307-3",                         date: "2025-06-04", year: 2010, floor: "3층", area: "13.36평", price: "158,000,000원" },
-    //   { type: "real",    address: "경기 김포시 운양동 1435-1",                         date: "2025-06-04", year: 2012, floor: "5층", area: "17.01평", price: "195,000,000원" },
-    //   { type: "real",    address: "경기 김포시 운양동 1297-7",                         date: "2025-06-04", year: 2008, floor: "2층", area: "11.63평", price: "130,000,000원" },
-    //   { type: "auction", address: "경기 김포시 운양동 1307-5, 1층114호 (운양동,에이치씨티)", date: "2024-12-04", year: 2009, floor: "1층", area: "15.16평", price: "120,000,000원" },
-    //   { type: "auction", address: "경기 김포시 운양동 1307-4, 2층210호 (운양동,그랜드타워)", date: "2024-12-04", year: 2011, floor: "2층", area: "14.49평", price: "135,000,000원" },
-    //   { type: "auction", address: "경기 김포시 운양동 1298-3, 1층107호 (운양동,김포헤리움타운)", date: "2024-12-04", year: 2013, floor: "1층", area: "12.70평", price: "110,000,000원" }
-    // ];
     let addresses = null;
 
     // 2) 지도 초기화
@@ -99,58 +90,76 @@
 
     let markers = [], bounds = new naver.maps.LatLngBounds();
 
-    // 3) 지오코딩 & 마커 생성
+    // 3) 네이버 지오코딩 & 마커 생성
     function geocodeAndMark(item, done) {
-      naver.maps.Service.geocode({ query: item.address }, (status, response) => {
-        if (status === naver.maps.Service.Status.OK && response.v2.addresses.length) {
-          const addr = response.v2.addresses[0];
-          const pos  = new naver.maps.LatLng(+addr.y, +addr.x);
-
-          const marker = new naver.maps.Marker({
-            position: pos,
-            map,
-            title: item.address,
-            icon: {
-              content: `<div style="
-                background:${item.type==='real'?'green':'red'};
-                width:20px;height:20px;border-radius:15px;
-              "></div>`
-            }
-          });
-
-          // 조건부로 건축년도 라인 포함
-          const yearLine = item.type === 'real' ? `건축년도: ${item.year}년<br>` : ``;
-
-          // 닫기 버튼 포함한 InfoWindow 콘텐츠
-          const infoContent = `
-            <div class="info-content">
-              <div class="info-close-btn" onclick="closeInfoWindow()">✖</div>
-              <div style="padding:1px;">
-                <strong>${item.address}</strong><br>
-                거래일자: ${item.date}<br>
-                ${yearLine}
-                층/면적: ${item.floor}/${item.area}<br>
-                거래금액: ${item.price}
-              </div>
-            </div>
-          `;
-          const infoWindow = new naver.maps.InfoWindow({ content: infoContent });
-
-          marker.addListener('click', () => {
-            // 이전 InfoWindow 닫기
-            if (currentInfoWindow) currentInfoWindow.close();
-            // 새로 열기
-            infoWindow.open(map, marker);
-            currentInfoWindow = infoWindow;
-          });
-
-          markers.push(marker);
-          bounds.extend(pos);
-        } else {
-          console.error('Geocode error for', item.address, status);
-        }
+      const lat = parseFloat(item.latitude)  || 0;
+      const lng = parseFloat(item.longitude) || 0;
+      //
+      if (lat != 0 && lng != 0) {
+        displayMark(item);
         done && done();
-      });
+      } else {
+        // 주소가 없거나 좌표가 없는 경우에만 네이버 지오코딩
+        naver.maps.Service.geocode({ query: item.address }, (status, response) => {
+          if (status === naver.maps.Service.Status.OK && response.v2.addresses.length) {
+            const addr = response.v2.addresses[0];
+            item.latitude = addr.y;
+            item.longitude = addr.x;
+            displayMark(item);
+          } else {
+            console.error('Geocode error for', item.address, status);
+          }
+          done && done();
+        });
+      }
+    }
+
+    // 4) 마커 표시 함수
+    function displayMark(item) {
+        // 좌표가 없으면 건너뛰기
+        const pos = new naver.maps.LatLng(
+          parseFloat(item.latitude),
+          parseFloat(item.longitude)
+        );
+        const marker = new naver.maps.Marker({
+          position: pos,
+          map,
+          title: item.address,
+          icon: {
+            content: `<div style="
+              background:${item.type==='real'?'green':'red'};
+              width:20px;height:20px;border-radius:15px;
+            "></div>`
+          }
+        });
+
+        // 조건부로 건축년도 라인 포함
+        const yearLine = item.type === 'real' ? `건축년도: ${item.year}년<br>` : ``;
+
+        // 닫기 버튼 포함한 InfoWindow 콘텐츠
+        const infoContent = `
+          <div class="info-content">
+            <div class="info-close-btn" onclick="closeInfoWindow()">✖</div>
+            <div style="padding:1px;">
+              <strong>${item.address}</strong><br>
+              거래일자: ${item.date}<br>
+              ${yearLine}
+              층/면적: ${item.floor}/${item.area}<br>
+              거래금액: ${item.price}
+            </div>
+          </div>
+        `;
+        const infoWindow = new naver.maps.InfoWindow({ content: infoContent });
+
+        marker.addListener('click', () => {
+          // 이전 InfoWindow 닫기
+          if (currentInfoWindow) currentInfoWindow.close();
+          // 새로 열기
+          infoWindow.open(map, marker);
+          currentInfoWindow = infoWindow;
+        });
+        markers.push(marker);
+        bounds.extend(pos);
     }
 
     // 4) 타입별 마커 찍기

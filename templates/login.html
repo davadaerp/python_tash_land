@@ -94,12 +94,18 @@
         data: JSON.stringify(data),
         dataType: 'json'
       }).done(function(response) {
-        const access_token = response.access_token.trim();
-        localStorage.setItem("access_token", access_token);
-        localStorage.setItem("apt_key", response.apt_key);
-        localStorage.setItem("villa_key", response.villa_key);
-        localStorage.setItem("sanga_key", response.sanga_key);
-        login(access_token);
+          if (response.result === 'Success') {
+            // 로그인 성공
+            const access_token = response.access_token.trim();
+            localStorage.setItem("access_token", access_token);
+            localStorage.setItem("apt_key",     response.apt_key);
+            localStorage.setItem("villa_key",   response.villa_key);
+            localStorage.setItem("sanga_key",   response.sanga_key);
+            login(access_token);
+          } else {
+            // 서버가 정상(200) 리턴했지만, status=Fail 인 경우
+            $('#error-message').text(response.message || '로그인에 실패했습니다.');
+          }
       }).fail(function(xhr) {
         let msg = '오류가 발생했습니다.';
         try {
@@ -111,6 +117,7 @@
     }
 
     function login(access_token) {
+      console.log('login: ' + access_token);
       $.ajax({
         url: BASE_URL + '/api/login_token',
         method: 'GET',

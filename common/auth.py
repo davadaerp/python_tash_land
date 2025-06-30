@@ -4,7 +4,9 @@ import base64
 from functools import wraps
 from flask import request, jsonify
 
-from config import USER_CREDENTIALS, SECRET_KEY
+from config import SECRET_KEY
+from master.user_db_utils import verify_user
+
 
 # Auth Header를 이용한 처리
 def token_header_required(f):
@@ -67,9 +69,13 @@ def create_access_token():
     grant_type, client_id, client_secret 정보를 읽어 사용자 인증 후 토큰을 발행합니다.
     """
     data = request.get_json()
-    print("Received data:", data)
+    print("create_access_token() Received data:", data)
     if not data or 'credential' not in data:
-        return jsonify({'error': 'Missing credentials'}), 400
+        return jsonify({
+            'result': 'Fail',
+            'errcode': 401,
+            'message': 'Missing credentials'
+        })
 
     credential = data.get("credential")
     grant_type = data.get("grant_type")
@@ -78,22 +84,43 @@ def create_access_token():
 
     # 클라이언트 정보 검증 (예제에서는 고정값 사용)
     if client_id != 'dp' or client_secret != '7987f7cb05cb1992':
-        return jsonify({'error': 'Invalid client credentials'}), 401
+        return jsonify({
+            'result': 'Fail',
+            'errcode': 401,
+            'message': 'Invalid client credentials'
+        })
 
     try:
         # Base64 디코딩하여 "username:password" 형태 복원
         decoded = base64.b64decode(credential).decode("utf-8")
         userid, password = decoded.split(":", 1)
-        print("create_access_token:", userid, password)
     except Exception as e:
-        return jsonify({'error': 'Invalid credential format'}), 400
+        return jsonify({
+            'result': 'Fail',
+            'errcode': 400,
+            'message': 'Invalid credential format'
+        })
 
-    # 사용자 인증
-    if userid in USER_CREDENTIALS and USER_CREDENTIALS[userid] == password:
-        access_token = generate_token(userid, expiration_hours=1)
-        return jsonify({'access_token': access_token, 'expires_in': 3600, 'userid': userid,})
-    else:
-        return jsonify({'error': 'Invalid userid or password'}), 401
+    # 4) 사용자 인증
+    if not verify_user(userid, password):
+        print("create_access_token verify_user failed:", userid, password)
+        return jsonify({
+            'result': 'Fail',
+            'errcode': 401,
+            'message': 'Invalid userid or password'
+        })
+
+    # 5) 성공: 토큰 발급
+    access_token = generate_token(userid, expiration_hours=1)
+    return jsonify({
+        'result':       'Success',
+        'errcode':      200,
+        'message':      'Token created successfully',
+        'access_token': access_token,
+        'expires_in':   3600,
+        'userid':       userid
+    })
+
 
 def generate_token(userid, expiration_hours=1):
     """

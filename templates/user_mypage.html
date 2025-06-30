@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>마이페이지</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f7f7f7;
+      margin: 0;
+      padding: 20px;
+    }
+    h2 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    /* 탭 메뉴 */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      background: #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .tab:hover {
+      background: #c0d4f7;
+    }
+    .tab.active {
+      background: #007bff;
+      color: white;
+    }
+    /* 컨텐츠 패널 */
+    .panel {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background: #f0f0f0;
+    }
+
+    /* 회원정보 테이블 비율 3:7, 필드명 컬럼 스타일 */
+    .panel#member table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .panel#member th, .panel#member td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+    }
+    /* 첫 번째 컬럼: 필드명 (30%) */
+    .panel#member td:first-child,
+    .panel#member th:first-child {
+      width: 30%;
+      font-weight: bold;
+      color: #007bff; /* 파란색 */
+      font-size: 15px;
+    }
+    /* 두 번째 컬럼: 값 (70%) */
+    .panel#member td:nth-child(2),
+    .panel#member th:nth-child(2) {
+      width: 70%;
+    }
+    /* 헤더 배경색은 그대로 두거나 원하시면 수정하세요 */
+    .panel#member th {
+      background: #f0f0f0;
+    }
+
+    /* 반응형 */
+    @media (max-width: 600px) {
+      .tabs { flex-wrap: wrap; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <h2>마이페이지</h2>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      var userInfo = {{ userInfo|tojson }};
+      alert('userInfo: ' + JSON.stringify(userInfo));
+      console.log('userInfo:', userInfo);
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // 탭 활성화 토글
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        // 패널 표시 전환
+        document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+        document.getElementById(tab.dataset.tab).style.display = 'block';
+      });
+    });
+  </script>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="member">회원정보</div>
+    <div class="tab" data-tab="payment">결재정보</div>
+    <div class="tab" data-tab="requests">요청이력</div>
+    <div class="tab" data-tab="etc">기타</div>
+  </div>
+
+  <div id="member" class="panel">
+    <h3>회원정보</h3>
+    <table>
+      <tr><th>필드명</th><th>값</th></tr>
+      <tr><td>아이디</td><td>{{ userInfo['user_id'] }}</td></tr>
+      <tr><td>사용자명</td><td>{{ userInfo['user_name'] }}</td></tr>
+      <tr><td>패스워드</td><td>••••••••</td></tr>
+      <tr><td>폰번호</td><td>010-1234-5678</td></tr>
+      <tr><td>별명</td><td>길동이</td></tr>
+      <tr><td>apt_key</td><td>B2BtWbuZV...</td></tr>
+      <tr><td>villa_key</td><td>B2BtWbuZV...</td></tr>
+      <tr><td>sanga_key</td><td>B2BtWbuZV...</td></tr>
+      <tr><td>구독일자</td><td>2025-01-15</td></tr>
+      <tr><td>탈퇴일자</td><td>—</td></tr>
+      <tr><td>문자충전건수</td><td>50</td></tr>
+      <tr><td>등기충전금액</td><td>10,000원</td></tr>
+    </table>
+  </div>
+
+  <div id="payment" class="panel" style="display:none;">
+    <h3>결재정보</h3>
+    <table>
+      <tr>
+        <th>순번</th>
+        <th>구분</th>
+        <th>결재일시</th>
+        <th>결재금액</th>
+      </tr>
+      <tr><td>1</td><td>구독</td><td>2025-06-01 10:15</td><td>30,000원</td></tr>
+      <tr><td>2</td><td>문자</td><td>2025-06-03 14:20</td><td>5,000원</td></tr>
+      <tr><td>3</td><td>알림톡</td><td>2025-06-05 09:45</td><td>8,000원</td></tr>
+      <tr><td>4</td><td>등기부등본</td><td>2025-06-10 16:30</td><td>1,000원</td></tr>
+    </table>
+  </div>
+
+  <div id="requests" class="panel" style="display:none;">
+    <h3>요청이력</h3>
+    <table>
+      <tr>
+        <th>순번</th>
+        <th>구분</th>
+        <th>요청자</th>
+        <th>요청일시</th>
+        <th>요청건수</th>
+        <th>요청금액</th>
+        <th>비고</th>
+      </tr>
+      <tr><td>1</td><td>문자</td><td>홍길동</td><td>2025-06-02 11:00</td><td>10건</td><td>1,000원</td><td>—</td></tr>
+      <tr><td>2</td><td>알림톡</td><td>홍길동</td><td>2025-06-04 12:30</td><td>5건</td><td>800원</td><td>—</td></tr>
+      <tr><td>3</td><td>등기부등본</td><td>홍길동</td><td>2025-06-10 16:35</td><td>1건</td><td>1,000원</td><td>아파트</td></tr>
+    </table>
+  </div>
+
+  <div id="etc" class="panel" style="display:none;">
+    <h3>기타</h3>
+    <p>추가 기능 및 설정 페이지를 구성할 수 있는 영역입니다.</p>
+  </div>
+</body>
+</html>

@@ -700,7 +700,8 @@
                 const umdNm = selectedUmdNm;
                 // 크로링되어진 상가데이타 가져오기.
                 let storeName = 'crawl_sanga';
-                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                //const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                const exists = false;
                 if (exists) {
                     window.allFetchedItems = await getAllItems(lawdCd, umdNm, storeName);
                     console.log("데이터가 존재합니다.", window.allFetchedItems);
@@ -1038,11 +1039,18 @@
                 });
             }
 
-            // 품목상세내역
+            // 품목상세내역(fin.land.naver.com/articles 사이트 막은듯)
             function openItemDetailPopup(item) {
-                //
-                const article_no = item.article_no;
+                // 아래는 네이버 부동산 API를 이용하여 매물의 상세 정보를 조회하는 예시입니다.({"detailCode":"Error","message":""} 발생함)
+                //https://fin.land.naver.com/front-api/v1/article/basicInfo?articleId=2429861377&realEstateType=A02&tradeType=A1
+
+                //매물과 연관된 Key 정보를 조회할 수 있는 API 입니다.
+                //https://fin.land.naver.com/front-api/v1/article/key?articleId=2429861377
+
+                const article_no = item.article_no.trim();
                 var url = "https://fin.land.naver.com/articles/" + article_no;
+                console.log(url);
+
                 var width = 900;
                 var height = 1100;
 
@@ -1052,6 +1060,21 @@
 
                 // 새 창 열기 (팝업 창)
                 var popupWindow = window.open(url, "popup", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+                // 포커스 이동
+                if (popupWindow) {
+                    popupWindow.focus();
+                }
+            }
+
+            function openItemDetailPopup_new(item) {
+                //
+                // 해당 부동산에서 올린 사이트로 이동
+                var url = item.article_url;
+                //alert("해당 부동산에서 올린 사이트로 이동합니다.\n" + url);
+
+                // 새 창을 새 탭으로 열기
+                var popupWindow = window.open(url, "_blank");
 
                 // 포커스 이동
                 if (popupWindow) {

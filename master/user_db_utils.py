@@ -6,7 +6,7 @@ from config import MASTER_DB_PATH
 
 # 공통 변수 설정
 DB_FILENAME = os.path.join(MASTER_DB_PATH, "tash_data.db")
-TABLE_NAME = "users_data"
+TABLE_NAME = "user_data"
 
 def user_create_table():
     """
@@ -73,7 +73,7 @@ def user_insert_record(record):
         """
         cursor.execute(insert_query, (
             user_id,
-            record.get("user_name"),
+            record.get("user_name") or user_id,
             record.get("user_passwd"),
             record.get("phone_number"),
             record.get("nick_name"),
@@ -233,3 +233,20 @@ def user_read_db(user_id="", userName="", nickName=""):
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def verify_user(user_id: str, password: str) -> bool:
+    """
+    SQLite에 저장된 user_data 테이블을 조회해서
+    user_id, password 쌍이 유효한지 확인합니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT user_passwd FROM {TABLE_NAME} WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return False
+    stored_pass = row[0]
+    # 단순 비교; 필요시 해시 비교 로직으로 교체
+    return stored_pass == password

@@ -51,12 +51,5 @@ LEGAL_DIRECTORY = 'legal_docs'
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
 
-# 사용자 계정 정보 (예제용)
-USER_CREDENTIALS = {
-    "admin": "1",
-    "smile": "0080",
-    "lee": "5845"
-}
-
 # JWT 서명에 사용할 비밀키
 SECRET_KEY = '7987f7cb05cb1992'
