@@ -420,7 +420,7 @@
                 $("#sortPyeongPrice").click();
             });
             // select박스 => 물건구분,평,층
-            document.querySelectorAll("#category, #pyeon, #sel_floor").forEach(function (select) {
+            document.querySelectorAll("#pyeon, #sel_floor").forEach(function (select) {
                 select.addEventListener("change", function () {
                     applyFilters();
                     // 소팅처리
@@ -430,6 +430,8 @@
             });
             //
             $("#profit").on("keyup", applyFilters);
+            $("#aptNm").on("keyup", applyFilters);
+
             $("#profit-link").on("click", openProfitPopup);
             // 프린트 버튼 클릭 이벤트 추가
             $("#print-btn").on("click", printPreview);
@@ -599,7 +601,7 @@
             function updateSortIcons() {
                 $('#sortConfirmDate').text(sortConfirmDateAscending ? '매각일자 ▲' : '매각일자 ▼');
                 $('#sortTrade').text(sortTradeAscending ? '거래유형 ▲' : '거래유형 ▼');
-                $('#sortCategory').text(sortCategoryAscending ? '물건구분 ▲' : '물건구분 ▼');
+                $('#sortCategory').text(sortCategoryAscending ? '아파트명 ▲' : '아파트명 ▼');
                 $('#sortFloor').text(sortFloorAscending ? '층 ▲' : '층 ▼');
                 $('#sortBuildingArea').text(sortBuildingAreaAscending ? '전용면적(평) ▲' : '전용면적(평) ▼');
                 $('#sortPrice').text(sortPriceAscending ? '금액 ▲' : '금액 ▼');
@@ -761,7 +763,6 @@
                 }
                 //'sel_category' 셀렉트 박스 초기화 (전체 옵션만 남김)
                 //document.getElementById("sale_year").selectedIndex = 0;
-                document.getElementById("category").selectedIndex = 0;
                 document.getElementById("pyeon").selectedIndex = 0;
                 document.getElementById("sel_floor").selectedIndex = 0;
             }
@@ -870,19 +871,6 @@
                             // 만원 단위의 숫자를 문자열로 변환 (함수 내부에서 콤마 제거 작업을 하고 있으므로)
                             profitSaleAmt = convertToKoreanAmount(calcProfitSaleAmt.toString());
                         }
-                        //
-                        // 월세평균금액으로 매매금액 산정
-                        // let rent_pyeon_price_avg = getRentPyengPriceAvgMiddleValue();
-                        // let rentPyeonPriceAvg = parseFloat(rent_pyeon_price_avg) * 10000;
-                        // // 평균단가 * 전용평수(반올림) * 12 + 보등금
-                        // let calcProfitRentAvgSaleAmt = (rentPyeonPriceAvg * Math.round(pyeongArea) * 12) / profitPercent.toFixed(3);
-                        // let compProfitRentAvgSaleAmt = calcProfitRentAvgSaleAmt + saleDepositPrice;
-                        //
-                        // // 단위 변환: 원 → 만원 (1만원 = 10,000원)
-                        // calcProfitRentAvgSaleAmt = compProfitRentAvgSaleAmt / 10000;
-                        // // 만원 단위의 숫자를 문자열로 변환 (함수 내부에서 콤마 제거 작업을 하고 있으므로)
-                        // profitRentAvgSaleAmt = profitSaleAmt == 0 ? 0 : '<span style="color: green; font-weight: bold;">' + convertToKoreanAmount(calcProfitRentAvgSaleAmt.toString()) + '</span>';
-                        profitRentAvgSaleAmt = '<span style="color: green; font-weight: bold;">0</span>';
                     }
                     // 소트용 가격금액, 추정매각금액, 평단가속성으로 item 객체에 저장
                     item.sortSalePrice = salePrice;
@@ -894,6 +882,8 @@
                     //console.log(pyeongAmt, pyeongArea, pyeongPrice)
 
                     // 평형조회(m2,전용)
+                    const contractPyeong = item.area1 ? (parseFloat(item.area1) / 3.3).toFixed(2) : '';
+                    let contractPyeongDisplay = `${item.area1} / <span style="color: red;">${contractPyeong}평</span>`;
                     let pyeongDisplay = `${item.area2} / <span style="color: blue;">${item.exclusive_area_pyeong || ""}</span>`;
 
                     tableBody.append(`<tr data-link="${item.originalIndex}">
@@ -915,10 +905,10 @@
                         <td class="center-align">${item.cfloor}</td>
                         <td class="center-align">${item.tfloor}</td>
                         <td class="right-align">${item.direction}</td>
+                        <td class="center-align">${contractPyeongDisplay}</td>
                         <td class="center-align">${pyeongDisplay}</td>
                         <td class="right-align" style="color: black;">${priceValue}</td>
                         <td class="right-align" style="color: red;">@${trade_type == '매매' ? formatNumber(pyeongPrice.toFixed(0)) + '만' : formatNumber(pyeongPrice.toFixed(1)) + '만'}</td>
-                        <td class="center-align" style="color: green;">${trade_type == '매매' ? item.sale_deposit_price + '/' + item.sale_rent_price + '<span style="color: red;"> @' + salesRentPyeongPrice.toFixed(1) + '</span>' : 0} </td>
                         <!--
                         <td class="center-align">
                           ${item.realtor_name.length > 13 ? item.realtor_name.substring(0, 13) + '...' : item.realtor_name}
@@ -934,7 +924,7 @@
                                <button class="detail-btn">상세</button>
                         </td>
                         <td class="center-align">
-                               <button class="rent-distance-btn">주변월세</button>
+                               <button class="rent-distance-btn">PIR분석</button>
                         </td>
                     </tr>`);
                 });
@@ -1129,7 +1119,7 @@
             // 조건선택 목록 처리
             function applyFilters() {
                 let trade_type = document.getElementById("trade_type").value;
-                let category = document.getElementById("category").value;
+                let aptNm = document.getElementById("aptNm").value;
                 //let selYear = document.getElementById("sale_year").value;
                 let selPyeon = document.getElementById("pyeon").value;
                 let selFloor = document.getElementById("sel_floor").value;
@@ -1160,8 +1150,8 @@
                     if (trade_type !== "all") {
                         ok = ok && item.trade_type && item.trade_type.includes(trade_type.trim());
                     }
-                    if (category !== "all") {
-                        ok = ok && item.article_name && item.article_name.includes(category.trim());
+                    if (aptNm !== "") {
+                        ok = ok && item.article_name && item.article_name.includes(aptNm.trim());
                     }
                     if (selPyeon !== "all") {
                         let p = Math.floor(parseFloat(item.exclusive_area_pyeong)); // 소수점 제거 (내림 처리)
@@ -1706,7 +1696,6 @@
                 const epsilon = 0.001;
 
                 // 전체 데이터에서 선택된 항목과의 거리가 임계값 이하이고, 거래유형 조건을 만족하는 항목 필터링
-                let category = document.getElementById("category").value;
                 let selPyeon = document.getElementById("pyeon").value;
                 let selFloor = document.getElementById("sel_floor").value;
                 let filteredItems = window.allFetchedItems.filter(item => {
@@ -2384,53 +2373,6 @@
 
             }
 
-            //==============================================
-            // 현재 선택로우 위경도를 기준으로 해당거리에 위치한 실거래데이타 목록 가져오기
-            function getRealDealDistanceFilterItems(allItems) {
-                // 선택된 행 찾기 (data-index가 부여되어 있음)
-                let selectedItem = window.selectedRentItem;
-                console.log("== getRealDealDistanceFilterItems: ", selectedItem);
-                if (!selectedItem || !selectedItem.latitude || !selectedItem.longitude) {
-                    alert("선택된 항목에 위도/경도 정보가 없습니다.");
-                    return;
-                }
-
-                // 상단의 distance 셀렉트 박스에서 임계값(미터)을 가져옴
-                let threshold = parseFloat(document.getElementById("distance").value);
-                document.getElementById("rentDistance").textContent = threshold + 'M';
-                if (isNaN(threshold)) {
-                    alert("유효한 거리 값을 선택하세요.");
-                    return;
-                }
-                let lat1 = parseFloat(selectedItem.latitude);
-                let lon1 = parseFloat(selectedItem.longitude);
-
-                // 내 위치(예: 사용자가 선택한 위도, 경도)
-                const myLatitude = lat1; // 미리 정의된 내 위도
-                const myLongitude = lon1; // 미리 정의된 내 경도
-                // 내 위치와 비교할 때 허용할 오차 (예: 0.001 정도)
-                const epsilon = 0.001;
-
-                // 전체 데이터에서 선택된 항목과의 거리가 임계값 이하이고, 거래유형 조건을 만족하는 항목 필터링
-                let filteredItems = allItems.filter(item => {
-                    //
-                    if (!item.latitude || !item.longitude) return false;
-                    //
-                    let lat2 = parseFloat(item.latitude);
-                    let lon2 = parseFloat(item.longitude);
-
-                    let ok = false;
-                    if (Math.abs(lat2 - myLatitude) < epsilon && Math.abs(lon2 - myLongitude) < epsilon) {
-                        ok = true; // 내 위치와 거의 동일하면 포함
-                    } else {
-                        let distance = calculateDistance(myLatitude, myLongitude, lat2, lon2);
-                        ok = (distance <= threshold);
-                    }
-                    return ok
-                });
-                return filteredItems;
-            }
-
             //
             // 거래데이타 오픈
             function openDealMap(address) {
@@ -2695,14 +2637,6 @@
                 <option value="전세">전세</option>
                 <option value="월세">월세</option>
             </select>
-            <label for="category">물건구분:</label>
-            <select id="category">
-                <option value="">전체</option>
-                <option value="일반상가">일반상가</option>
-                <option value="복합상가">복합상가</option>
-                <option value="단지내상가">단지내상가</option>
-                <option value="사무실">사무실</option>
-            </select>
 <!--            <label for="sale_year">년:</label>-->
 <!--            <select id="sale_year">-->
 <!--                <option value="">전체</option>-->
@@ -2753,10 +2687,10 @@
                     <th id="sortFloor" style="flex:0.5;">층수 ▼</th>
                     <th style="flex:0.5;">총층수</th>
                     <th style="flex:1;">방향</th>
+                    <th id="contBuildingArea" style="flex:1;">계약면적(평)</th>
                     <th id="sortBuildingArea" style="flex:1;">전용면적(평) ▼</th>
                     <th id="sortPrice" style="flex:1;">가격 ▼</th>
                     <th id="sortPyeongPrice" style="flex:1;">평단가 ▼</th>
-                    <th id="sortRentPyeongPrice" style="flex:1;">매매월세 ▼</th>
                     <!--
                     <th>중개사명</th>
                     <th style="flex:1;">상세</th>

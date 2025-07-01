@@ -1,3 +1,4 @@
+# 한국은행 기준금리 데이터를 SQLite DB에 저장하고 관리하는 유틸리티
 import os
 import sqlite3
 from config import PAST_APT_BASE_PATH
@@ -24,6 +25,16 @@ def create_interest_rate_table():
 
     conn.commit()
     conn.close()
+
+# 테이블 삭제 함수
+def drop_interest_rate_table():
+    conn = sqlite3.connect(DB_FILENAME)
+    cur = conn.cursor()
+
+    cur.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+    conn.commit()
+    conn.close()
+    print(f"⚠️ 테이블 `{TABLE_NAME}` 삭제 완료")
 
 # 데이터 삽입 함수
 def insert_interest_rate_record(year, date, rate, etc=""):
@@ -65,11 +76,42 @@ def fetch_all_interest_rate_data():
 
     return [dict(row) for row in rows]
 
+# 가장최근금리 가져오기
+def fetch_latest_interest_rate():
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute(f"""
+    SELECT 
+        id, 
+        year, 
+        date,
+        rate,
+        etc
+    FROM {TABLE_NAME}
+    ORDER BY date DESC
+    LIMIT 1
+    """)
+
+    row = cur.fetchone()
+    conn.close()
+
+    # # 결과를 년월일,금리 이렇게 리턴해줘
+    # if row:
+    #     row = dict(row)
+    #     row['date'] = row['date'].replace('-', '')
+    #     row['rate'] = f"{row['rate']}%"
+
+    return dict(row) if row else None
+
 # HTML 데이터를 파싱하여 DB에 삽입하는 함수
 def import_html_data_to_db():
+    drop_interest_rate_table()
     create_interest_rate_table()
 
     html_data = [
+        {"year": 2025, "date": "05월 29일", "rate": 2.50},
         {"year": 2025, "date": "02월 25일", "rate": 2.75},
         {"year": 2024, "date": "11월 28일", "rate": 3.00},
         {"year": 2024, "date": "10월 11일", "rate": 3.25},

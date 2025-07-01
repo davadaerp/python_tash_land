@@ -516,8 +516,10 @@
 
     // PIR분석처리
     function openPirPopup(item) {
+        let selectedRegion = document.getElementById('region').options[document.getElementById('region').selectedIndex].text;
         const apt_id = item.apt_id;
-        let url = BASE_URL + '/api/pastapt/pir?apt_id=' + apt_id;
+        const region = selectedRegion;
+        let url = BASE_URL + '/api/pastapt/pir?apt_id=' + apt_id + '&region=' + region;
         var width = 1400;
         var height = 1200;
         const left = (screen.width - width) / 2 + 50;

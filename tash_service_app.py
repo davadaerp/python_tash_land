@@ -20,6 +20,8 @@ from master.user_db_utils import user_insert_record, user_read_db, user_create_t
 from sms.alim_talk import alimtalk_send
 from sms.purio_sms import purio_sms_send
 #
+from pastapt.past_apt_complete_volume_db_utils import fetch_apt_complete_volume_by_address
+from pastapt.past_interest_rate_db_utils import fetch_latest_interest_rate
 from pastapt.past_apt_db_utils import query_region_hierarchy, fetch_apt_detail_data, fetch_grouped_apt_data
 from pastapt.past_average_annual_income_db_utils import fetch_all_income_data
 
@@ -746,6 +748,7 @@ def get_pastapt_apt_detail():
 
     return results
 
+# 투자가의삶님 아파트 분석 팝업(연복리)
 @app.route('/api/pastapt/interest', methods=['GET'])
 def get_pastapt_apt_interest():
     #
@@ -760,14 +763,25 @@ def get_pastapt_apt_interest():
 def get_pastapt_apt_pir():
     #
     apt_id = request.args.get('apt_id', '')
+    region = request.args.get('region', '')
     results = fetch_apt_detail_data(apt_id)
+    print(apt_id, region)
     # for row in results:
     #     print(row)
     #
+    # 가장최근금리 가져오기
+    last_interest_rate = fetch_latest_interest_rate()
+    print("📈 최근 금리:", last_interest_rate)
+
+    # 아파트 공급량가져오기
+    address = region
+    apt_complete_volumes = fetch_apt_complete_volume_by_address(address)
+    print("🏢 아파트 공급량:", apt_complete_volumes)
+
     # 근로자 월/년간 소득
     income_data = fetch_all_income_data()
-    for row in income_data:
-        print(row)
+    # for row in income_data:
+    #     print(row)
 
     # 연도 → income_data 매핑 딕셔너리 생성
     income_map = {str(item['year']): item for item in income_data}
@@ -794,11 +808,14 @@ def get_pastapt_apt_pir():
         item["year_income"] = year_income
         item["pir"] = pir
 
-    print(json.dumps(results, ensure_ascii=False, indent=2))
-
+    # print(json.dumps(results, ensure_ascii=False, indent=2))
     #
     results.sort(key=lambda x: x["month"])  # 또는 int(x["month"][:4]) 도 가능
-    return render_template("pastdata_pop_pir.html", apt_data=results)
+
+    return render_template("pastdata_pop_pir.html",
+                                    apt_data=results,
+                                    last_interest_rate=last_interest_rate,
+                                    apt_complete_volumes=apt_complete_volumes)
 
 @app.route('/api/pastapt/juso_popup', methods=['GET'])
 def get_pastapt_juso_popup():

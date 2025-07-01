@@ -1,4 +1,4 @@
-# 아파트 시군구별 입주물량(2025~2029년)
+# 아실사이트(https://asil.kr/asil/sub/movein.jsp) 아파트 시군구별 입주물량(2025~2029년)
 import os
 import sqlite3
 from config import PAST_APT_BASE_PATH
@@ -29,6 +29,17 @@ def create_apt_complete_volume_table():
     conn.commit()
     conn.close()
 
+def drop_apt_complete_volume_table():
+    """
+    apt_complete_volume 테이블을 삭제합니다. (기존 데이터 모두 삭제됨)
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cur = conn.cursor()
+
+    cur.execute(f'''DROP TABLE IF EXISTS {TABLE_NAME}''')
+    conn.commit()
+    conn.close()
+    print(f"⚠️ 테이블 `{TABLE_NAME}` 삭제 완료")
 
 def insert_apt_complete_volume_record(region: str, address: str, apt_name: str, year_month: str, volume: int):
     """
@@ -45,7 +56,26 @@ def insert_apt_complete_volume_record(region: str, address: str, apt_name: str, 
     conn.commit()
     conn.close()
 
+# 지역을 기준으로 공급물량 목록
+def fetch_apt_complete_volume_by_address(region: str):
+    """
+    주어진 주소지에 해당하는 아파트 입주물량 데이터를 조회합니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
+    cur.execute(f'''
+        SELECT * FROM {TABLE_NAME} WHERE region LIKE ?
+    ''', (f"%{region}%",))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    # 결과를 딕셔너리 리스트로 변환하여 반환
+    return [dict(row) for row in rows]
+
+# 현재는 사용안함.. 입주물량 크롤링에서 바로 입력해버림
 def process_apt_complete_volume_txt(txt_file_path: str):
     """
     주어진 txt 파일을 읽어 테이블에 데이터를 삽입합니다.

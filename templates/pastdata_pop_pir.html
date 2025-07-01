@@ -65,6 +65,7 @@
       z-index: 2;
     }
   </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <!-- Chart.js CDN 불러오기 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -79,6 +80,85 @@
       <option value="15">최근 15년</option>
       <option value="20">20년 이상</option>
     </select>
+  </div>
+  <div style="text-align: center;">
+    <p>
+      최근금리: <span style="color: #0074D9; font-weight: bold;">{{ last_interest_rate['date'] }} ({{ last_interest_rate['rate'] }}%)</span>
+      <button id="supply-info-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
+        공급물량 조회
+      </button>
+      <button id="kb-info-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
+        KB지수 조회
+      </button>
+    </p>
+    <div id="supply-info-list" style="display:none; margin-top:10px; font-size:12px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto; border:1px solid #ccc; border-radius:8px; background:#f9f9f9; padding:12px; position:absolute; left:50%; transform:translateX(-50%); top:70px; z-index:1000;">
+      <div style="text-align:right; display: flex; align-items: center; justify-content: flex-end;">
+        <span id="supply-volume-sum-label" style="margin-right:12px; color:#d81b60; font-weight:bold; font-size:15px;">총합계: <span id="supply-volume-sum-inline">-</span>세대</span>
+        <span id="supply-info-close" style="cursor:pointer; font-size:16px; font-weight:bold;">&#10005;</span>
+      </div>
+      <div style="max-height:420px; overflow-y:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr>
+              <th style="font-weight:bold; border-bottom:1px solid #ddd; padding:4px; background:#f0f0f0;">위치</th>
+              <th style="font-weight:bold; border-bottom:1px solid #ddd; padding:4px; background:#f0f0f0;">아파트명</th>
+              <th style="font-weight:bold; border-bottom:1px solid #ddd; padding:4px; background:#f0f0f0;">분양년월</th>
+              <th style="font-weight:bold; border-bottom:1px solid #ddd; padding:4px; background:#f0f0f0; text-align:center;">분양세대</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in apt_complete_volumes %}
+              <tr class="supply-row" style="border-bottom:1px dashed #e0e0e0; cursor:pointer;">
+                <td style="padding:4px;">{{ item.address }}</td>
+                <td style="padding:4px;">{{ item.apt_name }}</td>
+                <td style="padding:4px;">{{ item.year_month }}</td>
+                <td style="padding:4px; text-align:center; color:#0074D9;">{{ item.volume }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right; font-weight:bold; background:#f0f0f0;">합계</td>
+              <td id="supply-volume-sum" style="text-align:center; color:#d81b60; font-weight:bold; background:#f0f0f0;">-</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <script>
+        // supply-info-list를 버튼 아래 최상단에 표시
+        $("#supply-info-btn").click(function() {
+          $("#supply-info-list").css("display", function(_, val) {
+            return val === "none" ? "block" : "none";
+          });
+        });
+        // 닫기 버튼 동작
+        $(document).on("click", "#supply-info-close", function() {
+          $("#supply-info-list").hide();
+        });
+        // 마우스 오버시 강조 효과
+        $(document).on("mouseenter", ".supply-row", function() {
+          $(this).css("background", "#e0f7fa");
+        }).on("mouseleave", ".supply-row", function() {
+          $(this).css("background", "");
+        });
+
+        // 분양세대 합계 계산
+        $(function() {
+          let sum = 0;
+          $("#supply-info-list tbody tr").each(function() {
+            const val = parseInt($(this).find("td:last").text().replace(/,/g, ""));
+            if (!isNaN(val)) sum += val;
+          });
+          $("#supply-volume-sum").text(sum.toLocaleString());
+          $("#supply-volume-sum-inline").text(sum.toLocaleString());
+        });
+
+        // kb-info-btn 클릭시 KB지수(매매및 전세)
+        $("#kb-info-btn").click(function() {
+          alert('KB지수 조회..어떻게 가져오나(네이버가다막아버리네ㅠ.ㅠ)?? \n(매매지수, 전세지수)');
+        });
+    </script>
   </div>
 
   {% set sorted_data = apt_data | sort(attribute='month') %}
@@ -200,7 +280,7 @@
         <option value="pie">파이그래프</option>
       </select>
     </div>
-    <canvas id="incomeChart" width="400" height="250"></canvas>
+    <canvas id="incomeChart" width="400" height="220"></canvas>
   </div>
 
   <!-- jQuery CDN -->
@@ -448,7 +528,8 @@
       }
     }
 
-    function filterByYearRange(years) {
+    // 최초년도 기준으로 비교
+    function filterByYearRange_old(years) {
       const startYear = parseInt($("td[data-year]").first().attr("data-year"));
       $("td[data-year]").each(function () {
         const year = parseInt($(this).data("year"));
@@ -460,6 +541,30 @@
           $(this).find("td:nth-child(" + colIndex + ")").toggle(show);
         });
       });
+      updateSummary();
+      updateIncomeChart();
+      updateSummaryCaption();
+    }
+
+    // 최근년도 기준으로 비교
+    function filterByYearRange(years) {
+      const yearsNum = parseInt(years, 10);
+      // grab all the “data-year” cells, in table order
+      const $allYearTds = $("#compound-table td[data-year]");
+      // determine the newest year from the last <td>
+      const endYear = parseInt($allYearTds.last().data("year"), 10);
+
+      $allYearTds.each(function () {
+        const year = parseInt($(this).data("year"), 10);
+        // if “20” (all), we always show; otherwise only show the last `yearsNum` years
+        const show = (yearsNum === 20) || (year > endYear - yearsNum);
+        const colIndex = $(this).index() + 1;
+        // toggle *every* row at this column index
+        $(`#compound-table tr`).each(function () {
+          $(this).find(`td:nth-child(${colIndex}), th:nth-child(${colIndex})`).toggle(show);
+        });
+      });
+
       updateSummary();
       updateIncomeChart();
       updateSummaryCaption();

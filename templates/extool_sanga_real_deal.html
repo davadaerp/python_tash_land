@@ -1158,6 +1158,7 @@
                   const area   = parseFloat(item.building_py) || 0;
                   const unitPrice = area > 0 ? Math.round(amount / area) : 0;   // 평단가 계산
                   const address   = item.address1;
+                  const sale_percent = item.sale_percent || "0%"; // 경매 낙찰률
 
                   // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
                   // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
@@ -1172,7 +1173,7 @@
                     floor:      `${item.floor}층`,
                     area:       area ? `${area}평` : "",
                     unitPrice:  formatNumber(unitPrice),
-                    price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
+                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
                     latitude,
                     longitude
                   };

@@ -1,4 +1,4 @@
-# 년도별 평균근로자소득
+# 통계사이트-년도별 평균근로자소득
 import os
 import sqlite3
 from config import PAST_APT_BASE_PATH
