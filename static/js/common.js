@@ -79,11 +79,15 @@
       return num;
     }
 
-    function formatNumber(num) {
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    function formatNumber(num = 0) {
+        // num이 undefined 혹은 null일 경우 0으로 처리
+        const safeNum = (num === undefined || num === null) ? 0 : num;
+        return safeNum
+            .toString()
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 
-    // 숫자금액 한글금액으로 변환
+    // 숫자금액 한글금액으로 변환 => 1,600,000 -> "1천6백만원"
     function convertToKoreanAmount(amount) {
       let amt = Number(amount.toString().replace(/,/g, ""));
       if (isNaN(amt)) return "";
@@ -112,9 +116,12 @@
       return result;
     }
 
-    // 한글금액 숫자금액으로 변환
+    // 한글금액 숫자금액으로 변환(예: "1억 5,000" -> 16000000)
     function convertKoreanToNumber(koreanAmount) {
-        if (!koreanAmount) return 0;
+        // 1) null/undefined 처리
+        if (koreanAmount === null || koreanAmount === undefined) {
+            return 0;
+        }
 
         // 콤마 제거 및 좌우 공백 제거
         let amount = koreanAmount.replace(/,/g, "").trim();
@@ -153,6 +160,50 @@
 
         return total;
     }
+
+
+    /**
+     * 숫자를 한글 단위 또는 천 단위 콤마 형식으로 변환합니다.
+     * - 억 단위(>=100,000,000): “1억 6,000” 형식
+     * - 그 외: 천 단위 이하 혹은 백 단위는 “5,000”, “100” 등 콤마만 붙여서 반환
+     * - null 또는 undefined 입력 시 “0” 반환
+     */
+    function convertNumberToKorean(amount) {
+        // 1) null/undefined 처리
+        if (amount === null || amount === undefined) {
+            return "0";
+        }
+
+        // 2) 입력을 숫자로 파싱 (문자열인 경우 콤마 제거)
+        const num = typeof amount === "string"
+            ? parseInt(amount.replace(/,/g, ""), 10)
+            : amount;
+
+        if (isNaN(num)) {
+            return "0";
+        }
+
+        // 3) 억 단위 처리
+        if (num >= 100_000_000) {
+            const eok = Math.floor(num / 100_000_000);
+            const wan = Math.floor((num % 100_000_000) / 10_000);
+
+            // 만 단위(=wan)를 천 단위 콤마 형식으로
+            const wanStr = wan
+                .toString()
+                .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+            return wan > 0
+                ? `${eok}억 ${wanStr}`
+                : `${eok}억`;
+        }
+
+        // 4) 그 외: 그냥 천 단위 콤마 붙이기
+        return num
+            .toString()
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
 
     // 평형계산
     function calcPyeong(area) {

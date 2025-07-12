@@ -80,10 +80,16 @@
       <option value="15">최근 15년</option>
       <option value="20">20년 이상</option>
     </select>
+    <p style="margin: 0;">
+        (매매호가: <span style="color: #0074D9; font-weight: bold;">{{ apt_data[0].salePrice }}</span> /
+         전세가: <span style="color: #d81b60; font-weight: bold;">{{ apt_data[0].jeonsePrice }}</span> /
+         전세가율: <span style="color: #2ecc40; font-weight: bold;">{{ apt_data[0].jeonseRate }}</span>)
+    </p>
   </div>
   <div style="text-align: center;">
     <p>
-      최근금리: <span style="color: #0074D9; font-weight: bold;">{{ last_interest_rate['date'] }} ({{ last_interest_rate['rate'] }}%)</span>
+      최근금리: <span style="color: #0074D9; font-weight: bold;">{{ last_interest_rate['date'] }} ({{ last_interest_rate['rate'] }}%)</span>,
+      매매지수: <span style="color: #9100d9; font-weight: bold;">{{ last_sale_index['sale_date'] }} ({{ last_sale_index['sale_index'] }})</span>
       <button id="supply-info-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
         공급물량 조회
       </button>
@@ -93,6 +99,17 @@
     </p>
     <div id="supply-info-list" style="display:none; margin-top:10px; font-size:12px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto; border:1px solid #ccc; border-radius:8px; background:#f9f9f9; padding:12px; position:absolute; left:50%; transform:translateX(-50%); top:70px; z-index:1000;">
       <div style="text-align:right; display: flex; align-items: center; justify-content: flex-end;">
+        <select id="supply-year-selector" style="margin-right:12px; font-size:13px;">
+          <option value="all">전체</option>
+          {% set years = [] %}
+          {% for item in apt_complete_volumes %}
+            {% set _ = years.append(item.year_month[:4]) %}
+          {% endfor %}
+          {% set unique_years = years | unique %}
+          {% for y in unique_years %}
+            <option value="{{ y }}">{{ y }}년</option>
+          {% endfor %}
+        </select>
         <span id="supply-volume-sum-label" style="margin-right:12px; color:#d81b60; font-weight:bold; font-size:15px;">총합계: <span id="supply-volume-sum-inline">-</span>세대</span>
         <span id="supply-info-close" style="cursor:pointer; font-size:16px; font-weight:bold;">&#10005;</span>
       </div>
@@ -143,17 +160,36 @@
           $(this).css("background", "");
         });
 
-        // 분양세대 합계 계산
-        $(function() {
+        // 분양세대 합계 계산 함수 (필터 적용)
+        function updateSupplySum() {
           let sum = 0;
-          $("#supply-info-list tbody tr").each(function() {
+          $("#supply-info-list tbody tr:visible").each(function() {
             const val = parseInt($(this).find("td:last").text().replace(/,/g, ""));
             if (!isNaN(val)) sum += val;
           });
           $("#supply-volume-sum").text(sum.toLocaleString());
           $("#supply-volume-sum-inline").text(sum.toLocaleString());
+        }
+
+        // 년도별 필터링
+        $("#supply-year-selector").on("change", function() {
+          const selectedYear = $(this).val();
+          $("#supply-info-list tbody tr").each(function() {
+            const ym = $(this).find("td:nth-child(3)").text();
+            const y = ym.substring(0, 4);
+            if (selectedYear === "all" || y === selectedYear) {
+              $(this).show();
+            } else {
+              $(this).hide();
+            }
+          });
+          updateSupplySum();
         });
 
+        // 최초 합계 계산
+        $(function() {
+          updateSupplySum();
+        });
         // kb-info-btn 클릭시 KB지수(매매및 전세)
         $("#kb-info-btn").click(function() {
           alert('KB지수 조회..어떻게 가져오나(네이버가다막아버리네ㅠ.ㅠ)?? \n(매매지수, 전세지수)');

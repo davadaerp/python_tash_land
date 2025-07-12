@@ -499,7 +499,8 @@
             $('#noData').hide();
             $('#errorMessage').hide();
             $('table').show();
-            renderTable(data);
+            window.allFetchedItems = data;
+            renderTable(window.allFetchedItems);
           }
           // 업데이트: 검색 결과 건수를 #search-count에 출력
           $("#result-count").text(data.length);
@@ -522,6 +523,8 @@
       data.forEach((item, index) => {
         const address2 = item.address2?.trim();
         const address = sel_type === 'realtor' ? item.address1 : item.address1 + (address2 ? '-' + address2 : '');
+        // 차후검색시 적용할 데이타
+        item.address = address;
         tableBody.append(`
           <tr>
             <td class="center-align"><input type="checkbox" class="row-checkbox"></td>
@@ -559,26 +562,27 @@
         //   document.getElementById('locatadd_nm').focus();
         //   return;
         // }
-        // let dangiName = document.getElementById('dangiName').value.trim();
-        // if (!dangiName) {
-        //   alert("읍면동을 입력하세요.");
-        //   document.getElementById('dangiName').focus();
-        //   return;
-        // }
+        // 상담사(loaner)와 중개사(realtor) 구분
+        let selType = document.getElementById("sel_type").value;
+        if (selType === "realtor") {
+          let searchTerm = document.getElementById('dangiName').value.trim();
+          if (!searchTerm) {
+            alert("읍면동을 입력하세요.");
+            document.getElementById('dangiName').focus();
+            return;
+          }
+        }
         fetchData();
       });
       // 중개사 검색
-      document.getElementById('dangiName').addEventListener('keyup', function(event) {
-        if (event.keyCode === 13) {
-            let dangiName = document.getElementById('dangiName').value.trim();
-            if (!dangiName) {
-              alert("중개사 읍명동을 입력하세요.");
-              document.getElementById('dangiName').focus();
-              return;
-            }
-            fetchData();
-        }
+      // document.getElementById('dangiName').addEventListener('keyup', function(event) {
+      //     applyFilters();
+      // });
+
+      document.getElementById('locatadd_nm').addEventListener('keyup', function(event) {
+          applyFilters();
       });
+
      // #sel_type변경 이벤트
       document.getElementById('sel_type').addEventListener('change', function() {
           $('#dataBody').empty();
@@ -587,21 +591,60 @@
           //
           if(this.value === "loaner") {
               $('#dangiName').attr('placeholder', '지역을 입력하세요(서울등)');
+              $('#locatadd_nm').attr('placeholder', '이름을 입력하세요');
           } else {
               // 상담사가 아닐 경우 기본값 또는 다른 값으로 설정할 수 있습니다.
               $('#dangiName').attr('placeholder', '읍면동을 입력하세요');
+              $('#locatadd_nm').attr('placeholder', '중개소를 입력하세요');
           }
       });
 
-      // #select-all 변경 이벤트
-      document.getElementById('select-all').addEventListener('change', function() {
-          let checked = this.checked;
-          document.querySelectorAll('input.row-checkbox').forEach(function(checkbox) {
-            checkbox.checked = checked;
-          });
-      });
 
-      // #sms_type변경 이벤트
+      // 조건선택 목록 처리
+      function applyFilters() {
+        // 중개사/상담사 일때 읍면동은 주소와 비교
+        let dangiName = document.getElementById("dangiName").value;
+        // 중개사일때 중개소명은 제목과 비교,  상담사일때 이름은 대표자(이름)과 비교
+        let locataddNm = document.getElementById("locatadd_nm").value.trim();
+
+        // 상담사(loaner)와 중개사(realtor) 구분
+        let selType = document.getElementById("sel_type").value;
+        console.log(dangiName, locataddNm, selType);
+        //
+        let filteredItems = window.allFetchedItems.filter(item => {
+          let ok = true;
+          // 주소에 읍면동이 포함되어 있는지 확인
+          if (dangiName !== "") {
+            ok = ok && item.address && item.address.includes(dangiName.trim());
+          }
+          //
+          if (locataddNm !== "") {
+            if (selType === "loaner") {
+              // 상담사일때 이름은 대표자(이름)과 비교
+              ok = ok && item.representative && item.representative.includes(locataddNm.trim());
+            } else {
+              // 중개사일때 중개소명은 제목과 비교
+              ok = ok && item.title && item.title.includes(locataddNm.trim());
+            }
+          }
+          //
+          return ok;
+        });
+        // 필터링된 결과의 개수를 #result-count에 표시
+        document.getElementById('result-count').textContent = filteredItems.length;
+        // 필터링된 결과를 테이블에 렌더링
+        renderTable(filteredItems);
+      }
+
+     // #select-all 변경 이벤트
+     document.getElementById('select-all').addEventListener('change', function () {
+       let checked = this.checked;
+       document.querySelectorAll('input.row-checkbox').forEach(function (checkbox) {
+         checkbox.checked = checked;
+       });
+     });
+
+     // #sms_type변경 이벤트
       document.getElementById('sms_type').addEventListener('change', function () {
          //
          document.getElementById('message-content').value = "";
@@ -671,56 +714,62 @@
               let row = checkbox.closest('tr');
               let tds = row.querySelectorAll('td');
               let seq = tds[1].textContent;
-              let rep = tds[3].textContent;
-              let mobile = tds[6].textContent.trim();
-              if (mobile.startsWith("010")) {
-                selectedItems.push({ seq: seq, rep: rep, mobile: mobile });
+              let name = tds[3].textContent;
+              let phone = tds[6].textContent.trim();
+              if (phone.startsWith("010")) {
+                selectedItems.push({ seq: seq, name: name, phone: phone });
               }
             });
             if (selectedItems.length === 0) {
               alert("선택된 항목 중 휴대전화가 '010'인 목록이 없습니다.");
               return;
             }
-            // 팝업 헤더에 건수 표시
-            let popupCountElem = document.querySelector('.popup-count');
-            if (popupCountElem) {
-              popupCountElem.textContent = `(${selectedItems.length}건)`;
-            }
-            // 선택 목록 구성: 순번, 대표자, 휴대전화
-            let listHtml = `
-              <div id="selected-list-container">
-                <div class="selected-list-header">
-                  <span>순번</span>
-                  <span>대표자</span>
-                  <span>휴대전화</span>
-                  <span>삭제</span>
-                </div>
-                <div id="selected-list">
-            `;
-            selectedItems.forEach(function(item, index) {
-              listHtml += `<div class="selected-list-item">
-                             <span>${index + 1}</span>
-                             <span>${item.rep}</span>
-                             <span>${item.mobile}</span>
-                             <span class="delete-btn">×</span>
-                           </div>`;
-            });
-            listHtml += `</div></div>`;
-            document.getElementById('selected-list-container').innerHTML = listHtml;
 
-            // 첨부파일 영역 초기화
-            let thumbnailList = document.querySelector('.thumbnail-list');
-            if (thumbnailList) {
-              thumbnailList.innerHTML = '';
-            }
-            currentSlide = 0;
-            updateThumbnailSlider();
-            document.getElementById('message-title').value = "";
-            document.getElementById('message-content').value = "";
-            document.getElementById('message-popup').style.display = 'block';
+            window.selectedItems = selectedItems;
+            var width = 700;
+            var height = 990;
+            var left = (window.screen.width - width) / 2;
+            var top = (window.screen.height - height) / 2;
+            window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
+
+            // // 팝업 헤더에 건수 표시
+            // let popupCountElem = document.querySelector('.popup-count');
+            // if (popupCountElem) {
+            //   popupCountElem.textContent = `(${selectedItems.length}건)`;
+            // }
+            // // 선택 목록 구성: 순번, 대표자, 휴대전화
+            // let listHtml = `
+            //   <div id="selected-list-container">
+            //     <div class="selected-list-header">
+            //       <span>순번</span>
+            //       <span>대표자</span>
+            //       <span>휴대전화</span>
+            //       <span>삭제</span>
+            //     </div>
+            //     <div id="selected-list">
+            // `;
+            // selectedItems.forEach(function(item, index) {
+            //   listHtml += `<div class="selected-list-item">
+            //                  <span>${index + 1}</span>
+            //                  <span>${item.rep}</span>
+            //                  <span>${item.mobile}</span>
+            //                  <span class="delete-btn">×</span>
+            //                </div>`;
+            // });
+            // listHtml += `</div></div>`;
+            // document.getElementById('selected-list-container').innerHTML = listHtml;
+            //
+            // // 첨부파일 영역 초기화
+            // let thumbnailList = document.querySelector('.thumbnail-list');
+            // if (thumbnailList) {
+            //   thumbnailList.innerHTML = '';
+            // }
+            // currentSlide = 0;
+            // updateThumbnailSlider();
+            // document.getElementById('message-title').value = "";
+            // document.getElementById('message-content').value = "";
+            // document.getElementById('message-popup').style.display = 'block';
           });
-
-
 
           // #send-message-btn 클릭 이벤트
           document.getElementById('send-message-btn').addEventListener('click', function() {

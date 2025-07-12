@@ -283,6 +283,7 @@ def apt_select_single(article_no):
     finally:
         conn.close()
 
+# ────────── 데이터 조회 함수들 ──────────
 def apt_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", dangiName=""):
     """
     SQLite DB에서 데이터를 읽어와 필터 조건에 따라 반환합니다.
@@ -307,46 +308,84 @@ def apt_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", d
     if dangiName:
         query += " AND dangi_name LIKE ?"
         params.append("%" + dangiName + "%")
-    query += " ORDER BY confirm_date_str DESC LIMIT 3000"
+    query += " ORDER BY confirm_date_str DESC LIMIT 300"
     cur.execute(query, params)
     rows = cur.fetchall()
     data = [dict(row) for row in rows]
     conn.close()
     return data
 
+# 전세값을 구해줘
+# 위 매매레코드에 lawdCd, umdNm, artical_name, area2값으로  apt_data에 trade_type이 전세인 최대값과 최소값을 구해줘
+def get_jeonse_min_max(lawdCd="", umdNm="", article_name="", area2=""):
+    """
+    trade_type='전세'인 레코드 중에서,
+    lawdCd, umdNm, area2는 정확히 일치(=) 조건으로,
+    article_name은 부분일치(LIKE) 조건으로 필터링하여
+    price 문자열을 쿼리 내에서 파싱 후
+    max_price, min_price를 계산해서 반환합니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-def apt_save_to_csv(data):
+    # '억' 단위 + 쉼표 숫자 모두 처리하는 CASE 문을 SQL에 직접 삽입
+    query = f"""
+        SELECT
+            MAX(
+                CASE
+                    WHEN price LIKE '%억%' THEN
+                        CAST(substr(price, 1, instr(price, '억') - 1) AS INTEGER) * 100000000
+                        + CAST(
+                            REPLACE(
+                                substr(price, instr(price, '억') + 1),
+                                ',', ''
+                            ) AS INTEGER
+                          ) * 10000
+                    ELSE
+                        CAST(REPLACE(price, ',', '') AS INTEGER)
+                END
+            ) AS max_price,
+            MIN(
+                CASE
+                    WHEN price LIKE '%억%' THEN
+                        CAST(substr(price, 1, instr(price, '억') - 1) AS INTEGER) * 100000000
+                        + CAST(
+                            REPLACE(
+                                substr(price, instr(price, '억') + 1),
+                                ',', ''
+                            ) AS INTEGER
+                          ) * 10000
+                    ELSE
+                        CAST(REPLACE(price, ',', '') AS INTEGER)
+                END
+            ) AS min_price
+        FROM {TABLE_NAME}
+        WHERE trade_type = '전세'
     """
-    주어진 data (리스트 내의 dict들)를 CSV 파일로 저장합니다.
-    """
-    if not data:
-        print("저장할 데이터가 없습니다.")
-        return
-    keys = list(data[0].keys())
-    with open(CSV_FILENAME, mode="w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=keys)
-        writer.writeheader()
-        writer.writerows(data)
-    print(f"CSV 파일({CSV_FILENAME}) 저장 완료.")
-
-
-def apt_read_csv(lawdCd="", umdNm="", trade_type="", sale_year="", category="", dangiName=""):
-    """
-    CSV 파일을 읽어와 필터 조건에 따라 데이터를 반환합니다.
-    """
-    df = pd.read_csv(CSV_FILENAME, dtype=str)
-    df.fillna("", inplace=True)
+    params = []
+    # 필터 조건 추가
+    if lawdCd:
+        query += " AND lawdCd = ?"
+        params.append(lawdCd)
     if umdNm:
-        df = df[df['umdNm'].str.contains(umdNm, na=False)]
-    if trade_type:
-        df = df[df['trade_type'].str.contains(trade_type, na=False)]
-    if category:
-        df = df[df['article_name'].str.contains(category, na=False)]
-    if sale_year:
-        df = df[df['confirm_date_str'].str.startswith(sale_year)]
-    if dangiName:
-        df = df[df['dangi_name'].str.contains(dangiName, na=False)]
-    return df.to_dict(orient='records')
+        query += " AND umdNm = ?"
+        params.append(umdNm)
+    if area2:
+        query += " AND area2 = ?"
+        params.append(area2)
+    if article_name:
+        query += " AND article_name LIKE ?"
+        params.append(f"%{article_name}%")
+
+    cur.execute(query, params)
+    row = cur.fetchone()
+    conn.close()
+
+    return {
+        "max_price": row["max_price"] if row and row["max_price"] is not None else 0,
+        "min_price": row["min_price"] if row and row["min_price"] is not None else 0
+    }
 
 
 # 볍정동코드 가져오기

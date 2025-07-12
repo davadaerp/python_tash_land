@@ -6,7 +6,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
-from apt.apt_db_utils import apt_read_db
+from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
 from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 #from naver.naver_login import naver_authorization, naver_callback
@@ -22,8 +22,10 @@ from sms.purio_sms import purio_sms_send
 #
 from pastapt.past_apt_complete_volume_db_utils import fetch_apt_complete_volume_by_address
 from pastapt.past_interest_rate_db_utils import fetch_latest_interest_rate
-from pastapt.past_apt_db_utils import query_region_hierarchy, fetch_apt_detail_data, fetch_grouped_apt_data
+from pastapt.past_apt_db_utils import query_region_hierarchy, fetch_apt_detail_data, fetch_grouped_apt_data, \
+    fetch_apt_by_name_and_size
 from pastapt.past_average_annual_income_db_utils import fetch_all_income_data
+from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_address
 
 # auth.py에서 토큰 관련 함수 가져오기
 from common.auth import token_required, create_access_token, extract_user_info_from_token
@@ -161,6 +163,8 @@ def menu(current_user):
         return render_template("crawling_npl_search.html")
     if menu == 'realtor':
         return render_template("crawling_realtor_search.html")
+    if menu == 'realtor_pop':
+        return render_template("crawling_realtor_message_pop.html")
     if menu == 'jumpo':
         return render_template("crawling_jumpo_search.html")
     if menu == 'sanga_profit':
@@ -287,6 +291,35 @@ def get_apt_data():
     print(f"🔍 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 📅 매물 연도: {sale_year}, 🏠 카테고리: {category},")
 
     data = apt_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    # 2) 매매 항목마다 전세 max/min 호출해서 필드 추가
+    for item in data:
+        if item.get("trade_type") == "매매":
+            jm = get_jeonse_min_max(
+                lawdCd       = item.get("lawdCd", ""),
+                umdNm        = item.get("umdNm", ""),
+                article_name = item.get("article_name", ""),
+                area2        = item.get("area2", "")
+            )
+            item["jeonseMaxPrice"] = jm["max_price"]
+            item["jeonseMinPrice"] = jm["min_price"]
+
+    return jsonify(data)
+
+@app.route('/api/apt/pir_apt', methods=['GET'])
+def get_apt_pir_data():
+    apt_name = request.args.get('apt_name', '')
+    size = request.args.get('size', '')
+
+    print(f"🔍 아파트명: {apt_name}, 크기: {size}")
+
+    # 아파트 이름과 크기로 시세 정보(매매호가/전세가-최대치)를 가져옴
+    #
+
+    # past_apt에서 데이타를 가져옴
+    data = fetch_apt_by_name_and_size(apt_name, size)
+    print(data)
+    if not data:
+        return jsonify({"result": "Fail", "message": "해당 아파트의 시세 정보가 없습니다."})
 
     return jsonify(data)
 
@@ -764,8 +797,15 @@ def get_pastapt_apt_pir():
     #
     apt_id = request.args.get('apt_id', '')
     region = request.args.get('region', '')
+    sgg_nm = request.args.get('sgg_nm', '')
+    salePrice = request.args.get('salePrice', '0')
+    jeonsePrice = request.args.get('jeonsePrice', '0')
+    jeonseRate = request.args.get('jeonseRate', '0')
+
+    print(apt_id, region, sgg_nm, salePrice, jeonsePrice, jeonseRate)
+
+    # PIR적용 아파트 상세 데이타 가져오기
     results = fetch_apt_detail_data(apt_id)
-    print(apt_id, region)
     # for row in results:
     #     print(row)
     #
@@ -777,6 +817,11 @@ def get_pastapt_apt_pir():
     address = region
     apt_complete_volumes = fetch_apt_complete_volume_by_address(address)
     print("🏢 아파트 공급량:", apt_complete_volumes)
+
+    # 매매지수 가져오기
+    last_sale_indexs = fetch_latest_sale_index_by_address(region, sgg_nm)
+    last_sale_index = last_sale_indexs[0]
+    print("📊 최근 매매지수:", last_sale_indexs, last_sale_index)
 
     # 근로자 월/년간 소득
     income_data = fetch_all_income_data()
@@ -803,10 +848,15 @@ def get_pastapt_apt_pir():
         # PIR 계산 (year_income이 0이면 0 처리)
         pir = round(sale_high_value / year_income, 2) if year_income else 0
 
-        # 값 추가
+        # 값 추가 => 월수익, 년수익, PIR
         item["month_income"] = month_income
         item["year_income"] = year_income
         item["pir"] = pir
+
+        # 매매호가,전세가, 전세율
+        item["salePrice"]  = salePrice
+        item["jeonsePrice"] = jeonsePrice
+        item["jeonseRate"]  = jeonseRate
 
     # print(json.dumps(results, ensure_ascii=False, indent=2))
     #
@@ -815,7 +865,8 @@ def get_pastapt_apt_pir():
     return render_template("pastdata_pop_pir.html",
                                     apt_data=results,
                                     last_interest_rate=last_interest_rate,
-                                    apt_complete_volumes=apt_complete_volumes)
+                                    apt_complete_volumes=apt_complete_volumes,
+                                    last_sale_index=last_sale_index)
 
 @app.route('/api/pastapt/juso_popup', methods=['GET'])
 def get_pastapt_juso_popup():

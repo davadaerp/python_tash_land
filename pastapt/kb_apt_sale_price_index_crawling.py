@@ -1,6 +1,10 @@
 # kb부동산 주간별 매매시세(https://data.kbland.kr/kbstats/wmh?tIdx=HT01&tsIdx=weekAptSalePriceInx)
+import datetime
 import requests
 from collections import defaultdict
+
+from pastapt.kb_apt_sale_price_index_db_utils import insert_apt_sale_price_index_record, \
+    drop_apt_sale_price_index_table, create_apt_sale_price_index_table
 
 # 1) 요청할 URL과 헤더 (Bearer 토큰) 설정
 url = (
@@ -46,6 +50,10 @@ skip_gus = {
     "제주", "강원", "전북", "강북14개구", "강남11개구"
 }
 
+# 매매지수 데이터를 저장할 테이블 삭제 and 생성
+drop_apt_sale_price_index_table()
+create_apt_sale_price_index_table()
+
 # 8) 각 그룹별로 (그룹명, 구) 조합을 찍고, 날짜·값을 출력
 for top_region, gu_list in grouped.items():
     if top_region in skip_groups:
@@ -61,9 +69,13 @@ for top_region, gu_list in grouped.items():
             continue
 
         # 강북/강남 그룹은 서울특별시로 표시
-        region_label = "서울특별시" if top_region in {"강북14개구", "강남11개구"} else top_region
+        region = "서울특별시" if top_region in {"강북14개구", "강남11개구"} else top_region
 
         for point in entry["dataList"]:
-            date  = point["기준날짜"]
-            value = point["데이터"]
-            print(f"{region_label}, {gu}, {date}, {value}")
+            raw_date = point["기준날짜"]
+            sale_date = datetime.datetime.strptime(raw_date, '%Y%m%d').strftime('%Y-%m-%d')
+            sale_index = point["데이터"]   # 매매지수
+            address = gu
+            print(f"{region}, {address}, {sale_date}, {sale_index}")
+            # 매매지수 데이터를 DB에 삽입
+            insert_apt_sale_price_index_record(region, address, sale_date, sale_index)

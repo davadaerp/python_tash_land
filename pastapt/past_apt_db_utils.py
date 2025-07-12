@@ -269,3 +269,29 @@ def query_region_hierarchy(category, sel_code, parent_sel_code):
     else:
         print("❌ category는 'region' 또는 'sigungu'이어야 합니다.")
         return None
+
+# 아파트명과 크기로 아파트 정보를 가져오는 함수(아파트 상세 조회용)
+def fetch_apt_by_name_and_size(apt_name, size):
+    """
+    아파트 이름과 크기로 아파트 정보를 가져옵니다.
+    매개변수:
+      - apt_name: 아파트 이름
+      - size: 아파트 크기 (예: '84㎡')
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row  # 컬럼명을 키로 사용하기 위함
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT * FROM {PAST_APT_TABLE}
+        WHERE apt_name LIKE ? AND size LIKE ?;
+        """
+
+    cur.execute(query, (f"%{apt_name}%", f"%{size}%"))
+    row = cur.fetchone()
+    conn.close()
+
+    if row:
+        return dict(row)  # 딕셔너리 형태로 반환
+    else:
+        return None  # 해당 아파트가 없을 경우 None 반환

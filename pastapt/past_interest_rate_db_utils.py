@@ -111,6 +111,7 @@ def import_html_data_to_db():
     create_interest_rate_table()
 
     html_data = [
+        {"year": 2025, "date": "07월 10일", "rate": 2.50},
         {"year": 2025, "date": "05월 29일", "rate": 2.50},
         {"year": 2025, "date": "02월 25일", "rate": 2.75},
         {"year": 2024, "date": "11월 28일", "rate": 3.00},
