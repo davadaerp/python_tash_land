@@ -492,6 +492,8 @@ function sangaSummaryList() {
 
     // 전역 변수: 평당가 정렬 순서 (true: 오름차순, false: 내림차순)
     let pdangaSortAsc = true;
+    let areaSortAsc = true;
+    let sortBy = "평당가";  // 정렬 기준: "평당가" 또는 "면적"
 
     // 4. 테이블 업데이트 함수 (필터 조건에 따라 통계표와 상세 리스트 재생성)
     function updateTables() {
@@ -500,51 +502,54 @@ function sangaSummaryList() {
         const selectedFloor = document.getElementById('selectFloor').value;
         let filteredData = Object.values(uniqueDataMap);
         if (selectedType !== "all") {
-          filteredData = filteredData.filter(item => item["형태"] === selectedType);
+            filteredData = filteredData.filter(item => item["형태"] === selectedType);
         }
         if (selectedFloor !== "all") {
-          filteredData = filteredData.filter(item => {
-            const floor = item["해당층"];
-            if (selectedFloor === "low") {
-              return ["B1", "B2", "B3", "1", "2"].includes(floor);
-            } else if (selectedFloor === "high") {
-              const floorNumber = parseInt(floor);
-              return !isNaN(floorNumber) && floorNumber >= 3;
-            } else {
-              return floor === selectedFloor;
-            }
-          });
+            filteredData = filteredData.filter(item => {
+                const floor = item["해당층"];
+                if (selectedFloor === "low") {
+                    return ["B1", "B2", "B3", "1", "2"].includes(floor);
+                } else if (selectedFloor === "high") {
+                    const floorNumber = parseInt(floor);
+                    return !isNaN(floorNumber) && floorNumber >= 3;
+                } else {
+                    return floor === selectedFloor;
+                }
+            });
         }
         currSelectedType = selectedType;
 
         // 4.2 첫 번째 테이블 - 통계표 생성 (구분별, 층별 통계)
         function getFloorGroup(cfloor) {
-          const num = parseFloat(cfloor);
-          if (isNaN(num)) return "기타";
-          if (num === 1) return "1층";
-          else if (num === 2) return "2층";
-          else if (num >= 3) return "상층";
-          else return num + "층";
+            const num = parseFloat(cfloor);
+            if (isNaN(num)) return "기타";
+            if (num === 1) return "1층";
+            else if (num === 2) return "2층";
+            else if (num >= 3) return "상층";
+            else return num + "층";
         }
+
         let summaryGroups = {};
         filteredData.forEach(item => {
-          const type = item["형태"];
-          const floorGroup = getFloorGroup(item["해당층"]);
-          let value = (type === "월세") ? parseFloat(item["평당가"]) : parseFloat(item["가격"]);
-          if (!summaryGroups[type]) summaryGroups[type] = {};
-          if (!summaryGroups[type][floorGroup]) summaryGroups[type][floorGroup] = [];
-          if (!isNaN(value)) {
-            summaryGroups[type][floorGroup].push(value);
-          }
+            const type = item["형태"];
+            const floorGroup = getFloorGroup(item["해당층"]);
+            let value = (type === "월세") ? parseFloat(item["평당가"]) : parseFloat(item["가격"]);
+            if (!summaryGroups[type]) summaryGroups[type] = {};
+            if (!summaryGroups[type][floorGroup]) summaryGroups[type][floorGroup] = [];
+            if (!isNaN(value)) {
+                summaryGroups[type][floorGroup].push(value);
+            }
         });
+
         function computeStatsForGroup(arr, isSale) {
-          if (arr.length === 0) return { min: '-', avg: '-', max: '-', count: 0 };
-          const min = Math.min(...arr);
-          const max = Math.max(...arr);
-          const sum = arr.reduce((acc, cur) => acc + cur, 0);
-          const avg = (sum / arr.length).toFixed(isSale ? 0 : 2);
-          return { min, avg, max, count: arr.length };
+            if (arr.length === 0) return {min: '-', avg: '-', max: '-', count: 0};
+            const min = Math.min(...arr);
+            const max = Math.max(...arr);
+            const sum = arr.reduce((acc, cur) => acc + cur, 0);
+            const avg = (sum / arr.length).toFixed(isSale ? 0 : 2);
+            return {min, avg, max, count: arr.length};
         }
+
         //
         let summaryStatsHTML = `
           <table border="1" style="width:100%; border-collapse:collapse; text-align:center; margin-bottom:10px;">
@@ -565,27 +570,27 @@ function sangaSummaryList() {
         // 선택값에 따라 타입 배열 구성
         let groupTypes = [];
         if (selectedGroup === "all") {
-          groupTypes = ["월세", "매매"];
+            groupTypes = ["월세", "매매"];
         } else {
-          groupTypes = [selectedGroup];
+            groupTypes = [selectedGroup];
         }
         groupTypes.forEach((type, typeIdx) => {
-          const isSale = (type === "매매");
-          const floorOrder = ["1층", "2층", "상층"];
-          floorOrder.forEach((floor, floorIdx) => {
-            let stats = { min: '-', avg: '-', max: '-', count: 0 };
-            if (summaryGroups[type] && summaryGroups[type][floor]) {
-              stats = computeStatsForGroup(summaryGroups[type][floor], isSale);
-            }
+            const isSale = (type === "매매");
+            const floorOrder = ["1층", "2층", "상층"];
+            floorOrder.forEach((floor, floorIdx) => {
+                let stats = {min: '-', avg: '-', max: '-', count: 0};
+                if (summaryGroups[type] && summaryGroups[type][floor]) {
+                    stats = computeStatsForGroup(summaryGroups[type][floor], isSale);
+                }
 
-            // 마지막 행 체크: 표시되는 마지막 행에 굵은 하단 테두리
-            const isLastRow = (type === "월세" && floorIdx === floorOrder.length - 1);
-            const borderBottomStyle = isLastRow ? "border-bottom:1px solid #000;" : "";
-            const avgStyle = type === "월세" ? "color:red; font-weight:bold;" : "";
-            const typeStyle = type === "매매" ? "color:blue;" : "";
-            const countStyle = type === "매매" ? "color:blue;" : "";
+                // 마지막 행 체크: 표시되는 마지막 행에 굵은 하단 테두리
+                const isLastRow = (type === "월세" && floorIdx === floorOrder.length - 1);
+                const borderBottomStyle = isLastRow ? "border-bottom:1px solid #000;" : "";
+                const avgStyle = type === "월세" ? "color:red; font-weight:bold;" : "";
+                const typeStyle = type === "매매" ? "color:blue;" : "";
+                const countStyle = type === "매매" ? "color:blue;" : "";
 
-            summaryStatsHTML += `
+                summaryStatsHTML += `
               <tr style="${borderBottomStyle}">
                 <td style="${typeStyle}">${type}</td>
                 <td>${floor}</td>
@@ -595,23 +600,32 @@ function sangaSummaryList() {
                 <td style="${countStyle}">${stats.count}</td>
               </tr>
             `;
-          });
+            });
         });
         summaryStatsHTML += `</tbody></table>`;
 
         // 4.3 두 번째 테이블 - 상세 리스트 생성
         // 평당가 헤더에 id="sortPdanga"와 현재 정렬 순서 화살표 표시
         const arrowSymbol = pdangaSortAsc ? "▲" : "▼";
+        const areaSymbol = areaSortAsc ? "▲" : "▼";
         // 형태별 그룹 정렬: 월세가 먼저 나오고, 같은 그룹 내에서 평당가를 정렬
         let sortedUniqueData = filteredData.slice().sort((a, b) => {
-          if (a["형태"] !== b["형태"]) {
-            return a["형태"] === "월세" ? -1 : 1;
-          } else {
-            const pdA = parseFloat(a["평당가"]) || 0;
-            const pdB = parseFloat(b["평당가"]) || 0;
-            return pdangaSortAsc ? pdA - pdB : pdB - pdA;
-          }
+            if (a["형태"] !== b["형태"]) {
+                return a["형태"] === "월세" ? -1 : 1;
+            }
+
+            if (sortBy === "평당가") {
+                const pdA = parseFloat(a["평당가"]) || 0;
+                const pdB = parseFloat(b["평당가"]) || 0;
+                return pdangaSortAsc ? pdA - pdB : pdB - pdA;
+            } else if (sortBy === "면적") {
+                const arA = parseFloat(a["전용면적"]) || 0;
+                const arB = parseFloat(b["전용면적"]) || 0;
+                return areaSortAsc ? arA - arB : arB - arA;
+            }
+            return 0;
         });
+
         let detailTableHTML = `
           <table border="1" style="width:100%; border-collapse:collapse; text-align:center; margin-bottom:10px;">
             <thead style="background-color:#e0f7ff;">
@@ -620,23 +634,24 @@ function sangaSummaryList() {
                 <th>층</th>
                 <th>향</th>
                 <th id="sortPdanga" style="cursor:pointer;">평당가 ${arrowSymbol}</th>
-                <th>면적</th>
+                <th id="sortArea" style="cursor:pointer;">면적 ${areaSymbol}</th>
                 <th>가격</th>
               </tr>
             </thead>
             <tbody>
         `;
+        // 정렬된 데이터로 상세 테이블 생성
         sortedUniqueData.forEach(item => {
-          const floorDisplay = item["해당층"] + "/" + item["전체층"];
-          const typeStyle = item["형태"] === "매매" ? "color:blue;" : "";
-          detailTableHTML += `
+            const floorDisplay = item["해당층"] + "/" + item["전체층"];
+            const typeStyle = item["형태"] === "매매" ? "color:blue;" : "";
+            detailTableHTML += `
             <tr>
               <td style="${typeStyle}">${item["형태"]}</td>
               <td>${floorDisplay}</td>
               <td>${item["향"]}</td>
               <td>${item["평당가"]}</td>
               <td>${item["전용면적"]}</td>
-              <td>${formatCurrency(item["형태"],item["가격"])}</td>
+              <td>${formatCurrency(item["형태"], item["가격"])}</td>
             </tr>
           `;
         });
@@ -646,12 +661,21 @@ function sangaSummaryList() {
         tableContainer.innerHTML = summaryStatsHTML + detailTableHTML;
 
         // 4.5 평당가 헤더 클릭 시 정렬 순서 토글 및 테이블 재갱신
-        const sortHeader = document.getElementById('sortPdanga');
-        if (sortHeader) {
-          sortHeader.onclick = () => {
-            pdangaSortAsc = !pdangaSortAsc;
-            updateTables();
-          };
+        const sortPdangHeader = document.getElementById('sortPdanga');
+        const sortAreaHeader = document.getElementById('sortArea');
+        if (sortPdangHeader) {
+            sortPdangHeader.onclick = () => {
+                pdangaSortAsc = !pdangaSortAsc;
+                sortBy = "평당가";
+                updateTables();
+            };
+        }
+        if (sortAreaHeader) {
+            sortAreaHeader.onclick = () => {
+                areaSortAsc = !areaSortAsc;
+                sortBy = "면적";
+                updateTables();
+            };
         }
     } // end updateTables
 

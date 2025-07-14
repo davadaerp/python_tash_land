@@ -308,7 +308,7 @@ def apt_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", d
     if dangiName:
         query += " AND dangi_name LIKE ?"
         params.append("%" + dangiName + "%")
-    query += " ORDER BY confirm_date_str DESC LIMIT 300"
+    query += " ORDER BY confirm_date_str DESC LIMIT 500"
     cur.execute(query, params)
     rows = cur.fetchall()
     data = [dict(row) for row in rows]
@@ -317,7 +317,7 @@ def apt_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", d
 
 # 전세값을 구해줘
 # 위 매매레코드에 lawdCd, umdNm, artical_name, area2값으로  apt_data에 trade_type이 전세인 최대값과 최소값을 구해줘
-def get_jeonse_min_max(lawdCd="", umdNm="", article_name="", area2=""):
+def get_jeonse_min_max(lawdCd="", umdNm="", article_name="", area1=""):
     """
     trade_type='전세'인 레코드 중에서,
     lawdCd, umdNm, area2는 정확히 일치(=) 조건으로,
@@ -371,9 +371,9 @@ def get_jeonse_min_max(lawdCd="", umdNm="", article_name="", area2=""):
     if umdNm:
         query += " AND umdNm = ?"
         params.append(umdNm)
-    if area2:
-        query += " AND area2 = ?"
-        params.append(area2)
+    if area1:
+        query += " AND area1 = ?"
+        params.append(area1)
     if article_name:
         query += " AND article_name LIKE ?"
         params.append(f"%{article_name}%")
