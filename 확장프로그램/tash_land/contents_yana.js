@@ -21,6 +21,300 @@ let percentMargin = 6;
 let onoffstatus = true;
 // config으로 만들 부분 끝
 
+
+//============ 아파트 ==============
+function extractAptItemFromHTML(item) {
+
+    // console.log('로드된 item:', item);
+    // console.log('innerHTML:', item.innerHTML);
+    // console.log('innerText:', item.innerText);
+
+      // 임시 컨테이너 생성 후 innerHTML 삽입
+      const container = document.createElement("div");
+      container.innerHTML =  item.innerHTML;
+
+      // 1. 형태(type): price_line 내의 .type 텍스트 (예: "월세" 또는 "매매")
+      const typeEl = container.querySelector(".price_line .type");
+      const type = typeEl ? typeEl.textContent.trim() : "";
+
+      // 2. 구분(title): item_title 내의 .text (예: "일반사무실")
+      const titleEl = container.querySelector(".item_title .text");
+      const title = titleEl ? titleEl.textContent.trim() : "";
+
+      // 3. spec 파싱: 첫번째 spec에 "분양면적/전용면적, 해당층/전체층, 향" 정보가 포함됨
+      // 예: "42/33m², 1/1층, 동향"
+      let saleArea = "", exclusiveArea = "", jeonseArea= "", cfloor = "", tfloor = "", direction = "";
+      const specEls = container.querySelectorAll(".info_area .spec");
+      let specText = "";
+      if (specEls && specEls.length > 0) {
+        specText = specEls[0].textContent.trim();
+      }
+      // spec를 콤마(,) 기준으로 분리
+      const parts = specText.split(",");
+      if (parts.length >= 1) {
+        // 첫번째 부분: 분양면적/전용면적 (예: "42/33m²")
+        const areaPart = parts[0].trim().replace("m²", "");
+        const areaParts = areaPart.split("/");
+        if (areaParts.length >= 2) {
+          const areaPrts1 = parseInt(areaParts[0].trim()) * 0.3025;
+          const areaPrts2 = parseInt(areaParts[1].trim()) * 0.3025;
+          const areaPrts3 = parseInt(areaParts[1].trim()); // 전용면적(전세비교시 사용함)
+          // 분양면적,전용면적
+          saleArea = areaPrts1.toFixed(2);
+          exclusiveArea = areaPrts2.toFixed(2);
+          // 전세면적
+          jeonseArea = areaPrts3;
+        }
+      }
+      if (parts.length >= 2) {
+        // 두번째 부분: 해당층/전체층 (예: "1/1층")
+        const floorPart = parts[1].trim().replace("층", "");
+        const floorParts = floorPart.split("/");
+        if (floorParts.length >= 2) {
+          cfloor = floorParts[0].trim();
+          tfloor = floorParts[1].trim();
+        }
+      }
+      if (parts.length >= 3) {
+        // 세번째 부분: 향 (예: "동향")
+        direction = parts[2].trim();
+      }
+
+      // 4. 가격(price): price_line 내의 .price (예: "300/30")
+      const priceEl = container.querySelector(".price_line .price");
+      const price = priceEl ? priceEl.textContent.trim() : "";
+      //console.log('price:', price);
+
+      // 5. 기타(etc): 두번째 spec(있다면)와 tag_area의 태그들을 모두 연결하여 구성
+      let etc = "";
+      if (specEls && specEls.length > 1) {
+        etc += specEls[1].textContent.trim();
+      }
+      const tagEls = container.querySelectorAll(".tag_area .tag");
+      tagEls.forEach(tag => {
+        etc += " " + tag.textContent.trim();
+      });
+      etc = etc.trim();
+
+      // 6. 평당가(pdanga): 가격에서 첫번째 숫자를 전용면적으로 나눈 값 (숫자일 경우)
+      let pdanga = "";
+      // 먼저 '(' 앞까지만 잘라냄 => "3,000/30(106.18평 @6.1만)";
+      const priceBeforeParen = price.split('(')[0];
+      // '/' 기준으로 보증금과 월세 분리
+      const priceParts = priceBeforeParen.split('/');
+      let calcPrice = 0;
+      let calcRentSalePrice = 0;    // 월세기반 매매가계산
+      //
+      if (type === '매매' || type === '전세')  {
+              // calcPrice 문자열에서 억, 천 단위 정보를 추출하여 price와 pdanga 계산
+            const salePrice = priceParts[0].trim(); // 예: "2억" 또는 "2억 5,000"
+            const regex = /(\d+)\s*억(?:\s*([\d,]+))?/; // 첫 번째 그룹: 억 단위, 두 번째 그룹(선택): 천 단위
+            const match = salePrice.match(regex);
+
+            if (match) {
+                // 억 단위는 1억당 10000 단위로 변환
+                const billionPart = parseInt(match[1], 10) * 10000;
+                // 천 단위가 있으면 콤마 제거 후 숫자로 변환, 없으면 0
+                const thousandPart = match[2] ? parseInt(match[2].replace(/,/g, ''), 10) : 0;
+                calcPrice = billionPart + thousandPart;
+            } else {
+                // 정규식 매칭에 실패하면, salePrice를 숫자만 추출하여 처리 (예외 처리)
+                calcPrice = parseFloat(salePrice.replace(/[^0-9.]/g, ''));
+            }
+            pdanga = (calcPrice / parseFloat(exclusiveArea)).toFixed(0);
+      }
+      //
+      if (type === '월세')  {
+            const savePrice = priceParts[0].replace(/[^0-9]/g, '');    // 보증금
+            const rentPrice = priceParts[1].replace(/[^0-9]/g, '');    // 월세
+            calcPrice = savePrice + '/' + rentPrice;
+            pdanga = (parseInt(rentPrice) / parseFloat(exclusiveArea)).toFixed(1);
+            // 월세기반 매매가계산
+            //const percentMargin = document.getElementById("percentMargin").value;
+            calcRentSalePrice = parseInt(rentPrice) * 12 * 100 / percentMargin / 10000;
+      }
+
+      // tableitem 객체 구성 (분양면적과 전용면적은 각각 saleArea, exclusiveArea로 할당)
+      const tableitem = {
+        "구분": title,
+        "형태": type,
+        "해당층": cfloor,
+        "전체층": tfloor,
+        "향": direction,
+        "평당가": pdanga,
+        "분양면적": saleArea,
+        "전용면적": exclusiveArea,
+        "전세면적": jeonseArea,
+        "가격": calcPrice,
+        "기타": etc
+      };
+      //데이터를 배열화
+      tableData.push(tableitem);
+
+      //console.log(tableitem);
+
+      // 목록상태수정(월세/매매,전용평,평당가,월세기반매매가-수익율기준)
+      //aptItemRowModify(item, type, exclusiveArea, pdanga, calcRentSalePrice);
+}
+
+// div 요소들끼리 정리하는 부분
+function sortAptItems(propertyItems) {
+    // 1) Copy into a true Array
+    const divs = Array.from(propertyItems);
+    if (divs.length === 0) return;
+
+    // tableData 정보를 보여주기
+    console.log('tableData contents:', tableData);
+
+    // 2) Define the type priority
+    const typeOrder = { '매매': 0, '전세': 1, '월세': 2 };
+
+    // 3) Helper: extract numeric amount for sorting
+    function parseAmountForSort(elem) {
+        const type = elem.querySelector('.price_line .type')?.textContent.trim() || '';
+        const price = elem.querySelector('.price_line .price')?.textContent.trim() || '';
+        const beforeParen = price.split('(')[0];
+        const parts = beforeParen.split('/').map(s => s.trim());
+
+        if (type === '매매' || type === '전세') {
+          const sale = parts[0];
+          const m = sale.match(/(\d+)\s*억(?:\s*([\d,]+))?/);
+          if (m) {
+            return parseInt(m[1],10)*10000 + (m[2] ? parseInt(m[2].replace(/,/g,''),10) : 0);
+          }
+          return parseFloat(sale.replace(/[^0-9.]/g,'')) || 0;
+        }
+        if (type === '월세') {
+          const rent = parts[1] ? parts[1].replace(/[^0-9]/g,'') : '0';
+          return parseInt(rent,10) || 0;
+        }
+        return 0;
+    }
+
+    // 4) Sort according to type priority first, then amount
+    divs.sort((a, b) => {
+        const tA = a.querySelector('.price_line .type')?.textContent.trim() || '';
+        const tB = b.querySelector('.price_line .type')?.textContent.trim() || '';
+        const pA = typeOrder[tA] ?? 99;
+        const pB = typeOrder[tB] ?? 99;
+        if (pA !== pB) return pA - pB;
+        return parseAmountForSort(a) - parseAmountForSort(b);
+    });
+
+    // 5) Re‐append into the original container
+    const container = divs[0].parentElement;
+    container.innerHTML = '';
+    divs.forEach(div => {
+        container.appendChild(div);
+        // now decorate the row
+        aptItemRowModify(div);
+    });
+
+    // 6) Scroll first into view
+    divs[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 수정: pdanga, price 매개변수 제거
+function aptItemRowModify(item) {
+
+    // find the type element
+    const typeEl = item.querySelector('.price_line .type');
+    const specEl = item.querySelector('.info_area .spec');
+    // if either is missing, bail out
+    if (!typeEl || !specEl) return;
+
+    const type = typeEl.textContent.trim();
+
+    // spec text must have the "분양면적/전용면적" part
+    const specText = specEl.textContent.trim();
+    const areaPart = specText.split(',')[0] || "";
+    const areaSections = areaPart.replace('m²','').split('/');
+    // if it doesn't have two sections, bail
+    if (areaSections.length < 2) return;
+    const areaStr = areaSections[1].trim();    // 분양/전용면적
+    // coerce to Number for safety:
+    const areaNum = parseFloat(areaStr);
+
+    // 가격처리
+    const priceElement = item.querySelector('.price'); // 금액정보
+    // parse sale price (만원 단위)
+    const rawSale = priceElement.textContent.split('(')[0].split('/')[0].trim();
+    const saleMatch = rawSale.match(/(\d+)\s*억(?:\s*([\d,]+))?/);
+    let saleAmt = 0;
+    if (saleMatch) {
+        saleAmt = parseInt(saleMatch[1],10) * 10000
+                + (saleMatch[2] ? parseInt(saleMatch[2].replace(/,/g,''),10) : 0);
+    } else {
+        saleAmt = parseInt(rawSale.replace(/[^0-9]/g,''),10) || 0;
+    }
+    console.log('aptItemRowModify called with:', type, areaNum, saleAmt);
+
+    if (type === '매매') {
+         // 먼저, 기존에 붙여둔 전세 span 들을 모두 제거
+        priceElement.querySelectorAll('span.jeonse-info').forEach(el => el.remove());
+        // 매매 정보를 붉은색으로 표시
+        // tableData에서 전세 레코드 찾기
+        const jeonseRec = tableData.find(r =>
+              r['형태'] === '전세' && parseFloat(r['전세면적']) === areaNum
+        );
+        console.log('== 전세값: ' + jeonseRec);
+        let span = document.createElement('span');
+        span.classList.add('jeonse-info');
+        span.style.color    = 'red';
+        span.style.fontSize = '11pt';
+        span.style.opacity  = 0.8;
+
+        if (!jeonseRec) {
+            // no jeonse
+            span.textContent = ' (전세없슴)';
+        } else {
+            const jeonsePrice = parseInt(jeonseRec['가격'],10) || 0;
+            const formattedJeonse = formatManWon(jeonsePrice);
+            const rate = saleAmt > 0
+                ? ((jeonsePrice / saleAmt) * 100).toFixed(1) + '%'
+                : '—';
+            // 1.35억 5천만 이런식으로 처리되게 수정
+            const jeonseArea =
+
+            span.textContent = ` (전세 ${formattedJeonse} / ${rate})`;
+        }
+        priceElement.appendChild(span);
+        priceElement.dataset.highlighted = 'true';
+    }
+
+    // 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)
+    ['.tag_area', '.cp_area', '.label_area'].forEach(selector => {
+        const element = item.querySelector(selector);
+        //if (element) element.remove();
+        if (element) element.style.display = 'none';
+    });
+    // class="banner type_performance" 포함 요소 삭제
+    const bannerElement = item.querySelector('.banner.type_performance');
+    if (bannerElement) bannerElement.remove();
+}
+
+// helper: format 만원 (10,000원 단위) into 억/천만/만원
+function formatManWon(manwons) {
+  if (manwons >= 10000) {
+    // 1억 단위
+    const val = (manwons / 10000).toFixed(2).replace(/\.?0+$/, '');
+    return `${val}억`;
+  } else if (manwons >= 1000) {
+    // 천만 단위
+    const thou = Math.floor(manwons / 1000);
+    const rest = manwons % 1000;
+    if (rest === 0) {
+      return `${thou}천만`;
+    }
+    return `${thou}천${rest}만`;
+  } else {
+    // 만원 단위
+    return `${manwons}만`;
+  }
+}
+
+
+//============ 상가 ==============
 // 가격에 평당가및 기타 부문추가함
 function sangaItemRowModify(item, type, area, pdanga, price) {
 
@@ -68,6 +362,7 @@ function sangaItemRowModify(item, type, area, pdanga, price) {
     const bannerElement = item.querySelector('.banner.type_performance');
     if (bannerElement) bannerElement.remove();
 }
+
 
 // innerHTML에서 데이터를 추출하여 tableitem 객체를 반환하는 함수
 function extractSangaItemFromHTML(item) {
@@ -1523,6 +1818,7 @@ function formDownload() {
   smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
 }
 
+
 function loadSangaItems() {
     //
     let loadingStack = null;
@@ -1559,6 +1855,32 @@ function loadSangaItems() {
         }
     }
 }
+
+function loadAptItems() {
+    console.log('loadAptItems.. start');
+
+    let loadingStack = null;
+	if (autoScroll) {
+		loadingStack = document.querySelector('.loader');
+        // loadingStack is null 이면 로딩이 다 완료되었다는 의미로 처리함.
+		console.log(loadingStack);
+		if (loadingStack) {
+			// 해당 영역으로 스크롤
+			loadingStack.scrollIntoView({ behavior: 'auto', block: 'center' });
+		}
+	}
+
+    tableData = [];
+    const propertyItems = document.querySelectorAll('.item_inner:not(.is-loading)'); // 'is-loading' 클래스를 제외한 요소 선택
+    console.log('전체 propertyItems:', propertyItems);
+    if (propertyItems.length > 0) {
+        propertyItems.forEach(item => {
+            extractAptItemFromHTML(item);
+        });
+        sortAptItems(propertyItems);
+    }
+}
+
 
 function formatCurrency(type, amount) {
 
@@ -1721,19 +2043,19 @@ function login() {
 
 
 // **MutationObserver를 활용한 자동 감시**
-function observeMutations() {
+function observeMutations_old버전() {
+    console.log("observeMutations() called");
     const targetNode = document.querySelector('.item_list.item_list--article');
     if (!targetNode) {
         console.error('targetNode not found. 해당 요소가 DOM에 존재하는지 확인하세요.');
         return;
     }
     const config = { childList: true, subtree: true }; // 자식 요소 변경 감시
-
     const callback = function(mutationsList, observer) {
         if (!isScheduled) {
             isScheduled = true;
             observer.disconnect(); // 감시 중단
-            console.log('새로운 아이템 감지됨, 추가 로드 실행');
+            // 상가및 빌라 아이템 로드
             loadSangaItems(); // 추가 아이템 로드
 
             // targetNode가 여전히 존재하는지 확인 후 감시 재개
@@ -1748,6 +2070,69 @@ function observeMutations() {
     };
     const observer = new MutationObserver(callback);
     observer.observe(targetNode, config);
+}
+
+
+// 아파트 MutationObserver 감시도 async로!
+async function observeMutations() {
+    console.log("observeMutations() called");
+    try {
+        const targetNode = await waitForElement('.item_list.item_list--article');
+        const config = { childList: true, subtree: true };
+
+        const observer = new MutationObserver(async (mutationsList, obs) => {
+            if (!isScheduled) {
+                isScheduled = true;
+                obs.disconnect(); // 중단
+                console.log('새 항목 감지됨 → 로드 실행');
+
+                  if (tabGubun === 'sanga' || tabGubun === 'villa') {
+                        // 상가 및 빌라 아이템 로드
+                        loadSangaItems(); // 추가 아이템 로드
+                  } else {
+                        // 아파트 아이템 로드
+                        loadAptItems();
+                  }
+                try {
+                    const newTarget = await waitForElement('.item_list.item_list--article');
+                    obs.observe(newTarget, config); // 다시 감시
+                    isScheduled = false;
+                } catch (err) {
+                    console.error("재감시 실패:", err);
+                }
+            }
+        });
+
+        observer.observe(targetNode, config);
+    } catch (err) {
+        console.error("초기 감시 대상 노드 탐색 실패:", err);
+    }
+}
+
+// 비동기 DOM 요소 대기 함수
+async function waitForElement(selector, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        const element = document.querySelector(selector);
+        if (element) return resolve(element);
+
+        const observer = new MutationObserver(() => {
+            const el = document.querySelector(selector);
+            if (el) {
+                observer.disconnect();
+                resolve(el);
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        setTimeout(() => {
+            observer.disconnect();
+            reject(new Error(`Timeout: ${selector} not found within ${timeout}ms`));
+        }, timeout);
+    });
 }
 
 // 탱크옥션 처리
@@ -1998,6 +2383,7 @@ window.addEventListener('load', function() {
         window.location.href.startsWith('https://new.land.naver.com/houses') ||
         window.location.href.startsWith('https://new.land.naver.com/complexes')) {
         setTimeout(extractPropertyInfo,50);
+
         observeMutations(); // DOM 변경 감시 시작
     }
 

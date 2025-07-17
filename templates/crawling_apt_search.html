@@ -402,15 +402,15 @@
             // 거래유형
             document.getElementById("trade_type").addEventListener("change", function () {
                 let trade_type = document.getElementById('trade_type').value;
-                if (trade_type == '매매') {
-                    document.getElementById("sel_floor").selectedIndex = 2; // 상층
-                } else {
-                    document.getElementById("sel_floor").selectedIndex = 0; // 전체
-                }
+                // if (trade_type == '매매') {
+                //     document.getElementById("sel_floor").selectedIndex = 2; // 상층
+                // } else {
+                //     document.getElementById("sel_floor").selectedIndex = 0; // 전체
+                // }
                 applyFilters();
                 // 소팅처리
                 sortPriceAscending = true;
-                $("#sortPyeongPrice").click();
+                $("#sortJeonsePrice").click();
             });
             // select박스 => 물건구분,평,층
             document.querySelectorAll("#pyeon, #sel_floor, #sel_jeonseRate").forEach(function (select) {
@@ -418,7 +418,7 @@
                     applyFilters();
                     // 소팅처리
                     // sortPriceAscending = true;
-                    // $("#sortPyeongPrice").click();
+                    // $("#sortJeonsePrice").click();
                 });
             });
             //
@@ -435,7 +435,7 @@
                     applyFilters();
                     // 소팅처리
                     sortPriceAscending = true;
-                    $("#sortPyeongPrice").click();
+                    $("#sortJeonsePrice").click();
                 });
             });
 
@@ -545,7 +545,7 @@
             });
 
             // 평단가금액 정렬
-            $('#sortPyeongPrice').click(function () {
+            $('#sortJeonsePrice').click(function () {
                 const rentCheckbox = document.getElementById("rent_checkbox");
                 // rent_checkbox가 체크된 경우 해당 조건에 맞는 항목은 제외한 새로운 배열 생성
                 let filteredItems = window.currentFilteredItems.filter(item => {
@@ -557,8 +557,8 @@
                 });
                 // 정렬
                 filteredItems.sort((a, b) => {
-                    let priceA = parseFloat(a.sortPyeongPrice) || 0;
-                    let priceB = parseFloat(b.sortPyeongPrice) || 0;
+                    let priceA = parseFloat(a.sortJeonsePrice) || 0;
+                    let priceB = parseFloat(b.sortJeonsePrice) || 0;
                     return sortPriceAscending ? priceA - priceB : priceB - priceA;
                 });
                 sortPriceAscending = !sortPriceAscending;
@@ -595,7 +595,7 @@
                 $('#sortFloor').text(sortFloorAscending ? '층 ▲' : '층 ▼');
                 $('#sortBuildingArea').text(sortBuildingAreaAscending ? '분양면적(평) ▲' : '분양면적(평) ▼');
                 $('#sortPrice').text(sortPriceAscending ? '금액 ▲' : '금액 ▼');
-                $('#sortPyeongPrice').text(sortPriceAscending ? '전세금액 ▲' : '전세금액 ▼');
+                $('#sortJeonsePrice').text(sortPriceAscending ? '전세금액 ▲' : '전세금액 ▼');
                 $('#sortRentPyeongPrice').text(sortRentPyeongPriceAscending ? '매매월세 ▲' : '매매월세 ▼');
             }
 
@@ -792,7 +792,9 @@
 
                     trade_type = item.trade_type.replace(/\s/g, "");
                     let salePrice = convertKoreanToNumber(item.price);      // 1억 5,000 => 150000000
-                    let jeonseMaxPrice = item.jeonseMaxPrice;               //  140000000 => 1억 4,000
+                    let jeonseMaxPrice = item.jeonseMaxPrice;                  //  전세Max: 140000000 => 1억 4,000
+                    let jeonseMinPrice = item.jeonseMinPrice;                  //  전세Max: 140000000 => 1억 4,000
+                    //let jeonseAvgPrice = item.jeonseAvgPrice;                 //  전세평균: 140000000 => 1억 4,000
                     let pyeongArea = parseFloat(item.exclusive_area_pyeong);
                     // 매매시 해다하는 보증금/월세
                     let saleDepositPrice = convertKoreanToNumber(item.sale_deposit_price);
@@ -803,13 +805,11 @@
                     // 평단가 계산(월세는 월세로, 매매는 가격으로)
                     let pyeongPrice =  (salePrice / pyeongArea) / 10000;
                     let priceValue = formatNumber(item.price);
-                    let jeonsePriceValue = convertNumberToKorean(jeonseMaxPrice);     // 140000000 => 1억 4,000
+                    //let jeonsePriceValue = convertNumberToKorean(jeonseMaxPrice);     // 140000000 => 1억 4,000
+                    let jeonsePriceValue = convertNumberToKorean2(jeonseMaxPrice) + '/' + convertNumberToKorean2(jeonseMinPrice);     // 140000000 => 1억 4천,
+                    let jeonsePrice = jeonseMaxPrice;             // 소팅및 전세율계산에 사용함 => 150000000
 
-                    console.log('' + item.article_name + ' : ' + item.area2 + ' : ' + item.price + ' : salePrice => ' + salePrice + ' : ' + item.jeonseMaxPrice);
-
-                    // 소트용 가격금액, 추정매각금액, 전세금액속성으로 item 객체에 저장
-                    item.sortSalePrice = salePrice;
-                    item.sortPyeongPrice = jeonseMaxPrice;     // 160000000
+                    //console.log('' + item.article_name + ' : ' + item.area2 + ' : ' + item.price + ' : salePrice => ' + salePrice + ' : ' + jeonsePriceValue);
 
                     // 평형조회(m2,전용)
                     const contractPyeong = item.area1 ? (parseFloat(item.area1) / 3.3).toFixed(2) : '';
@@ -818,14 +818,16 @@
 
                     // 전세율 계산
                     let jeonseRate = 0;
-                    if (jeonseMaxPrice > 0) {
-                        jeonseRate = ((jeonseMaxPrice / salePrice) * 100).toFixed(2) + '%';
+                    if (jeonsePrice > 0) {
+                        jeonseRate = ((jeonsePrice / salePrice) * 100).toFixed(2) + '%';
                     } else {
                         jeonseRate = '0%';
                     }
 
-                    // 분양(계약)평형및 전세율 조회
-                    item.contractPyeong = contractPyeong;
+                    // 소트용 매매가격금액, 전세금액, 분양(계약)평형및 전세율 item 객체에 저장
+                    item.sortSalePrice = salePrice;
+                    item.sortJeonsePrice = jeonsePrice;     // 160000000
+                    item.contractPyeong = contractPyeong;   // 계약(분양)평형
                     item.jeonseRate = jeonseRate;
                     //
                     tableBody.append(`<tr data-link="${item.originalIndex}">
@@ -880,7 +882,7 @@
                         totalArea += area;
                     }
                     // 월세 평단가 누적
-                    totalPyeongPrice += item.sortPyeongPrice;
+                    totalPyeongPrice += item.sortJeonsePrice;
                 });
 
                 // 평균금액: 전체 거래금액 / 거래건수
@@ -1009,6 +1011,7 @@
                 const size = item.area1; // area1: 분양면적, area2: 전용면적
                 const salePrice = item.price; // 매매호가   1억 6,000
                 const jeonsePrice = convertNumberToKorean(item.jeonseMaxPrice); // 전세호가(최대값) 150000000 => 1억 5,000
+                //const jeonsePrice = convertNumberToKorean(item.jeonseAvgPrice); // 전세호가(평균값) 150000000 => 1억 5,000
                 const jeonseRate = item.jeonseRate; // 전세율
                 //alert(salePrice + ',' + jeonsePrice + ',' + jeonseRate);
                 //callAjax()
@@ -1107,7 +1110,6 @@
                 }
                 //=================================
                 //
-                //filteredItems = window.allFetchedItems.filter(item => {
                 let filteredItems = groupFilteredItems.filter(item => {
                     let ok = true;
 
@@ -1189,7 +1191,7 @@
                                     ok = ok && (rate >= 80  && rate < 90);
                                     break;
                                 case "70":
-                                    ok = ok && (rate >= 70  && rate < 0);
+                                    ok = ok && (rate >= 0  && rate < 80);
                                     break;
                                 default:
                                     // 정의되지 않은 seljeonseRate 값이 들어오면 필터링에서 제외
@@ -1199,21 +1201,13 @@
                     }
 
                     // 추가 조건: rent_checkbox가 체크되고, 선택된 trade_type이 "매매"인 경우,
-                    // item.sale_deposit_price(보증금) 0이면 해당 항목은 필터에서 제외.
+                    // item.jeonseMaxPrice(전세금액) 0이면 해당 항목은 필터에서 제외.
+                    let jeonsePrice = (typeof item.jeonseMaxPrice !== "undefined") ? item.jeonseMaxPrice : 0;
+                    // console.log('==' + trade_type + ' : ' + jeonsePrice);
                     const rentCheckbox = document.getElementById("rent_checkbox");
-                    if (rentCheckbox && rentCheckbox.checked && trade_type === "매매") {
-                        // 4번째 필드(jeonseMaxPrice)에서 쉼표 빼고 숫자로 변환
-                        const jeonseMaxVal = Number(
-                            String(item.jeonseMaxPrice)
-                                .replace(/,/g, '')
-                                .trim()
-                        );
-                        // 변환한 값이 0일 때만 제외
-                        if (jeonseMaxVal === 0) {
-                            ok = false;
-                        }
+                    if (rentCheckbox && rentCheckbox.checked && trade_type === "매매" && jeonsePrice === 0 ) {
+                        ok = false;
                     }
-                    //
                     return ok;
                 });
                 //
@@ -1473,7 +1467,7 @@
                     <th id="sortBuildingArea" style="flex:1;">분양면적(평) ▼</th>
                     <th id="sortBuildingArea2" style="flex:1;">전용면적(평)</th>
                     <th id="sortPrice" style="flex:1;">가격 ▼</th>
-                    <th id="sortPyeongPrice" style="flex:1;">전세금액 ▼</th>
+                    <th id="sortJeonsePrice" style="flex:1;">전세금액 ▼</th>
                     <th style="flex:1;">전세율</th>
                     <!--
                     <th>중개사명</th>
@@ -1616,7 +1610,7 @@
                             <th style="flex:1;" id="sortFloor">층</th>
                             <th style="flex:1.5;" id="sortPyeong">건물면적(평)</th>
                             <th style="flex:1.5;" id="sortPrice">거래금액</th>
-                            <th style="flex:1.5;" id="sortPyeongPrice">평단가 ▲</th>
+                            <th style="flex:1.5;" id="sortJeonsePrice">평단가 ▲</th>
                             <th style="flex:1.5;">건물용도</th>
                             <th style="flex:1;">지도</th>
                         </tr>

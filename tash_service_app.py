@@ -294,14 +294,24 @@ def get_apt_data():
     # 2) 매매 항목마다 전세 max/min 호출해서 필드 추가
     for item in data:
         if item.get("trade_type") == "매매":
+            # 3) 전세 max/min 가격을 가져옴
             jm = get_jeonse_min_max(
                 lawdCd       = item.get("lawdCd", ""),
                 umdNm        = item.get("umdNm", ""),
                 article_name = item.get("article_name", ""),
-                area2        = item.get("area2", "")
+                area1        = item.get("area1", "")
             )
+            max_price = float(jm["max_price"])
+            min_price = float(jm["min_price"])
+            #print(f"🔍 {item.get('article_name', '')} - max_price: {max_price}, min_price: {min_price}")
+            #print(f"{item.get('article_name', '')},{jm.get('max_price', '')},{jm.get('min_price', '')}")
+            #
             item["jeonseMaxPrice"] = jm["max_price"]
             item["jeonseMinPrice"] = jm["min_price"]
+            if max_price != 0 and min_price != 0:
+                item["jeonseAvgPrice"] = (max_price + min_price) / 2
+            else:
+                item["jeonseAvgPrice"] = 0
 
     return jsonify(data)
 
