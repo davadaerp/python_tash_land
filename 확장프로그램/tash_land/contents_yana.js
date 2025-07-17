@@ -152,9 +152,6 @@ function extractAptItemFromHTML(item) {
       tableData.push(tableitem);
 
       //console.log(tableitem);
-
-      // 목록상태수정(월세/매매,전용평,평당가,월세기반매매가-수익율기준)
-      //aptItemRowModify(item, type, exclusiveArea, pdanga, calcRentSalePrice);
 }
 
 // div 요소들끼리 정리하는 부분
@@ -164,7 +161,7 @@ function sortAptItems(propertyItems) {
     if (divs.length === 0) return;
 
     // tableData 정보를 보여주기
-    console.log('tableData contents:', tableData);
+    // console.log('tableData contents:', tableData);
 
     // 2) Define the type priority
     const typeOrder = { '매매': 0, '전세': 1, '월세': 2 };
@@ -231,9 +228,10 @@ function aptItemRowModify(item) {
     const areaSections = areaPart.replace('m²','').split('/');
     // if it doesn't have two sections, bail
     if (areaSections.length < 2) return;
-    const areaStr = areaSections[1].trim();    // 분양/전용면적
+    const areaStr0 = areaSections[1].trim();    // 분양면적
+    const areaStr1 = areaSections[1].trim();    // 전용면적
     // coerce to Number for safety:
-    const areaNum = parseFloat(areaStr);
+    const areaNum = parseFloat(areaStr1);
 
     // 가격처리
     const priceElement = item.querySelector('.price'); // 금액정보
@@ -250,8 +248,9 @@ function aptItemRowModify(item) {
     console.log('aptItemRowModify called with:', type, areaNum, saleAmt);
 
     if (type === '매매') {
-         // 먼저, 기존에 붙여둔 전세 span 들을 모두 제거
-        priceElement.querySelectorAll('span.jeonse-info').forEach(el => el.remove());
+        // remove any old elements
+        priceElement.querySelectorAll('span.jeonse-info, button.pir-btn').forEach(el => el.remove());
+
         // 매매 정보를 붉은색으로 표시
         // tableData에서 전세 레코드 찾기
         const jeonseRec = tableData.find(r =>
@@ -264,25 +263,60 @@ function aptItemRowModify(item) {
         span.style.fontSize = '11pt';
         span.style.opacity  = 0.8;
 
+        let formattedJeonse = "0";
+        let jeonsePrice = 0;
+        let jeonseRate = "0%"
         if (!jeonseRec) {
             // no jeonse
             span.textContent = ' (전세없슴)';
         } else {
-            const jeonsePrice = parseInt(jeonseRec['가격'],10) || 0;
-            const formattedJeonse = formatManWon(jeonsePrice);
-            const rate = saleAmt > 0
+            jeonsePrice = parseInt(jeonseRec['가격'],10) || 0;
+            formattedJeonse = formatManWon(jeonsePrice);
+            jeonseRate = saleAmt > 0
                 ? ((jeonsePrice / saleAmt) * 100).toFixed(1) + '%'
                 : '—';
-            // 1.35억 5천만 이런식으로 처리되게 수정
-            const jeonseArea =
 
-            span.textContent = ` (전세 ${formattedJeonse} / ${rate})`;
+            span.textContent = ` (전세 ${formattedJeonse} / ${jeonseRate})`;
         }
         priceElement.appendChild(span);
         priceElement.dataset.highlighted = 'true';
+        //
+        // add PIR button
+        const btn = document.createElement('button');
+        btn.classList.add('pir-btn');
+        btn.textContent = 'PIR';
+        // make it a perfect circle
+        btn.style.marginLeft      = '8px';
+        btn.style.width           = '32px';
+        btn.style.height          = '32px';
+        btn.style.padding         = '0';
+        btn.style.borderRadius    = '50%';
+        btn.style.display         = 'inline-flex';
+        btn.style.alignItems      = 'center';
+        btn.style.justifyContent  = 'center';
+        btn.style.cursor          = 'pointer';
+        // optional: a subtle border / background
+        btn.style.border          = '1px solid #ccc';
+        btn.style.backgroundColor = '#fff';
+        btn.onclick = () => {
+          // build minimal item for popup
+          // find the sale record itself
+          const saleRec = tableData.find(r=>
+            r['형태']==='매매' &&
+            parseFloat(r['전용면적'])===areaNum
+          )||{};
+          openRentPricePopup({
+            article_name: '청주개신주공1단지',
+            area1:        '85',         // areaStr0, areaStr1 : 분양면적, 전용면적
+            price:        saleAmt,
+            jeonseMaxPrice: formattedJeonse,
+            jeonseRate:     jeonseRate
+          });
+        };
+        priceElement.appendChild(btn);
     }
 
-    // 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)
+    // 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)-아파트에서는 중개소(3) 이런식에 물건은 하위를 눌러야 상세가 나옴 ㅠ.ㅠ
     ['.tag_area', '.cp_area', '.label_area'].forEach(selector => {
         const element = item.querySelector(selector);
         //if (element) element.remove();
@@ -291,6 +325,44 @@ function aptItemRowModify(item) {
     // class="banner type_performance" 포함 요소 삭제
     const bannerElement = item.querySelector('.banner.type_performance');
     if (bannerElement) bannerElement.remove();
+}
+
+// PIR 팝업목록
+function openRentPricePopup(item) {
+  const apt_name    = item.article_name;
+  const size        = item.area1;        // area1: 분양면적, area2: 전용면적
+  const salePrice          = item.price;
+  const jeonsePrice = item.jeonseMaxPrice;
+  const jeonseRate  = item.jeonseRate;
+  $.ajax({
+    url: BASE_URL + '/api/apt/pir_apt',
+    method: 'GET',
+    dataType: 'json',
+    data: { apt_name, size },
+    success(resp) {
+      if (resp.result==="Fail") {
+        alert("오류가 발생했습니다: " + resp.message);
+        return;
+      }
+      const apt_id     = resp.id;
+      const region     = resp.region_name;
+      const sgg_nm     = resp.mcode_name;
+      const url = BASE_URL + '/api/pastapt/pir'
+        + `?apt_id=${apt_id}`
+        + `&region=${region}`
+        + `&sgg_nm=${sgg_nm}`
+        + `&salePrice=${salePrice}`
+        + `&jeonsePrice=${jeonsePrice}`
+        + `&jeonseRate=${jeonseRate}`;
+      const w = 1400, h = 1200;
+      const left = (screen.width - w)/2+50, top = (screen.height - h)/2-50;
+      const popup = window.open(url,'popup',`width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+      if (popup) popup.focus();
+    },
+    error(xhr,status,err) {
+      console.error("Ajax 에러:", err);
+    }
+  });
 }
 
 // helper: format 만원 (10,000원 단위) into 억/천만/만원

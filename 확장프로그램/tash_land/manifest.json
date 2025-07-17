@@ -19,7 +19,7 @@
   ],
   "action": {
     "default_popup": "/login/popup.html",
-    "default_icon": "/img/icon.png"
+    "default_icon": "/img/tash.png"
   }, 
   "content_security_policy": {
   	"extension_pages": "script-src 'self';frame-src https://erp-dev.bacchuserp.com;"
