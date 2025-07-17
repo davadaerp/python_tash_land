@@ -92,6 +92,7 @@
       alert("로그아웃되었습니다.")
     });
     // 로그인 입력 영역 및 로그인 버튼 복원, 상태 메시지와 로그아웃 버튼 숨김
+    $('#error-message').text('');
     $("#login-section").show();
     $("#login-status").hide();
     $("#logout-section").hide();
@@ -117,6 +118,58 @@
     chrome.tabs.create({ url: BASE_URL + '/api/user/register' });
      */
   }
+
+  // 회원탈퇴 함수
+  function sign_cancel() {
+    if (!confirm('정말 회원탈퇴를 하시겠습니까?')) return;
+
+    // 로그인 시 저장해둔 user_id 를 꺼냅니다.
+    // (예: 로그인 직후 chrome.storage.local.set 에 user_id도 저장해두시면 편리합니다)
+    chrome.storage.local.get(['access_token', 'user_id'], function(result) {
+      const userId = result.user_id;
+      const accessToken = result.access_token;
+      if (!userId) {
+        $('#error-message').text('사용자 아이디를 찾을 수 없습니다.');
+        return;
+      }
+
+      $.ajax({
+        url: BASE_URL + '/api/user/cancel',
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + accessToken
+        },
+        data: JSON.stringify({
+          mode: 'D',
+          user_id: userId
+        })
+      })
+      .done(function(resp) {
+        if (resp.result === 'Success') {
+          alert('탈퇴가 성공하였습니다.');
+          // 저장된 정보 비우기
+          chrome.storage.local.set({
+            access_token: '',
+            user_id:       '',
+            apt_key:      '',
+            villa_key:    '',
+            sanga_key:    ''
+          }, function(){
+            // 팝업을 닫거나 로그인폼으로 복귀
+            window.close();
+          });
+        } else {
+          $('#error-message').text(resp.message || '탈퇴에 실패하였습니다.');
+        }
+      })
+      .fail(function(xhr, status, err) {
+        console.error('회원탈퇴 에러:', err, xhr.responseText);
+        $('#error-message').text('서버 요청 중 오류가 발생했습니다.');
+      });
+    });
+  }
+
 
   // window.onload에서 전역 함수를 호출합니다.
   window.onload = function() {
@@ -150,6 +203,12 @@
   document.getElementById("signup").addEventListener("click", function () {
       signup();
   });
+
+  // 회원탈퇴
+  document.getElementById("reset").addEventListener("click", function () {
+      sign_cancel();
+  });
+
 
   // 폼 제출 시 로그인 요청 실행
   $(document).ready(function(){
