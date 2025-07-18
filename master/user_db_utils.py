@@ -250,3 +250,41 @@ def verify_user(user_id: str, password: str) -> bool:
     stored_pass = row[0]
     # 단순 비교; 필요시 해시 비교 로직으로 교체
     return stored_pass == password
+
+
+# 회원탈퇴처리
+def user_cancel_record(user_id: str, reason: str):
+    """
+    user_id에 해당하는 사용자를 탈퇴 처리합니다.
+    - cancellation_date: 오늘 날짜로 설정
+    - etc: 탈퇴사유 저장
+
+    :param user_id: 탈퇴할 사용자 ID
+    :param reason: 탈퇴사유
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    # 존재 여부 확인
+    cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE user_id = ?", (user_id,))
+    exists = cursor.fetchone()[0]
+
+    if exists == 0:
+        print(f"user_id {user_id} 는 존재하지 않습니다. 탈퇴를 건너뜁니다.")
+    else:
+        cancel_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        update_query = f"""
+            UPDATE {TABLE_NAME}
+               SET cancellation_date = ?,
+                   etc               = ?
+             WHERE user_id = ?
+        """
+        cursor.execute(update_query, (
+            cancel_date,
+            reason,
+            user_id
+        ))
+        conn.commit()
+        print(f"user_id {user_id} 레코드를 탈퇴 처리했습니다. (취소일자: {cancel_date}, 사유: {reason})")
+
+    conn.close()

@@ -15,7 +15,7 @@ from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav
 from auction.auction_db_utils import auction_read_db, auction_read_csv
 from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
-    user_delete_record
+    user_delete_record, user_cancel_record
 #
 from sms.alim_talk import alimtalk_send
 from sms.purio_sms import purio_sms_send
@@ -256,6 +256,28 @@ def user_register_crud():
         return jsonify({
             "result": "Success",
             "message": rtn_message
+        })
+
+    except Exception as e:
+        # 오류 발생 시 status를 Fail로 반환
+        return jsonify({
+            "result": "Fail",
+            "message": str(e)
+        }), 500
+
+# 사용자 회원가입 탈퇴처리
+@app.route('/api/user/cancel', methods=['POST'])
+def user_register_cancel():
+    data = request.get_json()
+    print(f"🔍 /api/user/cancel data: {data}")
+    user_id = data.get("user_id")
+    reason = data.get("reaseon")
+    try:
+        user_cancel_record(user_id, reason)
+
+        return jsonify({
+            "result": "Success",
+            "message": "탈퇴가 완료되었습니다."
         })
 
     except Exception as e:

@@ -126,7 +126,8 @@
     // 로그인 시 저장해둔 user_id 를 꺼냅니다.
     // (예: 로그인 직후 chrome.storage.local.set 에 user_id도 저장해두시면 편리합니다)
     chrome.storage.local.get(['access_token', 'user_id'], function(result) {
-      const userId = result.user_id;
+      //const userId = result.user_id;
+      const userId = "admin"; // 테스트용으로 admin 아이디로 고정
       const accessToken = result.access_token;
       if (!userId) {
         $('#error-message').text('사용자 아이디를 찾을 수 없습니다.');
@@ -141,8 +142,8 @@
           "Authorization": "Bearer " + accessToken
         },
         data: JSON.stringify({
-          mode: 'D',
-          user_id: userId
+          user_id: userId,
+          reaseon: '탈퇴 요청'
         })
       })
       .done(function(resp) {
