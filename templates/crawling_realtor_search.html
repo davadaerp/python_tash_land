@@ -215,6 +215,7 @@
       border-radius: 4px;
       resize: vertical;
     }
+    /* 첨부파일 썸네일 슬라이더 */
     .attachment-container {
       margin-top: 10px;
     }
@@ -247,6 +248,8 @@
       object-fit: contain;
       border-radius: 4px;
     }
+    /* 삭제 버튼 오버레이 */
+    .thumbnail-item .thumb-delete { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; width: 20px; height: 20px; text-align: center; line-height: 20px; border-radius: 50%; font-weight: bold; cursor: pointer; }
     .thumb-nav {
       position: absolute;
       top: 50%;
@@ -707,7 +710,25 @@
       });
 
       // #message-btn 클릭 이벤트
+      // 두가지방식: 1. 윈도우오픈방식처리, 2.DIV모달팝업방식처리
       document.getElementById('message-btn').addEventListener('click', function() {
+             // --- 초기화 시작 ---
+            // 1) 파일 인풋 초기화
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.value = '';
+
+            // // 2) 썸네일 리스트 초기화
+            // const thumbnailList = document.querySelector('.thumbnail-list');
+            // if (thumbnailList) thumbnailList.innerHTML = '';
+
+            // 4) 라디오 버튼을 알림톡(카카오)으로 초기화
+            const kakaoRadio = document.querySelector('input[name="send-type"][value="kakao"]');
+            if (kakaoRadio) kakaoRadio.checked = true;
+
+            // 5) SMS 템플릿(select)을 “일반”으로 초기화
+            const smsTypeSelect = document.getElementById('sms_type');
+            if (smsTypeSelect) smsTypeSelect.value = 'sms';
+            // --- 초기화 끝 --
             //
             let selectedItems = [];
             document.querySelectorAll('input.row-checkbox:checked').forEach(function(checkbox) {
@@ -724,57 +745,58 @@
               alert("선택된 항목 중 휴대전화가 '010'인 목록이 없습니다.");
               return;
             }
-
-            window.selectedItems = selectedItems;
-            var width = 700;
-            var height = 990;
-            var left = (window.screen.width - width) / 2;
-            var top = (window.screen.height - height) / 2;
-            window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
-
-            // // 팝업 헤더에 건수 표시
-            // let popupCountElem = document.querySelector('.popup-count');
-            // if (popupCountElem) {
-            //   popupCountElem.textContent = `(${selectedItems.length}건)`;
-            // }
-            // // 선택 목록 구성: 순번, 대표자, 휴대전화
-            // let listHtml = `
-            //   <div id="selected-list-container">
-            //     <div class="selected-list-header">
-            //       <span>순번</span>
-            //       <span>대표자</span>
-            //       <span>휴대전화</span>
-            //       <span>삭제</span>
-            //     </div>
-            //     <div id="selected-list">
-            // `;
-            // selectedItems.forEach(function(item, index) {
-            //   listHtml += `<div class="selected-list-item">
-            //                  <span>${index + 1}</span>
-            //                  <span>${item.rep}</span>
-            //                  <span>${item.mobile}</span>
-            //                  <span class="delete-btn">×</span>
-            //                </div>`;
-            // });
-            // listHtml += `</div></div>`;
-            // document.getElementById('selected-list-container').innerHTML = listHtml;
             //
-            // // 첨부파일 영역 초기화
-            // let thumbnailList = document.querySelector('.thumbnail-list');
-            // if (thumbnailList) {
-            //   thumbnailList.innerHTML = '';
-            // }
-            // currentSlide = 0;
-            // updateThumbnailSlider();
-            // document.getElementById('message-title').value = "";
-            // document.getElementById('message-content').value = "";
-            // document.getElementById('message-popup').style.display = 'block';
+            // 1.윈도우 오픈방식
+            // window.selectedItems = selectedItems;
+            // var width = 700;
+            // var height = 990;
+            // var left = (window.screen.width - width) / 2;
+            // var top = (window.screen.height - height) / 2;
+            // window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
+
+            // 팝업 헤더에 건수 표시
+            let popupCountElem = document.querySelector('.popup-count');
+            if (popupCountElem) {
+              popupCountElem.textContent = `(${selectedItems.length}건)`;
+            }
+            // 선택 목록 구성: 순번, 대표자, 휴대전화
+            let listHtml = `
+              <div id="selected-list-container">
+                <div class="selected-list-header">
+                  <span>순번</span>
+                  <span>대표자</span>
+                  <span>휴대전화</span>
+                  <span>삭제</span>
+                </div>
+                <div id="selected-list">
+            `;
+            selectedItems.forEach(function(item, index) {
+              listHtml += `<div class="selected-list-item">
+                             <span>${index + 1}</span>
+                             <span>${item.name}</span>
+                             <span>${item.phone}</span>
+                             <span class="delete-btn">×</span>
+                           </div>`;
+            });
+            listHtml += `</div></div>`;
+            document.getElementById('selected-list-container').innerHTML = listHtml;
+
+            // 첨부파일 영역 초기화
+            let thumbnailList = document.querySelector('.thumbnail-list');
+            if (thumbnailList) {
+              thumbnailList.innerHTML = '';
+            }
+            currentSlide = 0;
+            updateThumbnailSlider();
+            document.getElementById('message-title').value = "";
+            document.getElementById('message-content').value = "";
+            document.getElementById('message-popup').style.display = 'block';
           });
 
           // #send-message-btn 클릭 이벤트
           document.getElementById('send-message-btn').addEventListener('click', function() {
 
-            // kakao, sms
+            // kakao, sms, naver_mms
             const selectedSendType = document.querySelector('input[name="send-type"]:checked').value;
 
             // 로그인 아이디와 패스워드 입력값 체크
@@ -815,101 +837,128 @@
               return;
             }
             //
-            let filesCount = document.getElementById('file-input').files.length;
-            if (filesCount === 0) {
-              alert("파일을 첨부하세요.");
-              return;
+            const fileInput = document.getElementById('file-input');
+            const files = fileInput.files;
+            if (files.length === 0) {
+                  alert("첨부할 파일을 선택하세요.");
+                  return;
             }
-            alert("준비중입니다.");
-            return;
 
-            if (!confirm("전송하시겠습니까?")) {
+            // 유효한 파일만 담을 배열
+            const validFiles = [];
+
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              const ext = file.name.split('.').pop().toLowerCase();
+
+              // 확장자 체크
+              if (ext !== 'jpg') {
+                alert(`"${file.name}"은(는) jpg 파일만 업로드 가능합니다.`);
+                return;
+              }
+
+              // 사이즈 체크 (1MB = 1024*1024 바이트)
+              if (file.size > 1 * 1024 * 1024) {
+                alert(`"${file.name}"의 크기가 1MB를 초과합니다.`);
+                return;
+              }
+
+              validFiles.push(file);
+            }
+
+            // 전송 타입별 레이블 맵
+            const typeLabels = {
+              kakao:     '알림톡',
+              naver_mms: '네이버문자',
+              sms:       '일반문자'
+            };
+
+            // 전송 대상 건수
+            const count = window.selectedPhoneNumbers.split(',').length;
+            // 레이블 결정 (기본 '메시지')
+            const label = typeLabels[selectedSendType] || '메시지';
+
+            // 사용자 확인
+            if (!confirm(`${label} ${count}건을 전송하시겠습니까?`)) {
               return;
             }
-            // /api/sms_send로 JSON 데이터 전송
+
+            // 1차로 먼저 파일을 먼저 업로드 처리하고 처리한 업로드파일 목록을 넙겨준다.
+            // FormData 객체 생성
+            const formData = new FormData();
+            // 선택된 파일들을 FormData에 추가
+            validFiles.forEach(f => formData.append('files', f));
+
+            // 추가 데이터 (선택적)
+            formData.append('sender', 'web_client');
+            formData.append('upload_time', new Date().toISOString());
+
+            // 로딩 표시
+            $("#sending-message").text("파일 전송 중...").show();
+
+            let image_files = [];
+            // AJAX로 파일 전송
             $.ajax({
-                url: BASE_URL + '/api/sms_send',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
+              url: BASE_URL + '/api/upload_files',
+              method: 'POST',
+              data: formData,
+              processData: false,
+              contentType: false,
+              timeout: 60000,
+              success: function(response) {
+                $("#sending-message").hide();
+
+                if (!response.success) {
+                  return alert("파일 전송 실패: " + response.message);
+                }
+
+                // 업로드된 파일명만 추출
+                const image_files = response.files.map(f => f.saved_name);
+                console.log('image_files:', image_files);
+
+                // 2) 이제 SMS/MMS 전송
+                $("#sending-message").text("메시지 전송 중...").show();
+                $.ajax({
+                  url: BASE_URL + '/api/sms_send',
+                  method: 'POST',
+                  contentType: 'application/json',
+                  data: JSON.stringify({
                     userid: loginId,
                     userpswd: loginPassword,
                     sendType: selectedSendType,
-                    phoneNumbers: window.selectedPhoneNumbers, // 체크박스에서 추출한 휴대전화 목록
+                    phoneNumbers: window.selectedPhoneNumbers,
                     title: messageTitle,
-                    message: messageContent
-                }),
-                timeout: 60000, // 타임아웃을 30초(30000ms)로 설정
-                beforeSend: function() {
-                    // Ajax 호출 시작 전 로딩 메시지 표시
-                    $("#sending-message").show();
-                },
-                complete: function() {
-                    // 전송 완료 또는 에러 발생 후 로딩 메시지 숨김
-                    $("#sending-message").hide();
-                },
-                success: function(response) {
-                    // 서버 응답: response.result와 response.errmsg를 확인
-                    if (response.result === 'Success') {
-                        alert("메시지 전송 성공");
-                      document.getElementById('message-popup').style.display = 'none';
-                    } else {
-                        alert("메시지 전송 실패: " + response.errmsg);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    alert("전송 중 오류가 발생했습니다: " + error);
-                }
-            }); // end ajax
-          }); //
-
-          // 첨부이미지화일 send-file-btn 클릭 이벤트 핸들러 추가
-          document.getElementById('send-file-btn').addEventListener('click', function() {
-              const fileInput = document.getElementById('file-input');
-              const files = fileInput.files;
-
-              if (files.length === 0) {
-                  alert("첨부할 파일을 선택하세요.");
-                  return;
-              }
-
-              // FormData 객체 생성
-              const formData = new FormData();
-
-              // 선택된 파일들을 FormData에 추가
-              for (let i = 0; i < files.length; i++) {
-                  formData.append('files', files[i]);
-              }
-
-              // 추가 데이터 (선택적)
-              formData.append('sender', 'web_client');
-              formData.append('upload_time', new Date().toISOString());
-
-              // 로딩 표시
-              $("#sending-message").text("파일 전송 중...").show();
-
-              // AJAX로 파일 전송
-              $.ajax({
-                  url: BASE_URL + '/api/upload_files',
-                  method: 'POST',
-                  data: formData,
-                  processData: false,  // FormData 전송을 위해 필요
-                  contentType: false,  // FormData 전송을 위해 필요
+                    message: messageContent,
+                    imageFiles: image_files
+                  }),
                   timeout: 60000,
-                  success: function(response) {
-                      $("#sending-message").hide();
-                      if (response.success) {
-                          alert("파일 전송 성공!\n전송된 파일 수: " + response.file_count);
-                      } else {
-                          alert("파일 전송 실패: " + response.message);
-                      }
+                  complete: function() {
+                    $("#sending-message").hide();
+                  },
+                  success: function(resp) {
+                    if (resp.result === 'Success') {
+                      alert("메시지 전송 성공");
+                      document.getElementById('message-popup').style.display = 'none';
+                    }
+                    else if (resp.result === 'PartialSuccess') {
+                      alert("메시지 부분전송 성공\n" + resp.errmsg);
+                      document.getElementById('message-popup').style.display = 'none';
+                    }
+                    else {
+                      alert("메시지 전송 실패: " + resp.errmsg);
+                    }
                   },
                   error: function(xhr, status, error) {
-                      $("#sending-message").hide();
-                      alert("파일 전송 중 오류 발생: " + error);
+                    alert("전송 중 오류가 발생했습니다: " + error);
                   }
-              });
-          });
+                });
+              },
+              error: function(xhr, status, error) {
+                $("#sending-message").hide();
+                alert("파일 전송 중 오류 발생: " + error);
+              }
+            }); // end of AJAX for file upload
+          }); //
 
           // 팝업 닫기 (메시지 팝업 내 .close-btn 클릭)
           document.querySelectorAll('#message-popup .close-btn').forEach(function(btn) {
@@ -971,8 +1020,8 @@
           // 파일 첨부 (이미지 썸네일 미리보기) - 최대 7개 첨부
           document.getElementById('file-input').addEventListener('change', function(event) {
               const files = event.target.files;
-              if (files.length > 7) {
-                alert("파일첨부는 최대 7개까지 가능합니다.");
+              if (files.length > 5) {
+                alert("파일첨부는 최대 5개까지 가능합니다.");
                 event.target.value = "";
                 let thumbnailList = document.querySelector('.thumbnail-list');
                 if (thumbnailList) {
@@ -987,13 +1036,24 @@
               }
               totalThumbnails = files.length;
               for (let i = 0; i < totalThumbnails; i++) {
-                let file = files[i];
-                let reader = new FileReader();
+                const file = files[i];
+                const reader = new FileReader();
                 reader.onload = function(e) {
-                  if (thumbnailList) {
-                    thumbnailList.innerHTML += `<div class="thumbnail-item"><img src="${e.target.result}" alt="첨부이미지"></div>`;
-                  }
-                }
+                  const div = document.createElement('div');
+                  div.className = 'thumbnail-item';
+                  div.innerHTML = `
+                    <img src="${e.target.result}" alt="첨부이미지">
+                    <span class="thumb-delete">&times;</span>
+                  `;
+                  // 삭제 버튼
+                  div.querySelector('.thumb-delete').addEventListener('click', function(ev) {
+                    ev.stopPropagation();
+                    div.remove();
+                    totalThumbnails--;
+                    updateThumbnailSlider();
+                  });
+                  thumbnailList.appendChild(div);
+                };
                 reader.readAsDataURL(file);
               }
           });
@@ -1240,7 +1300,8 @@
       <!-- 전송방식 선택 (알림톡 / 문자) -->
       <div class="send-type" style="display: flex; align-items: center; margin-bottom: 10px;">
         <label><input type="radio" name="send-type" value="kakao" checked> 알림톡</label>
-        <label style="margin-left: 15px;"><input type="radio" name="send-type" value="sms"> 문자</label>
+        <label style="margin-left: 15px;"><input type="radio" name="send-type" value="sms"> 뿌리오 문자</label>
+        <label style="margin-left: 15px;"><input type="radio" name="send-type" value="naver_mms"> 네이버 문자</label>
         <!--
         <select id="send_tool_type" style="margin-left: auto; padding:8px; border:1px solid #ddd; border-radius:4px;">
           <option value="kakao">알림톡</option>
@@ -1283,7 +1344,6 @@
       </div>
       <button id="send-message-btn">전송</button>
       <button id="send-message-pop">전송(확인후)</button>
-      <button id="send-file-btn">첨부파일전송</button>
     </div>
   </div>
 

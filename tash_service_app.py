@@ -1,3 +1,15 @@
+#
+# ✅ 멀티프로세스(동시접속) 추천 운영 방법: gunicorn + Flask
+# gunicorn은 Python WSGI HTTP 서버로, 멀티 프로세스/멀티 스레드를 활용해 동시에 여러 요청을 처리할 수 있습니다.
+# 1. gunicorn 설치
+# pip install gunicorn
+#
+# gunicorn app:app --workers 4 --bind 0.0.0.0:8080
+# app:app → 첫 번째 app은 파일명 (app.py), 두 번째 app은 Flask 인스턴스 변수
+# #
+# --workers 4 → 4개 프로세스로 실행
+# --bind → 접속 포트 지정
+#
 import os
 import json
 import requests
@@ -17,7 +29,8 @@ from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
     user_delete_record, user_cancel_record
 #
-from sms.alim_talk import alimtalk_send
+from sms.naver_alim_talk import alimtalk_send
+from sms.naver_sms import send_mms_data
 from sms.purio_sms import purio_sms_send
 #
 from pastapt.past_apt_complete_volume_db_utils import fetch_apt_complete_volume_by_address
@@ -30,7 +43,7 @@ from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_
 # auth.py에서 토큰 관련 함수 가져오기
 from common.auth import token_required, create_access_token, extract_user_info_from_token
 #
-from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, SAVE_MODE
+from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, SAVE_MODE, UPLOAD_FOLDER_PATH
 
 # common/commonResponse.py에 정의된 CommonResponse와 Result를 import
 from common.commonResponse import CommonResponse
@@ -648,6 +661,23 @@ def sms_send():
         response_result = alimtalk_send(data)
         result = 'Success'
         errmsg = 'Success'
+    elif sendType == 'naver_mms':
+        # NAVER_MMS 발송 처리
+        mms_result = send_mms_data(data)
+        status     = mms_result['status']
+
+        if status == '전체성공':
+            result = 'Success'
+            errmsg = '모든 MMS 전송에 성공했습니다.'
+        elif status == '부분성공':
+            result = 'PartialSuccess'
+            errmsg = (
+                f"{mms_result['success_count']}건 성공, "
+                f"{mms_result['fail_count']}건 실패"
+            )
+        else:
+            result = 'Failed'
+            errmsg = '모두 MMS 전송에 실패했습니다.'
     else :
         response_result = purio_sms_send(data)
         print(jsonify(response_result))
@@ -667,12 +697,11 @@ def sms_send():
 
 
 # 파일 업로드 설정
-UPLOAD_FOLDER = 'uploads'
+#app.config['UPLOAD_FOLDER'] = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # # 업로드 폴더가 없으면 생성
-# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# os.makedirs(UPLOAD_FOLDER_PATH, exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -699,7 +728,7 @@ def upload_files():
             filename = secure_filename(file.filename)
             # 고유한 파일 이름을 위해 타임스탬프 추가
             unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}.{filename}"
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            save_path = os.path.join(UPLOAD_FOLDER_PATH, unique_filename)
 
             try:
                 file.save(save_path)
@@ -723,6 +752,7 @@ def upload_files():
         'file_count': len(saved_files),
         'files': saved_files
     })
+
 
 @app.route('/api/form_down', methods=['GET'])
 def form_download():
