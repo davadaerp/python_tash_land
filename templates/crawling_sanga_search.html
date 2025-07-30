@@ -366,6 +366,9 @@
     <script src="/static/js/indexed_db_utils.js"></script>
     <script>
         //
+        window.mapcurrentDealFilteredItems = [];
+        window.mapcurrentAuctionFetchedItems = [];
+
         // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
         window.onload = function() {
             var lawName = "{{ lawName }}";
@@ -1713,6 +1716,82 @@
               });
             }
 
+            // 지도보기함수(설거래및 경매)
+            async function realAuctionMapPopupView() {
+                alert("지도보기함수는 아직 구현되지 않았습니다.");
+                //
+                //const lawName = document.getElementById("popup-lawName").textContent;
+                const lawName = '경기도 김포시 구래동';
+                const dealItems = window.currentDealFilteredItems || [];
+                const aucItems  = window.currentAuctionFetchedItems || [];
+
+                // 1) 실거래 JSON 생성 (비동기로 위/경도 가져오기)
+                const realAddrs = await Promise.all(dealItems.map(async item => {
+                  const amount = parseInt((item.dealAmount||"0").replace(/,/g,""), 10); // 거래금액 31,000 즉 3.1억
+                  const area   = parseFloat(item.buildingArPyeong) || 0;
+                  const unitPrice = area > 0 ? Math.round(amount / area) : 0; // 평단가 계산
+                  const address   = [lawName, item.jibun].filter(Boolean).join(" ");
+
+                  console.log(amount, area, unitPrice, address);
+
+                  // // 국토부 지오코딩 API를 사용하여 위/경도 가져오기
+                  // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                  // //console.log(address, latitude, longitude);
+                  // return {
+                  //   type:       "real",
+                  //   address,
+                  //   date:       item.dealDate,
+                  //   year:       Number(item.buildYear) || '',
+                  //   floor:      `${item.floor}층`,
+                  //   area:       area ? `${area}평` : "",
+                  //   unitPrice:  formatNumber(unitPrice),
+                  //   price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
+                  //   latitude: latitude,
+                  //   longitude: longitude
+                  // };
+                }));
+
+                // 2) 경매 JSON 생성（이미 item.latitude/item.longitude 가 있다면 바로 사용）
+                // const aucAddrs = await Promise.all(aucItems.map(async item => {
+                //   const amount = Number(item.sale_price)/10000; // 경매금액 310000000 / 10000=> 31000
+                //   const area   = parseFloat(item.building_py) || 0;
+                //   const unitPrice = area > 0 ? Math.round(amount / area) : 0;   // 평단가 계산
+                //   const address   = item.address1;
+                //   const sale_percent = item.sale_percent || "0%"; // 경매 낙찰률
+                //
+                //   // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
+                //   // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                //   const latitude  = item.latitude  || 0;
+                //   const longitude = item.longitude || 0;
+                //
+                //   return {
+                //     type:       "auction",
+                //     address,
+                //     date:       item.sales_date,
+                //     year:       '',
+                //     floor:      `${item.floor}층`,
+                //     area:       area ? `${area}평` : "",
+                //     unitPrice:  formatNumber(unitPrice),
+                //     price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
+                //     latitude,
+                //     longitude
+                //   };
+                // }));
+
+                // 필터 옵션
+                const selectedFloor = $("#deal_sel_floor option:selected").text();
+                const selectedArea  = $("#deal_sel_area option:selected").text();
+
+                const payload = {
+                  options: [{
+                    region: lawName,
+                    floor:  selectedFloor,
+                    area:   selectedArea
+                  }],
+                  addresses: [...realAddrs, ...aucAddrs]
+                };
+                console.log("Payload for popup:", payload);
+            }
 
             //==============================================
             // 현재 선택로우 위경도를 기준으로 근처에 주변월세목록 가져오기
@@ -1893,6 +1972,11 @@
                 // 10. "평형분석" button click event
                 $("#rent-pyeng-btn").on("click", function () {
                     pyengRentRealPopupView(rentFilteredItems, 'rent');
+                });
+
+                // 11. "지도보기" button click event
+                $("#extool-map-btn").on("click", function () {
+                    realAuctionMapPopupView();
                 });
 
                 // 11. When either select changes, update the popup table and averages
@@ -2398,6 +2482,8 @@
                     document.getElementById("deal-result-amt").innerHTML = `평균금액/단가: ${avgDealAmountFormatted}/<span style="color: red;">@${avgUnitPriceFormatted}</span>`;
                     document.getElementById("deal-result-count").textContent = `건수: ${filteredItems.length}`;
 
+                    // 지도에 실거래 데이타를 표시하기 위함.
+                    window.mapcurrentDealFilteredItems = filteredItems;
                 } // end renderDealTable()
 
                 // 층, 평형 select변경
@@ -2613,6 +2699,9 @@
                             openAuctionMap(address);
                         });
                     });
+
+                    // 지도에 경매 데이타를 표시하기 위함.
+                    window.mapcurrentAuctionFetchedItems = filteredItems;
                 } // end renderAuctionTable()
             }
 
@@ -2826,9 +2915,10 @@
               기준매매가: <span style="color:blue; font-weight:bold;">0</span>
             </div>
             <!-- 캡처 버튼 (왼쪽) -->
-            <button id="captuer-btn" style="position:absolute; right:80px; top:70%; transform:translateY(-50%); padding:5px; border:1px solid black; cursor:pointer; font-size:16px;">이미지캡쳐</button>
+            <button id="captuer-btn" style="position:absolute; right:150px; top:70%; transform:translateY(-50%); padding:5px; border:1px solid black; cursor:pointer; font-size:16px;">이미지캡쳐</button>
             <!-- 평형분석 버튼 (오른쪽) -->
-            <button id="rent-pyeng-btn" style="position:absolute; right:10px; top:70%; transform:translateY(-50%); padding:5px; border:1px solid black; cursor:pointer; font-size:16px;">평형분석</button>
+            <button id="rent-pyeng-btn" style="position:absolute; right:80px; top:70%; transform:translateY(-50%); padding:5px; border:1px solid black; cursor:pointer; font-size:16px;">평형분석</button>
+            <button id="extool-map-btn" style="position:absolute; right:10px; top:70%; transform:translateY(-50%); padding:5px; background:#ffae00; color:#fff; border:1px solid black; cursor:pointer; font-size:16px;">지도보기</button>
           </div>
           <!-- 월세 선택부: 좌측에는 필터 그룹 + avgPyeongPriceSpan, 우측에는 동적 데이터 영역 -->
           <div id="monthlyFilters" style="padding:5px; background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:5px; display:flex; justify-content:space-between; align-items:flex-start;">

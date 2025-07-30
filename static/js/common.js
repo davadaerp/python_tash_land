@@ -265,3 +265,87 @@
             yearSelect.append(`<option value="${currentYear - i}">${currentYear - i}</option>`);
         }
     }
+
+    /**
+    * 이미지를 JPEG로 변환·압축해서 maxSize 이하로 만든 뒤 callback(blob) 호출
+    */
+    function compressImage_old(file, maxSize, callback) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            // 캔버스에 원본 크기로 그리기
+            let [w, h] = [img.width, img.height];
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+
+            let quality = 0.9;
+            // 재귀적으로 품질 낮추기
+            function attempt() {
+              canvas.toBlob(blob => {
+                if (blob.size <= maxSize || quality <= 0.1) {
+                  callback(blob);
+                } else {
+                  quality -= 0.1;
+                  attempt();
+                }
+              }, 'image/jpeg', quality);
+            }
+            attempt();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /**
+     * 이미지 리사이즈·압축 유틸
+     * @param {File}   file         원본 File 객체
+     * @param {Number} maxW         최대 너비(px)
+     * @param {Number} maxH         최대 높이(px)
+     * @param {Number} maxSizeKB    최대 용량(KB)
+     * @param {Function} callback   최종 Blob 콜백
+     */
+    function compressImage(file, maxW, maxH, maxSizeKB, callback) {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = e => img.src = e.target.result;
+      reader.readAsDataURL(file);
+
+      img.onload = () => {
+        // 1) 해상도 비율 계산
+        let { width, height } = img;
+        const ratio = Math.min(maxW / width, maxH / height, 1);
+        width  = Math.round(width  * ratio);
+        height = Math.round(height * ratio);
+
+        // 2) Canvas 에 그리기
+        const canvas = document.createElement('canvas');
+        canvas.width  = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // 3) 품질을 낮춰가며 최대 용량 이하가 될 때까지 반복
+        let quality = 0.9;
+        function attemptCompress() {
+          canvas.toBlob(blob => {
+            if (blob.size > maxSizeKB * 1024 && quality > 0.1) {
+              quality -= 0.1;
+              attemptCompress();
+            } else {
+              callback(blob);
+            }
+          }, 'image/jpeg', quality);
+        }
+        attemptCompress();
+      };
+
+      img.onerror = () => {
+        console.error('이미지 로드 실패:', file.name);
+      };
+    }

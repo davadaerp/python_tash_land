@@ -446,6 +446,15 @@
   <script src="/static/js/common.js"></script>
   <script>
 
+    // 최대 1MB
+    const MAX_SIZE = 1024 * 1024;   // 최대 1MB
+    const MAX_ATTACH = 3;           // 최대 첨부 개수
+    const VISIBLE_COUNT = 4;        // 한 번에 보여줄 썸네일 개수
+    let currentSlide = 0;           // 현재 슬라이드 인덱스
+    let totalThumbnails = 0;        // 전체 썸네일 개수
+    //
+    const validFiles = [];          // 서버전송전 변환파일들
+
     // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
     window.onload = function() {
         var lawName = "{{ lawName }}";
@@ -467,11 +476,6 @@
             }, 500);
         }
     };
-
-    // 슬라이더 관련 변수
-    let currentSlide = 0;
-    let totalThumbnails = 0;
-    const visibleCount = 4; // 기본 4개 보임
     //
     function fetchData() {
       const selType = $('#sel_type').val();
@@ -549,11 +553,16 @@
       });
     }
 
+    // 썸네일 보이기/숨기기 로직
     function updateThumbnailSlider() {
-      const slider = document.querySelector('.thumbnail-list');
-      if(slider) {
-        slider.style.transform = `translateX(-${currentSlide * 85}px)`;
-      }
+      const items = document.querySelectorAll('.thumbnail-list .thumbnail-item');
+      items.forEach((item, idx) => {
+        if (idx >= currentSlide && idx < currentSlide + VISIBLE_COUNT) {
+          item.style.display = 'inline-block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
     }
 
    document.addEventListener("DOMContentLoaded", function() {
@@ -844,27 +853,27 @@
                   return;
             }
 
-            // 유효한 파일만 담을 배열
-            const validFiles = [];
-
-            for (let i = 0; i < files.length; i++) {
-              const file = files[i];
-              const ext = file.name.split('.').pop().toLowerCase();
-
-              // 확장자 체크
-              if (ext !== 'jpg') {
-                alert(`"${file.name}"은(는) jpg 파일만 업로드 가능합니다.`);
-                return;
-              }
-
-              // 사이즈 체크 (1MB = 1024*1024 바이트)
-              if (file.size > 1 * 1024 * 1024) {
-                alert(`"${file.name}"의 크기가 1MB를 초과합니다.`);
-                return;
-              }
-
-              validFiles.push(file);
-            }
+            // // 유효한 파일만 담을 배열
+            // const validFiles = [];
+            //
+            // for (let i = 0; i < files.length; i++) {
+            //   const file = files[i];
+            //   const ext = file.name.split('.').pop().toLowerCase();
+            //
+            //   // 확장자 체크
+            //   if (ext !== 'jpg') {
+            //     alert(`"${file.name}"은(는) jpg 파일만 업로드 가능합니다.`);
+            //     return;
+            //   }
+            //
+            //   // 사이즈 체크 (1MB = 1024*1024 바이트)
+            //   if (file.size > 1 * 1024 * 1024) {
+            //     alert(`"${file.name}"의 크기가 1MB를 초과합니다.`);
+            //     return;
+            //   }
+            //
+            //   validFiles.push(file);
+            // }
 
             // 전송 타입별 레이블 맵
             const typeLabels = {
@@ -1019,43 +1028,65 @@
 
           // 파일 첨부 (이미지 썸네일 미리보기) - 최대 7개 첨부
           document.getElementById('file-input').addEventListener('change', function(event) {
-              const files = event.target.files;
-              if (files.length > 5) {
-                alert("파일첨부는 최대 5개까지 가능합니다.");
-                event.target.value = "";
-                let thumbnailList = document.querySelector('.thumbnail-list');
-                if (thumbnailList) {
-                  thumbnailList.innerHTML = '';
-                }
-                totalThumbnails = 0;
-                return;
-              }
-              let thumbnailList = document.querySelector('.thumbnail-list');
-              if (thumbnailList) {
-                thumbnailList.innerHTML = '';
-              }
-              totalThumbnails = files.length;
-              for (let i = 0; i < totalThumbnails; i++) {
-                const file = files[i];
-                const reader = new FileReader();
-                reader.onload = function(e) {
+            const originalFiles = Array.from(event.target.files);
+            const thumbnailList = document.querySelector('.thumbnail-list');
+            thumbnailList.innerHTML = '';
+            if (originalFiles.length > MAX_ATTACH) {
+              alert(`파일첨부는 최대 ${MAX_ATTACH}개까지 가능합니다.`);
+              event.target.value = "";
+              totalThumbnails = 0;
+              return;
+            }
+
+            currentSlide = 0;
+            totalThumbnails = 0;
+            originalFiles.forEach(origFile => {
+              // compressImage(file, maxSize, callback) 내부에서, 1500×1440 해상도, 300KB 제한
+              // Canvas → toBlob('image/jpeg') → 크기 맞춰 재시도 등으로 JPEG blob을 반환한다고 가정합니다.
+              compressImage(origFile, 1500, 1440, 300, jpegBlob => {
+                // blob을 JPG 파일로 래핑 (확장자 강제 변경)
+                const newFileName = origFile.name.replace(/\.[^/.]+$/, '') + '.jpg';
+                const jpegFile = new File([jpegBlob], newFileName, { type: 'image/jpeg' });
+
+                // 3) 확장자·크기 검증
+                const ext = jpegFile.name.split('.').pop().toLowerCase();
+                if (ext !== 'jpg') {
+                  alert(`"${origFile.name}"은(는) jpg 파일만 업로드 가능합니다.`);
+                } else if (jpegFile.size > MAX_SIZE) {
+                  alert(`"${origFile.name}"의 크기가 1MB를 초과합니다.`);
+                } else {
+                  validFiles.push(jpegFile);
+
+                  // URL.createObjectURL 로 썸네일에 사용
+                  const url = URL.createObjectURL(jpegFile);
                   const div = document.createElement('div');
                   div.className = 'thumbnail-item';
                   div.innerHTML = `
-                    <img src="${e.target.result}" alt="첨부이미지">
-                    <span class="thumb-delete">&times;</span>
-                  `;
+                      <img src="${url}" alt="첨부이미지">
+                      <span class="thumb-delete">&times;</span>
+                    `;
                   // 삭제 버튼
-                  div.querySelector('.thumb-delete').addEventListener('click', function(ev) {
-                    ev.stopPropagation();
-                    div.remove();
-                    totalThumbnails--;
-                    updateThumbnailSlider();
+                  div.querySelector('.thumb-delete').addEventListener('click', ev => {
+                      ev.stopPropagation();
+                      div.remove();
+                      totalThumbnails--;
+                      // 슬라이더가 앞으로 가야 한다면 인덱스 조정
+                      if (currentSlide + VISIBLE_COUNT > totalThumbnails) {
+                        currentSlide = Math.max(0, totalThumbnails - VISIBLE_COUNT);
+                      }
+                      // 옵션: validFiles에서도 해당 파일 제거
+                      const idx = validFiles.indexOf(jpegFile);
+                      if (idx > -1) validFiles.splice(idx, 1);
+                      // 썸네일 업데이트
+                      updateThumbnailSlider();
                   });
+
                   thumbnailList.appendChild(div);
-                };
-                reader.readAsDataURL(file);
-              }
+                  totalThumbnails++;
+                  updateThumbnailSlider();
+                }
+              });
+            });
           });
 
           // 썸네일 슬라이더 좌측 네비 버튼 클릭
@@ -1070,15 +1101,12 @@
           }
 
           // 썸네일 슬라이더 우측 네비 버튼 클릭
-          let thumbNavRight = document.querySelector('.thumb-nav.right');
-          if (thumbNavRight) {
-            thumbNavRight.addEventListener('click', function() {
-              if (currentSlide < totalThumbnails - visibleCount) {
-                currentSlide++;
-                updateThumbnailSlider();
-              }
-            });
-          }
+          document.querySelector('.thumb-nav.right').addEventListener('click', () => {
+            if (currentSlide + VISIBLE_COUNT < totalThumbnails) {
+              currentSlide++;
+              updateThumbnailSlider();
+            }
+          });
 
           // 썸네일 클릭 시 해당 이미지를 팝업으로 표시 (이벤트 위임)
           let thumbnailList = document.querySelector('.thumbnail-list');
@@ -1335,7 +1363,7 @@
       <textarea id="message-content" placeholder="전송할 메시지를 입력하세요"></textarea>
       <!-- 첨부파일 영역 -->
       <div class="attachment-container">
-        <input type="file" id="file-input" accept="image/*" multiple>
+        <input type="file" id="file-input" accept="image/png, image/jpeg, image/jpg, image/gif" apture="environment" multiple>
         <div class="thumbnail-slider">
           <div class="thumb-nav left">&#9664;</div>
           <div class="thumbnail-list"></div>

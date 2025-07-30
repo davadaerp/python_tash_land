@@ -7,6 +7,8 @@ import json
 import mimetypes
 import os
 
+from config import UPLOAD_FOLDER_PATH
+
 # SENS 설정값
 access_key = "fTenshdXfuN0XHRCm2yH"
 secret_key = "JA1QHVo1O47VRcv20r93DE4GeT2E5FVrc1GarqZ3"
@@ -99,19 +101,17 @@ def send_sms(to_number, content, subject=None, msg_type='SMS'):
 
 
 # MMS 전송
-def send_mms(to_number, content, subject, image_paths):
-    # Step 1. 파일 업로드 → fileId 수집
-    file_ids = []
-    for file_path in image_paths:
-        fid = upload_file(file_path)
-        if fid:
-            file_ids.append(fid)
-
+# --- 1) send_mms는 file_ids를 바로 받아서 전송만 담당하도록 수정 ---
+def send_mms(to_number, content, subject, file_ids):
+    """
+    to_number: 수신번호
+    content, subject: 메시지
+    file_ids: upload_file()로 얻은 fileId 리스트
+    """
     if not file_ids:
-        print("❌ 첨부 이미지 업로드 실패: MMS 전송 중단")
-        return
+        print("❌ 첨부 이미지 fileId가 없습니다: MMS 전송 중단")
+        return None
 
-    # Step 2. 메시지 전송
     uri = f"/sms/v2/services/{service_id}/messages"
     url = f"{api_host}{uri}"
     timestamp = str(int(time.time() * 1000))
@@ -147,7 +147,81 @@ def send_mms(to_number, content, subject, image_paths):
         print("📨 Response:", res.json())
     except Exception as e:
         print("⚠️ 응답 파싱 오류:", e)
+    return res
 
+# 2) send_mms_data: 전송 대상별 성공/실패 집계 후 상태 리턴
+# 2) send_mms_data에서 파일 업로드 한 번만 수행하고, file_ids만 넘기도록 수정 ---
+def send_mms_data(data):
+    """
+    data: {
+        "phoneNumbers": "홍길동:01012345678,김영희:01098765432",
+        "title": "제목",
+        "message": "메시지 내용",
+        "imageFiles": ["sample1.jpg", "sample2.jpg"]
+    }
+    """
+    # (기존) phoneNumbers → phone_numbers 리스트 파싱
+    raw = data.get("phoneNumbers", "")
+    entries = raw.split(",") if isinstance(raw, str) else raw
+    phone_numbers = []
+    for entry in entries:
+        entry = entry.strip()
+        if ":" in entry:
+            _, phone = entry.split(":", 1)
+        else:
+            phone = entry
+        phone = phone.strip().replace("-", "")
+        if phone:
+            phone_numbers.append(phone)
+
+    subject     = data.get("title", "")
+    content     = data.get("message", "")
+    image_files = data.get("imageFiles", [])
+
+    # 1) 여기서만 파일 업로드! → file_ids 수집
+    file_ids = []
+    for filename in image_files:
+        full_path = os.path.join(UPLOAD_FOLDER_PATH, filename)
+        fid = upload_file(full_path)
+        if fid:
+            file_ids.append(fid)
+    if not file_ids:
+        print("❌ 첨부 이미지 업로드 실패: MMS 전송 중단")
+        return {
+            'status': '실패',
+            'success_count': 0,
+            'fail_count': len(phone_numbers),
+            'failures': phone_numbers
+        }
+
+    # 2) 모든 수신번호로 send_mms 호출 (파일 업로드는 안 함)
+    successes = []
+    failures  = []
+    for to in phone_numbers:
+        try:
+            res = send_mms(to, content, subject, file_ids)
+            if res and res.status_code < 400:
+                successes.append(to)
+            else:
+                failures.append(to)
+        except Exception as e:
+            print(f"❌ {to} 전송 중 예외:", e)
+            failures.append(to)
+
+    # 3) 결과 상태 결정
+    if successes and not failures:
+        status = '전체성공'
+    elif successes and failures:
+        status = '부분성공'
+    else:
+        status = '실패'
+
+    return {
+        'status':        status,
+        'success_count': len(successes),
+        'fail_count':    len(failures),
+        'failures':      failures
+    }
 
 # ✅ 실행 예시
 if __name__ == "__main__":
@@ -160,5 +234,14 @@ if __name__ == "__main__":
     #send_sms(target_number, "이것은 LMS 테스트 메시지입니다. 80바이트 초과 시 자동 LMS 처리됩니다.", subject="LMS 제목", msg_type='LMS')
 
     # 3. MMS 전송 (이미지 포함)
-    image_files = ["sample1.jpg", "sample2.jpg"]  # 실제 존재하는 파일로 교체
-    send_mms(target_number, "MMS 테스트입니다. 이미지 첨부 확인해주세요.그리고 메시지 내용(content)은 80자 이하로 유지해야 SMS로 전송됩니다. 초과 시는 LMS 또는 MMS로 타입을 변경해야 합니다.\n연락처는 010-2270-9085로 해주세요.\n감사합니다.\n잘부탁드립니다.", "MMS 제목", image_files)
+    payload = {
+        "phoneNumbers": ["강종철:010-2270-9085"],
+        "title": "MMS 제목",
+        "message": (
+            "MMS 테스트입니다. 이미지 첨부 확인해주세요.\n"
+            "내용이 80자 이하일 땐 SMS로, 초과하면 자동 LMS로 전환됩니다.\n"
+            "감사합니다."
+        ),
+        "imageFiles": ["sample1.jpg", "sample2.jpg"]
+    }
+    send_mms_data(payload)
