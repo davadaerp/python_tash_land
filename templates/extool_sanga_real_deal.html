@@ -857,7 +857,7 @@
                 //
                 let searchTerm = "";
                 let yearRange = 2;
-                let mainCategory = "상업용외";
+                let mainCategory = "근린상가";
                 let dangiName = "";
 
                 $('#loading').show();
@@ -1212,34 +1212,34 @@
               });
         });
 
-        // vWorld 지오코딩 래퍼-api호출은 tash서버에서 처리함
-        // r = requests.get("https://api.vworld.kr/req/address", params=params, timeout=5)
-        async function geocodeVWorld(address) {
-          try {
-            const res = await fetch(
-              `${BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
-              { credentials: 'include' }
-            );
-            if (!res.ok) {
-              console.error('Network response not ok', res.status);
-              return { lat: 0.0, lng: 0.0 };
-            }
-            const data = await res.json();
-            const status = data.response?.status;
-            const point  = data.response?.result?.point;
-            if (status !== 'OK' || !point || point.x == null || point.y == null) {
-              console.warn('Geocode failed:', data);
-              return { lat: 0.0, lng: 0.0 };
-            }
-            return {
-              lat: parseFloat(point.y) || 0.0,
-              lng: parseFloat(point.x) || 0.0
-            };
-          } catch (err) {
-            console.error('geocodeVWorld error:', err);
-            return { lat: 0.0, lng: 0.0 };
-          }
-        }
+        // // vWorld 지오코딩 래퍼-api호출은 tash서버에서 처리함
+        // // r = requests.get("https://api.vworld.kr/req/address", params=params, timeout=5)
+        // async function geocodeVWorld(address) {
+        //   try {
+        //     const res = await fetch(
+        //       `${BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
+        //       { credentials: 'include' }
+        //     );
+        //     if (!res.ok) {
+        //       console.error('Network response not ok', res.status);
+        //       return { lat: 0.0, lng: 0.0 };
+        //     }
+        //     const data = await res.json();
+        //     const status = data.response?.status;
+        //     const point  = data.response?.result?.point;
+        //     if (status !== 'OK' || !point || point.x == null || point.y == null) {
+        //       console.warn('Geocode failed:', data);
+        //       return { lat: 0.0, lng: 0.0 };
+        //     }
+        //     return {
+        //       lat: parseFloat(point.y) || 0.0,
+        //       lng: parseFloat(point.x) || 0.0
+        //     };
+        //   } catch (err) {
+        //     console.error('geocodeVWorld error:', err);
+        //     return { lat: 0.0, lng: 0.0 };
+        //   }
+        // }
     </script>
 <!--    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />-->
 <!--    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>-->

@@ -1,6 +1,6 @@
 
     //BASE_URL = 'http://192.168.45.167:5002';
-    //BASE_URL = 'http://192.168.45.167:8081';
+    //BASE_URL = 'https://erp-dev.bacchuserp.com/ts/';
     BASE_URL = 'http://localhost:8080';
 
     // 자동완성 공통필드
@@ -266,39 +266,33 @@
         }
     }
 
-    /**
-    * 이미지를 JPEG로 변환·압축해서 maxSize 이하로 만든 뒤 callback(blob) 호출
-    */
-    function compressImage_old(file, maxSize, callback) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const img = new Image();
-          img.onload = () => {
-            // 캔버스에 원본 크기로 그리기
-            let [w, h] = [img.width, img.height];
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = w;
-            canvas.height = h;
-            ctx.drawImage(img, 0, 0, w, h);
-
-            let quality = 0.9;
-            // 재귀적으로 품질 낮추기
-            function attempt() {
-              canvas.toBlob(blob => {
-                if (blob.size <= maxSize || quality <= 0.1) {
-                  callback(blob);
-                } else {
-                  quality -= 0.1;
-                  attempt();
-                }
-              }, 'image/jpeg', quality);
-            }
-            attempt();
-          };
-          img.src = e.target.result;
+    // vWorld 지오코딩 래퍼-api호출은 tash서버에서 처리함
+    // r = requests.get("https://api.vworld.kr/req/address", params=params, timeout=5)
+    async function geocodeVWorld(address) {
+      try {
+        const res = await fetch(
+          `${BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
+          { credentials: 'include' }
+        );
+        if (!res.ok) {
+          console.error('Network response not ok', res.status);
+          return { lat: 0.0, lng: 0.0 };
+        }
+        const data = await res.json();
+        const status = data.response?.status;
+        const point  = data.response?.result?.point;
+        if (status !== 'OK' || !point || point.x == null || point.y == null) {
+          console.warn('Geocode failed:', data);
+          return { lat: 0.0, lng: 0.0 };
+        }
+        return {
+          lat: parseFloat(point.y) || 0.0,
+          lng: parseFloat(point.x) || 0.0
         };
-        reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('geocodeVWorld error:', err);
+        return { lat: 0.0, lng: 0.0 };
+      }
     }
 
     /**

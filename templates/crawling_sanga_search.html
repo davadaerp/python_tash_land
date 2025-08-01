@@ -366,8 +366,8 @@
     <script src="/static/js/indexed_db_utils.js"></script>
     <script>
         //
-        window.mapcurrentDealFilteredItems = [];
-        window.mapcurrentAuctionFetchedItems = [];
+        window.currentDealFilteredItems = [];
+        window.currentAuctionFetchedItems = [];
 
         // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
         window.onload = function() {
@@ -1718,7 +1718,6 @@
 
             // 지도보기함수(설거래및 경매)
             async function realAuctionMapPopupView() {
-                alert("지도보기함수는 아직 구현되지 않았습니다.");
                 //
                 //const lawName = document.getElementById("popup-lawName").textContent;
                 const lawName = '경기도 김포시 구래동';
@@ -1728,55 +1727,58 @@
                 // 1) 실거래 JSON 생성 (비동기로 위/경도 가져오기)
                 const realAddrs = await Promise.all(dealItems.map(async item => {
                   const amount = parseInt((item.dealAmount||"0").replace(/,/g,""), 10); // 거래금액 31,000 즉 3.1억
-                  const area   = parseFloat(item.buildingArPyeong) || 0;
-                  const unitPrice = area > 0 ? Math.round(amount / area) : 0; // 평단가 계산
-                  const address   = [lawName, item.jibun].filter(Boolean).join(" ");
+                  const area   = parseFloat(item.buildingArPyeong) || 0;                // 전용면적 평수
+                  const unitPrice = parseFloat(item.pyeongPrice) || 0;                  // 평단가 계산
+                  const address   = [item.sggNm, item.umdNm, item.jibun].filter(Boolean).join(" ");
 
-                  console.log(amount, area, unitPrice, address);
+                  console.log('=== real', amount, area, unitPrice, address);
 
-                  // // 국토부 지오코딩 API를 사용하여 위/경도 가져오기
-                  // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
-                  // //console.log(address, latitude, longitude);
-                  // return {
-                  //   type:       "real",
-                  //   address,
-                  //   date:       item.dealDate,
-                  //   year:       Number(item.buildYear) || '',
-                  //   floor:      `${item.floor}층`,
-                  //   area:       area ? `${area}평` : "",
-                  //   unitPrice:  formatNumber(unitPrice),
-                  //   price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
-                  //   latitude: latitude,
-                  //   longitude: longitude
-                  // };
+                  // 국토부 지오코딩 API를 사용하여 위/경도 가져오기
+                  const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                  //console.log(address, latitude, longitude);
+                  return {
+                    type:       "real",
+                    address,
+                    date:       item.dealDate,
+                    year:       Number(item.buildYear) || '',
+                    floor:      `${item.floor}층`,
+                    area:       area ? `${area}평` : "",
+                    unitPrice:  formatNumber(unitPrice),
+                    price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
+                    latitude: latitude,
+                    longitude: longitude
+                  };
                 }));
+                //
 
                 // 2) 경매 JSON 생성（이미 item.latitude/item.longitude 가 있다면 바로 사용）
-                // const aucAddrs = await Promise.all(aucItems.map(async item => {
-                //   const amount = Number(item.sale_price)/10000; // 경매금액 310000000 / 10000=> 31000
-                //   const area   = parseFloat(item.building_py) || 0;
-                //   const unitPrice = area > 0 ? Math.round(amount / area) : 0;   // 평단가 계산
-                //   const address   = item.address1;
-                //   const sale_percent = item.sale_percent || "0%"; // 경매 낙찰률
-                //
-                //   // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
-                //   // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
-                //   const latitude  = item.latitude  || 0;
-                //   const longitude = item.longitude || 0;
-                //
-                //   return {
-                //     type:       "auction",
-                //     address,
-                //     date:       item.sales_date,
-                //     year:       '',
-                //     floor:      `${item.floor}층`,
-                //     area:       area ? `${area}평` : "",
-                //     unitPrice:  formatNumber(unitPrice),
-                //     price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
-                //     latitude,
-                //     longitude
-                //   };
-                // }));
+                const aucAddrs = await Promise.all(aucItems.map(async item => {
+                  const amount = Number(item.sale_price)/10000; // 경매금액 310000000 / 10000=> 31000
+                  const area   = parseFloat(item.building_py) || 0;
+                  const unitPrice = area > 0 ? Math.round(amount / area) : 0;   // 평단가 계산
+                  const address   = item.address1;
+                  const sale_percent = item.sale_percent || "0%"; // 경매 낙찰률
+
+                  console.log('=== auction', amount, area, unitPrice, address);
+
+                  // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
+                  // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                  const latitude  = item.latitude  || 0;
+                  const longitude = item.longitude || 0;
+
+                  return {
+                    type:       "auction",
+                    address,
+                    date:       item.sales_date,
+                    year:       '',
+                    floor:      `${item.floor}층`,
+                    area:       area ? `${area}평` : "",
+                    unitPrice:  formatNumber(unitPrice),
+                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
+                    latitude,
+                    longitude
+                  };
+                }));
 
                 // 필터 옵션
                 const selectedFloor = $("#deal_sel_floor option:selected").text();
@@ -1791,6 +1793,24 @@
                   addresses: [...realAddrs, ...aucAddrs]
                 };
                 console.log("Payload for popup:", payload);
+
+                // 팝업 열기
+                const popupWidth  = 1200;
+                const popupHeight = 1100;
+                const left = window.screenX + (window.outerWidth  - popupWidth ) / 2;
+                const top  = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
+
+                const popup = window.open(
+                  '/api/ext_tool/map?menu=map_popup',
+                  'mapPopup',
+                  `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+                );
+
+                // 팝업이 준비되면 메시지 전송
+                popup.onload = () => {
+                  popup.postMessage(payload, window.location.origin);
+                };
+                //
             }
 
             //==============================================
@@ -2483,7 +2503,7 @@
                     document.getElementById("deal-result-count").textContent = `건수: ${filteredItems.length}`;
 
                     // 지도에 실거래 데이타를 표시하기 위함.
-                    window.mapcurrentDealFilteredItems = filteredItems;
+                    window.currentDealFilteredItems = filteredItems;
                 } // end renderDealTable()
 
                 // 층, 평형 select변경
@@ -2701,7 +2721,7 @@
                     });
 
                     // 지도에 경매 데이타를 표시하기 위함.
-                    window.mapcurrentAuctionFetchedItems = filteredItems;
+                    window.currentAuctionFetchedItems = filteredItems;
                 } // end renderAuctionTable()
             }
 

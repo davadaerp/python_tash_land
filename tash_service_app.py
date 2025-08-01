@@ -423,6 +423,7 @@ def get_auction_data():
     lawdCd = request.args.get('lawdCd', '')
     umdNm = request.args.get('umdNm', '')
     year_range = request.args.get('yearRange', '')
+    # 차후 NPL에서 호출방식과  상가검색및 확장상가 검색에서 호출하는 방식 재조정 요망(상업용외,  그냥 근린상가와 근린생활시설 만 경우)
     main_category = request.args.get('mainCategory', '')
     #category = request.args.get('category')
     dangiName = request.args.get('dangiName', '')
@@ -432,23 +433,16 @@ def get_auction_data():
 
     categories = []
     if main_category != '':
-        categories = category_mappings[main_category]
-
-    # if main_category in ["아파트", "빌라", "근린상가", "다가구"]:
-    #     if not category:
-    #         categories = category_mappings[main_category]
-    #     else:
-    #         categories = [c for c in category_mappings[main_category] if c in category]
+        if (main_category == "근린상가"):
+            # 상가검색에서 근린상가 선택시
+            categories = ["근린상가", "근린생활시설"]
+        else:
+            categories = category_mappings[main_category]
 
     print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
 
-    # 데이타 저장
-    if SAVE_MODE == "csv":
-        data = auction_read_csv(lawdCd, umdNm, year_range, categories, dangiName)
-    elif SAVE_MODE == "sqlite":
-        data = auction_read_db(lawdCd, umdNm, year_range, categories, dangiName)
-    else:
-        print("알 수 없는 저장 방식입니다. SAVE_MODE 값을 'csv' 또는 'sqlite'로 설정해주세요.")
+    # 데이타 가져오기
+    data = auction_read_db(lawdCd, umdNm, year_range, categories, dangiName)
 
     return jsonify(data)
 
