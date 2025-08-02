@@ -590,7 +590,8 @@ def main():
     chrome_options.add_argument("--disable-gpu")
     # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
-    driver = webdriver.Chrome(options=chrome_options)
+    #driver = webdriver.Chrome(options=chrome_options)
+    driver = webdriver.Chrome()
     try:
         # 시군구등 법정코드 json 데이타 로딩
         json_data = load_json_data()

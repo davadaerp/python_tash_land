@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import json
 import re
 
-from apt_db_utils import apt_save_to_csv, apt_save_to_sqlite, apt_drop_table
+from apt_db_utils import apt_save_to_sqlite, apt_drop_table
 
 # 쿠키 정보 (필요에 따라 수정)
 cookies = {
@@ -366,9 +366,7 @@ def main():
                 # 일정 건수마다 저장 후 리스트 초기화
                 if len(data_entries) >= BATCH_SIZE:
                     print(f"저장 전 현재까지 저장 건수: {saved_count + len(data_entries)} 건, 이번 배치: {len(data_entries)} 건")
-                    if SAVE_MODE == "csv":
-                        apt_save_to_csv(data_entries)
-                    elif SAVE_MODE == "sqlite":
+                    if SAVE_MODE == "sqlite":
                         apt_save_to_sqlite(data_entries)
                     else:
                         print("알 수 없는 저장 방식입니다. SAVE_MODE 값을 'csv' 또는 'sqlite'로 설정해주세요.")
@@ -387,9 +385,7 @@ def main():
     # 남은 레코드 저장
     if data_entries:
         print(f"마지막 저장 전 현재까지 저장 건수: {saved_count + len(data_entries)} 건, 남은 배치: {len(data_entries)} 건")
-        if SAVE_MODE == "csv":
-            apt_save_to_csv(data_entries)
-        elif SAVE_MODE == "sqlite":
+        if SAVE_MODE == "sqlite":
             apt_save_to_sqlite(data_entries)
         else:
             print("알 수 없는 저장 방식입니다. SAVE_MODE 값을 'csv' 또는 'sqlite'로 설정해주세요.")

@@ -1653,13 +1653,14 @@ function searchNaverListings() {
         } else if (tabGubun === 'villa') {
             search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
         }  if (tabGubun === 'apt') {
-            search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
+            //search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
+            search_menu = "menu=apt_search&regions=" + regions + '&api_key=' + sanga_key;
         }
         // 확장툴url
         let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
         //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
 
-        const popupWidth = tabGubun === 'sanga' ? 1490 : 1100;   // 원하는 팝업 너비
+        const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
         const popupHeight = 1200;  // 원하는 팝업 높이
         const left = (screen.width - popupWidth) / 2;
         const top = (screen.height - popupHeight) / 2;
