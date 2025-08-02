@@ -612,6 +612,9 @@ def ext_tool():
     # 상가 국토부 실거래(내부 확장툴 접근)
     if menu == 'sanga_real_deal':
         return render_template("extool_sanga_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+    # 아파트 네이버 매물 데이타 검색
+    if menu == 'apt_search':
+        return render_template("crawling_apt_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 상가 네이버 매물 데이타 검색
     if menu == 'sanga_search':
         return render_template("crawling_sanga_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
