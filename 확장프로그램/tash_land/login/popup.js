@@ -26,6 +26,12 @@
       data: JSON.stringify(data),
       dataType: 'json',
       success: function(response) {
+        // 응답 결과가 성공인지 확인
+        if (response.result !== "Success") {
+            $('#error-message').text(response.message);
+            return;
+        }
+        //
         const access_token = response.access_token;
         const apt_key = response.apt_key;
         const villa_key = response.villa_key;
@@ -44,7 +50,7 @@
           console.log("✅ 여러 값이 저장되었습니다.");
         });
         //
-        login(access_token);
+        login_token(access_token);
       },
       error: function(xhr, status, error) {
         let errorMsg = '오류가 발생했습니다.';
@@ -62,7 +68,7 @@
   }
 
   // 실제 로그인 처리 함수
-  function login(access_token) {
+  function login_token(access_token) {
     $.ajax({
       url: BASE_URL + '/api/login_token',
       method: 'GET',
@@ -71,7 +77,10 @@
         if (response.result == "Success") {
           // 로그인 성공 시, 로그인 섹션은 숨기고 로그인 상태 메시지 및 로그아웃 버튼은 보이게 처리
           $("#login-section").hide();
+          //
           $("#login-status").show();
+          $("#login-status").text("관리자 로그인되었습니다.");
+          //
           $("#logout-section").show();
         } else {
           $('#error-message').text(response.errmsg);
@@ -190,7 +199,7 @@
           login_auth();
         } else {
           // access_token 값이 있으면 정상 로그인 처리 함수에 전달
-          login(accessToken);
+          login_token(accessToken);
         }
       });
   };
