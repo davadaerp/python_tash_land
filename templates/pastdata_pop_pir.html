@@ -72,6 +72,7 @@
 <body>
   <div style="text-align: center;">
     <h1>
+      <!-- 충청북도 청주시 개신동 삼익2차 (145.64㎡ / 44.13평) -->
       PIR분석 - {{ apt_data[0].region_name }} {{ apt_data[0].mcode_name }} {{ apt_data[0].sname }} {{ apt_data[0].apt_name }} ({{ apt_data[0].size }}㎡ / {{ (apt_data[0].size|float / 3.3)|round(2) }}평)
     </h1>
     <select id="year-range">
@@ -99,6 +100,10 @@
     </p>
     <div id="supply-info-list" style="display:none; margin-top:10px; font-size:12px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto; border:1px solid #ccc; border-radius:8px; background:#f9f9f9; padding:12px; position:absolute; left:50%; transform:translateX(-50%); top:70px; z-index:1000;">
       <div style="text-align:right; display: flex; align-items: center; justify-content: flex-end;">
+        <!-- 1) 위치 입력 추가 -->
+        <input type="text" id="supply-address-filter" placeholder="위치 입력" style="font-size:13px; padding:2px 6px;">
+
+        <!-- 2) 년도별 필터링 셀렉트 박스 추가 -->
         <select id="supply-year-selector" style="margin-right:12px; font-size:13px;">
           <option value="all">전체</option>
           {% set years = [] %}
@@ -143,16 +148,26 @@
       </div>
     </div>
     <script>
+
         // supply-info-list를 버튼 아래 최상단에 표시
         $("#supply-info-btn").click(function() {
-          $("#supply-info-list").css("display", function(_, val) {
-            return val === "none" ? "block" : "none";
-          });
+
+            // 서버 렌더링된 apt_data[0].region_name 값을 직접 전달
+            const regionName = "{{ apt_data[0].sname }}";  // 예: "개신동"
+
+            // 위치 필터 input에 자동 입력
+            $("#supply-address-filter").val(regionName);
+
+            // supply-info-list 표시
+            $("#supply-info-list").toggle();
+            filterSupplyList();
         });
-        // 닫기 버튼 동작
+
+        // close 버튼
         $(document).on("click", "#supply-info-close", function() {
           $("#supply-info-list").hide();
         });
+
         // 마우스 오버시 강조 효과
         $(document).on("mouseenter", ".supply-row", function() {
           $(this).css("background", "#e0f7fa");
@@ -171,25 +186,29 @@
           $("#supply-volume-sum-inline").text(sum.toLocaleString());
         }
 
-        // 년도별 필터링
-        $("#supply-year-selector").on("change", function() {
-          const selectedYear = $(this).val();
+        function filterSupplyList() {
+          const selectedYear = $("#supply-year-selector").val();
+          const addressFilter = $("#supply-address-filter").val().trim();
           $("#supply-info-list tbody tr").each(function() {
-            const ym = $(this).find("td:nth-child(3)").text();
-            const y = ym.substring(0, 4);
-            if (selectedYear === "all" || y === selectedYear) {
+            const ym = $(this).find("td:nth-child(3)").text().substring(0,4);
+            const addr = $(this).find("td:nth-child(1)").text();
+            const matchYear = (selectedYear === "all" || ym === selectedYear);
+            const matchAddr = (addressFilter === "" || addr.includes(addressFilter));
+            if (matchYear && matchAddr) {
               $(this).show();
             } else {
               $(this).hide();
             }
           });
           updateSupplySum();
-        });
+        }
 
-        // 최초 합계 계산
-        $(function() {
-          updateSupplySum();
-        });
+        // 년도 변경 시
+        $("#supply-year-selector").on("change", filterSupplyList);
+
+        // 위치 입력 시
+        $("#supply-address-filter").on("input", filterSupplyList);
+
         // kb-info-btn 클릭시 KB지수(매매및 전세)
         $("#kb-info-btn").click(function() {
           alert('KB지수 조회..어떻게 가져오나(네이버가다막아버리네ㅠ.ㅠ)?? \n(매매지수, 전세지수)');
