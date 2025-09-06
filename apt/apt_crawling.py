@@ -8,6 +8,9 @@ import re
 
 from apt_db_utils import apt_save_to_sqlite, apt_drop_table
 
+# 네이버 호출제한
+#네이버웍스 코어	Free	API당 60 requests/min => 즉 초당 1개호출 가능 ㅠ.ㅠ
+
 # 쿠키 정보 (필요에 따라 수정)
 cookies = {
     '_ga': 'GA1.1.1084468181.1734915860',
@@ -29,18 +32,18 @@ cookies = {
 
 # 여러 User-Agent 문자열 목록
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_6_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPad; CPU OS 15_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/114.0.1823.67',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0'
+    # Windows 최신 Chrome
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.72 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.185 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.72 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.72 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.72 Safari/537.36 Edg/127.0.2651.74"
 ]
-
 
 # 기본 헤더 템플릿 (매 요청마다 User-Agent를 무작위 선택)
 BASE_HEADERS = {
@@ -61,8 +64,8 @@ PROXIES = [
 def get_random_proxy():
     proxy = random.choice(PROXIES)
     return {
-        'http': proxy,
-        'https': proxy
+        'http': proxy
+      #  'https': proxy
     }
 
 # 저장 방식 선택: "csv" 또는 "sqlite"
@@ -223,6 +226,8 @@ def extract_active_third_components(filepath):
             if len(parts) != 3:
                 continue
             code, fullname, status = parts
+            #print('code:' + code, fullname, 'status:' + status)
+            #time.sleep(5)
 
             if status == '존재':
                 exist_count += 1
@@ -257,13 +262,16 @@ def main():
 
     # 크롤링 시작
     for umdNm, cortarNo, line in results:
+        print(f"{umdNm}\t{cortarNo}\t{line}")
         for page in range(1, totPage):  # 페이지 1~99
             # APT:SG:SMS:GM : 상가,사무실,건물
             #url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'
             url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=rank&realEstateType=APT:PRE&priceType=RETAIL&page={page}'
+            # 아래코드는 block안걸림.
+            #url = f'http://land.naver.com/article/articleList.nhn?rletTypeCd=A01&tradeTypeCd=A1&hscpTypeCd=A01%3AA03%3AA04&cortarNo=1168010600&page={page}'
             headers = get_random_headers()
-            response = session.get(url, headers=headers)
-            #response = session.get(url, headers=headers, proxies={"https": get_random_proxy()})
+            # response = session.get(url, headers=headers)
+            response = session.get(url, headers=headers, proxies=get_random_proxy(), timeout=18)
             try:
                 data = response.json()
                 print(data)

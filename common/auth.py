@@ -61,6 +61,22 @@ def token_required(f):
         return f(current_user, *args, **kwargs)
     return decorated
 
+# 쿠키를 이용한 토큰처리
+def kakao_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # 쿠키에서 access_token 추출
+        token = request.cookies.get("access_token")
+        print("Cookie access_token:", token)
+        if not token:
+            # 필요한 시점에 loginForm을 import
+            from tash_service_app import loginForm
+            return loginForm()
+
+        current_user = 'kakao'
+
+        return f(current_user, *args, **kwargs)
+    return decorated
 
 def create_access_token():
     """

@@ -404,6 +404,12 @@ def save_region_hierarchy_to_json(filename="region_hierarchy.json"):
 
     hierarchy = []  # 최종 JSON 데이터를 담을 리스트
 
+    # 지역별로 lcode, mcode, sname을 가져와서 계층 구조 생성
+    # 차후 아래 구조안에 법정동 코드를 추가하여 적용바람
+    # "mcode": "135",
+    # "mcode_name": "강남구",
+    # "stdg_cd": "4311000000",  # 법정동코드(청주시: 4311000000)
+
     for region in regions:
         region_name = region["name"]
         lcode = region["lcode"]

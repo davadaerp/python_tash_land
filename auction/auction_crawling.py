@@ -588,6 +588,8 @@ def main():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
+    # 브라우져에서 웹드라이버인지 체크여부(navigator.webdriver 속성 제거)
+    #chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
     #driver = webdriver.Chrome(options=chrome_options)

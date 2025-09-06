@@ -1744,7 +1744,7 @@
                     floor:      `${item.floor}층`,
                     area:       area ? `${area}평` : "",
                     unitPrice:  formatNumber(unitPrice),
-                    price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
+                    price:      `${convertToKoreanAmount(amount)}`,
                     latitude: latitude,
                     longitude: longitude
                   };
@@ -1774,7 +1774,7 @@
                     floor:      `${item.floor}층`,
                     area:       area ? `${area}평` : "",
                     unitPrice:  formatNumber(unitPrice),
-                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
+                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})`,
                     latitude,
                     longitude
                   };
@@ -2601,7 +2601,8 @@
                 // indexedDB auction_sanga(경매데이타-상가)에 조회및 저장
                 let allItems = [];
                  let storeName = 'auction_sanga';
-                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                // const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                const exists = false;
                 if (exists) {
                     allItems = await getAllItems(lawdCd, umdNm, storeName);
                     console.log("데이터가 존재합니다.", allItems);
@@ -2640,8 +2641,8 @@
                             //
                             allItems.push(item);
                         });
-                        console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
-                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
+                        console.log("데이터가 존재합니다(IndexedDB입력).=> " + storeName);
+                        //await addItems(allItems, storeName); // ✅ IndexedDB에 저장
                     }
                 }
                 // 실거래,경매 층수를 설정함(pgm_type: deal, auction)

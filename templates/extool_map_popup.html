@@ -4,42 +4,113 @@
   <meta charset="UTF-8" />
   <title>네이버 지도 팝업</title>
   <style>
-    body { margin:0; display:flex; flex-direction:column; height:100vh; }
+    body { margin:0; display:flex; flex-direction:column; height:100vh; font-family: ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif; }
     #controls {
       padding:10px;
-      background:#f0f0f0;
-      display: flex;
-      align-items: center;
-      gap: 16px;
+      background:#f7f7f8;
+      display:flex;
+      align-items:center;
+      gap:16px;
+      border-bottom:1px solid #ececef;
     }
-    #controls label { margin-right: 4px; }
-    .legend {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 14px;
-    }
-    .legend-marker {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      display: inline-block;
-    }
+    #controls label { margin-right:4px; }
+    .legend { display:flex; align-items:center; gap:6px; font-size:14px; color:#333; }
+    .legend-marker { width:12px; height:12px; border-radius:50%; display:inline-block; }
     #map { flex:1; }
-    /* InfoWindow 내 닫기 버튼 */
-    .info-close-btn {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 14px;
-      line-height: 14px;
+
+    /* ====== 팝업(커스텀 오버레이) ====== */
+    .custom-popup {
+      position:absolute;
+      transform: translate(10px, -50%);
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+      overflow:hidden;
+      min-width: 320px;
+      max-width: 460px;
+      z-index: 1000;
+      animation: popIn 120ms ease-out;
     }
-    .info-content {
-      position: relative;
-      padding-top: 20px; /* 닫기 버튼 위한 여유 */
+    @keyframes popIn {
+      from { opacity:0; transform: translate(10px, -50%) scale(0.98); }
+      to   { opacity:1; transform: translate(10px, -50%) scale(1); }
     }
+
+    .custom-popup__header {
+      position:relative;
+      padding:12px 16px 8px 16px;
+      color:#fff;
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+    }
+    .header-title { display:flex; flex-direction:column; gap:2px; flex:1; }
+    .header-title .addr { font-weight:800; font-size:15px; line-height:1.2; }
+    .header-title .bname { font-weight:600; font-size:13px; opacity:.95; }
+
+    .close-x {
+      position:absolute; top:10px; right:12px;
+      width:28px; height:28px;
+      display:grid; place-items:center;
+      border-radius:8px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color:#fff; cursor:pointer; font-weight:800;
+      backdrop-filter: blur(2px);
+    }
+    .close-x:hover { background: rgba(255,255,255,0.25); }
+
+    /* 타입별 헤더 배경 */
+    .type-real { background: linear-gradient(135deg, #16a34a, #22c55e); }
+    .type-auction { background: linear-gradient(135deg, #ef4444, #f97316); }
+    .type-mixed { background: linear-gradient(135deg, #64748b, #94a3b8); }
+
+    /* 상단 필터(라벨 리스트) */
+    .popup-filters {
+      display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;
+    }
+    .filter-btn {
+      appearance:none; border:none; cursor:pointer;
+      padding:6px 10px; border-radius:9999px;
+      font-size:12px; font-weight:800; line-height:1;
+      background: rgba(255,255,255,0.18);
+      color:#fff; border:1px solid rgba(255,255,255,0.35);
+      transition: transform .06s ease, background .12s ease;
+      white-space:nowrap;
+    }
+    .filter-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.28); }
+    .filter-btn.selected { background:#fff; color:#111827; border-color:#fff; }
+
+    .custom-popup__body { padding:12px 14px 14px 14px; background:#fafafa; }
+    .table-wrap { background:#fff; border:1px solid #eef0f2; border-radius:12px; overflow:hidden; }
+    table { border-collapse: collapse; width:100%; font-size:13px; table-layout:auto; }
+    thead { background:#f3f4f6; }
+    thead th { text-align:left; padding:10px 12px; font-weight:700; color:#111827; border-bottom:1px solid #e5e7eb; }
+    thead th.price-per { text-align:center; }
+    tbody td { padding:10px 12px; border-bottom:1px solid #f1f5f9; color:#111827; }
+    tbody tr:hover { background:#f9fafb; }
+    tbody td.price-per { text-align:center; }
+
+    /* 구분 Pill */
+    .pill { display:inline-block; padding:4px 8px; border-radius:9999px; font-weight:800; font-size:12px; white-space:nowrap; }
+    .pill-real { background:#dcfce7; color:#166534; }
+    .pill-auction { background:#fee2e2; color:#991b1b; }
+
+    /* ====== 마커(원+숫자) ====== */
+    .count-marker {
+      width:34px; height:34px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:14px; font-weight:800;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      border:2px solid rgba(255,255,255,0.7);
+      user-select:none;
+    }
+    .marker-real { background:#16a34a; }
+    .marker-auction { background:#ef4444; }
+    .marker-mixed { background: conic-gradient(#16a34a 0 50%, #ef4444 50% 100%); }
+
+    #optionInfo { font-weight:600; color:#111827; }
   </style>
 </head>
 <body>
@@ -54,181 +125,341 @@
       <option value="auction">경매</option>
     </select>
 
-    <!-- 레전드 추가 -->
     <div class="legend">
-      <span class="legend-marker" style="background: green;"></span>
-      <span>실거래</span>
+      <span class="legend-marker" style="background:#16a34a;"></span><span>실거래</span>
     </div>
     <div class="legend">
-      <span class="legend-marker" style="background: red;"></span>
-      <span>경매</span>
+      <span class="legend-marker" style="background:#ef4444;"></span><span>경매</span>
     </div>
   </div>
+
   <div id="map"></div>
 
   <!-- 네이버 지도 SDK (v3 openAPI) -->
   <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dd72ip9z43&submodules=geocoder"></script>
   <script>
-    // 전역에 현재 열려 있는 InfoWindow 참조
-    let currentInfoWindow = null;
-
-    // 닫기 버튼에서 호출할 전역 함수
-    function closeInfoWindow() {
-      if (currentInfoWindow) {
-        currentInfoWindow.close();
-        currentInfoWindow = null;
-      }
-    }
-
+    let currentOverlay = null;
+    let markers = [];
     let addresses = null;
+    let groups = [];
+    let bounds = null;
 
-    // 2) 지도 초기화
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.5665, 126.9780),
       zoom: 12
     });
 
-    let markers = [], bounds = new naver.maps.LatLngBounds();
-
-    // 3) 네이버 지오코딩 & 마커 생성
-    function geocodeAndMark(item, done) {
-      const lat = parseFloat(item.latitude)  || 0;
-      const lng = parseFloat(item.longitude) || 0;
-      //
-      if (lat != 0 && lng != 0) {
-        displayMark(item);
-        done && done();
-      } else {
-        // 주소가 없거나 좌표가 없는 경우에만 네이버 지오코딩
-        naver.maps.Service.geocode({ query: item.address }, (status, response) => {
-          if (status === naver.maps.Service.Status.OK && response.v2.addresses.length) {
-            const addr = response.v2.addresses[0];
-            item.latitude = addr.y;
-            item.longitude = addr.x;
-            displayMark(item);
-          } else {
-            console.error('Geocode error for', item.address, status);
-          }
-          done && done();
-        });
+    /* ===== 유틸 ===== */
+    function parseDateKey(s) {
+      if (!s) return -Infinity;
+      const digits = String(s).replace(/[^\d]/g, '');
+      if (digits.length === 8) return parseInt(digits, 10);
+      if (digits.length === 6) return parseInt('20' + digits, 10);
+      return parseInt(digits, 10) || -Infinity;
+    }
+    function extractIntString(val) {
+      const m = String(val ?? '').match(/-?\d+(?:\.\d+)?/);
+      if (!m) return '';
+      const v = Math.trunc(parseFloat(m[0]));
+      return String(v);
+    }
+    function typeMeta(items) {
+      const hasReal = items.some(it => it.type === 'real');
+      const hasAuction = items.some(it => it.type === 'auction');
+      if (hasReal && hasAuction) return { marker:'marker-mixed', header:'type-mixed', label:'혼합', hasReal, hasAuction };
+      if (hasReal) return { marker:'marker-real', header:'type-real', label:'실거래', hasReal:true, hasAuction:false };
+      return { marker:'marker-auction', header:'type-auction', label:'경매', hasReal:false, hasAuction:true };
+    }
+    function cleanAuctionAddress(addr) {
+      if (!addr) return addr;
+      let s = String(addr);
+      s = s.replace(/\s*,?\s*(지하?\d*층|\d+층|저층|고층)\s*[^\s,()]*호(?=\s*\()/gi, '');
+      s = s.replace(/\s*,?\s*(지하?\d*층|\d+층|저층|고층)\s*(?=,|\(|$)/gi, '');
+      s = s.replace(/\s*,?\s*[^\s,()]*호(?=,|\(|$)/gi, '');
+      s = s.replace(/\s{2,}/g, ' ').replace(/\s*,\s*,/g, ',').replace(/\(\s*,\s*/g, '(').replace(/\s*,\s*\)/g, ')');
+      return s.trim();
+    }
+    function groupByLocation(list) {
+      const mp = new Map();
+      for (const it of list) {
+        const lat = parseFloat(it.latitude) || 0;
+        const lng = parseFloat(it.longitude) || 0;
+        const key = (lat && lng) ? `${lat.toFixed(6)},${lng.toFixed(6)}` : (it.address || '').trim();
+        if (!key) continue;
+        if (!mp.has(key)) mp.set(key, []);
+        mp.get(key).push(it);
       }
+      return Array.from(mp.entries()).map(([key, arr]) => {
+        let lat = parseFloat(arr[0].latitude) || 0;
+        let lng = parseFloat(arr[0].longitude) || 0;
+        const address = (arr[0].address || '').trim();
+        return { key, items: arr, lat, lng, address };
+      });
+    }
+    function geocodeIfNeeded(group, done) {
+      if (group.lat && group.lng) { done && done(group); return; }
+      if (!group.address) { done && done(null); return; }
+      naver.maps.Service.geocode({ query: group.address }, (status, response) => {
+        if (status === naver.maps.Service.Status.OK && response.v2.addresses.length) {
+          const addr = response.v2.addresses[0];
+          group.lat = parseFloat(addr.y);
+          group.lng = parseFloat(addr.x);
+          done && done(group);
+        } else { console.error('Geocode failed:', group.address, status); done && done(null); }
+      });
     }
 
-    // 4) 마커 표시 함수
-    function displayMark(item) {
-        // 좌표가 없으면 건너뛰기
-        const pos = new naver.maps.LatLng(
-          parseFloat(item.latitude),
-          parseFloat(item.longitude)
-        );
-        const marker = new naver.maps.Marker({
-          position: pos,
-          map,
-          title: item.address,
-          icon: {
-            content: `<div style="
-              background:${item.type==='real'?'green':'red'};
-              width:20px;height:20px;border-radius:15px;
-            "></div>`
-          }
-        });
+    function createCountMarker(group) {
+      const meta = typeMeta(group.items);
+      const count = group.items.length;
+      const pos = new naver.maps.LatLng(group.lat, group.lng);
 
-        // 조건부로 건축년도 라인 포함
-        const yearLine = item.type === 'real' ? `건축년도: ${item.year}년<br>` : ``;
+      const marker = new naver.maps.Marker({
+        position: pos,
+        map,
+        icon: {
+          content: `<div class="count-marker ${meta.marker}" title="${group.address}">${count}</div>`,
+          anchor: new naver.maps.Point(17, 17) /* 원 34px 기준 */
+        }
+      });
 
-        // 닫기 버튼 포함한 InfoWindow 콘텐츠
-        const infoContent = `
-          <div class="info-content">
-            <div class="info-close-btn" onclick="closeInfoWindow()">✖</div>
-            <div style="padding:1px;">
-              <strong>${item.address}</strong><br>
-              거래일자: ${item.date}<br>
-              ${yearLine}
-              층/면적: ${item.floor}/${item.area}<br>
-              거래금액: ${item.price}
+      marker.addListener('click', () => openCustomPopup(group, pos));
+      markers.push(marker);
+      bounds.extend(pos);
+    }
+
+    /* 행 HTML 생성 (선택 필터에 맞게) */
+    function buildRowsHTML(itemsSorted, selectedFilter) {
+      const filtered = itemsSorted.filter(it => {
+        if (selectedFilter === 'all') return true;
+        return it.type === selectedFilter;
+      });
+      return filtered.map(it => {
+        const date = it.date || '';
+        const floorText = extractIntString(it.floor);
+        const areaText  = extractIntString(it.area);
+        const unitPrice = it.unitPrice ?? '';  // 이미 전처리된 값 사용
+        const price = it.price ?? '';
+
+        const isReal = it.type === 'real';
+        const pillClass = isReal ? 'pill-real' : 'pill-auction';
+        const pillText = isReal ? '실거래' : '경매';
+
+        return `
+          <tr>
+            <td style="font-weight:800;"><span class="pill ${pillClass}">${pillText}</span></td>
+            <td>${date}</td>
+            <td>${floorText}</td>
+            <td>${areaText}</td>
+            <td class="price-per">${unitPrice}</td>
+            <td style="text-align:right;">${price}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    /* ===== 팝업 HTML 생성 ===== */
+    function buildPopupHTML(group) {
+      // 정렬: 실거래 → 경매, 각 구분 내부는 최신일자
+      const itemsSorted = [...group.items].sort((a, b) => {
+        const typeA = a.type === 'real' ? 0 : 1;
+        const typeB = b.type === 'real' ? 0 : 1;
+        if (typeA !== typeB) return typeA - typeB;
+        return parseDateKey(b.date) - parseDateKey(a.date);
+      });
+
+      const meta = typeMeta(itemsSorted);
+      const first = itemsSorted[0] || {};
+      const building = first.building || first.apt_name || '';
+
+      const headerAddr = (meta.label === '경매')
+        ? cleanAuctionAddress(group.address || '주소 미상')
+        : (group.address || '주소 미상');
+
+      // 필터 버튼 구성
+      const filterOptions = [];
+      if (meta.hasReal && meta.hasAuction) {
+        filterOptions.push({key:'all', text:'전체'});
+        filterOptions.push({key:'real', text:'실거래'});
+        filterOptions.push({key:'auction', text:'경매'});
+      } else if (meta.hasReal) {
+        filterOptions.push({key:'real', text:'실거래'});
+      } else {
+        filterOptions.push({key:'auction', text:'경매'});
+      }
+      const defaultFilter = filterOptions[0].key; // 혼합이면 all, 아니면 단일 항목
+
+      // 필터 버튼 HTML
+      const filterButtonsHTML = `
+        <div class="popup-filters" data-filterbar>
+          ${filterOptions.map((opt, idx) =>
+            `<button class="filter-btn ${idx===0?'selected':''}" data-filter="${opt.key}">${opt.text}</button>`
+          ).join('')}
+        </div>
+      `;
+
+      // 초기 테이블 rows
+      const initialRows = buildRowsHTML(itemsSorted, defaultFilter);
+
+      return {
+        html: `
+          <div class="custom-popup ${meta.header}">
+            <div class="custom-popup__header ${meta.header}">
+              <div class="header-title">
+                <div class="addr">${headerAddr}</div>
+                ${building ? `<div class="bname">${building}</div>` : ``}
+                ${filterButtonsHTML}
+              </div>
+              <div class="close-x" data-close>×</div>
+            </div>
+            <div class="custom-popup__body">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>구분</th>
+                      <th>거래일자</th>
+                      <th>층</th>
+                      <th>평수</th>
+                      <th class="price-per">평당가</th>
+                      <th style="text-align:right;">금액</th>
+                    </tr>
+                  </thead>
+                  <tbody data-tbody>
+                    ${initialRows}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        `;
-        const infoWindow = new naver.maps.InfoWindow({ content: infoContent });
-
-        marker.addListener('click', () => {
-          // 이전 InfoWindow 닫기
-          if (currentInfoWindow) currentInfoWindow.close();
-          // 새로 열기
-          infoWindow.open(map, marker);
-          currentInfoWindow = infoWindow;
-        });
-        markers.push(marker);
-        bounds.extend(pos);
+        `,
+        itemsSorted,
+        defaultFilter
+      };
     }
 
-    // 4) 타입별 마커 찍기
+    /* ===== 커스텀 오버레이 ===== */
+    class CustomPopup extends naver.maps.OverlayView {
+      constructor(position, payload) {
+        super();
+        this._position = position;
+        this._itemsSorted = payload.itemsSorted;
+        this._currentFilter = payload.defaultFilter;
+
+        this._el = document.createElement('div');
+        this._el.innerHTML = payload.html;
+        this._container = this._el.firstElementChild;
+
+        // 닫기
+        this._container.querySelector('[data-close]')?.addEventListener('click', () => {
+          this.setMap(null);
+          if (currentOverlay === this) currentOverlay = null;
+        });
+
+        // 필터 클릭 (이벤트 위임)
+        const filterBar = this._container.querySelector('[data-filterbar]');
+        const tbody = this._container.querySelector('[data-tbody]');
+        if (filterBar && tbody) {
+          filterBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.filter-btn');
+            if (!btn) return;
+            const f = btn.getAttribute('data-filter');
+            if (!f || f === this._currentFilter) return;
+
+            // 버튼 selected 토글
+            filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            this._currentFilter = f;
+
+            // 테이블 갱신
+            tbody.innerHTML = buildRowsHTML(this._itemsSorted, this._currentFilter);
+          });
+        }
+      }
+      onAdd() { this.getPanes().floatPane.appendChild(this._container); }
+      draw() {
+        const proj = this.getProjection(); if (!proj) return;
+        const pos = proj.fromCoordToOffset(this._position);
+        this._container.style.left = `${pos.x}px`;
+        this._container.style.top  = `${pos.y}px`;
+      }
+      onRemove() {
+        if (this._container?.parentNode) this._container.parentNode.removeChild(this._container);
+        this._container = null;
+      }
+      setPosition(latlng) { this._position = latlng; this.draw(); }
+    }
+
+    function openCustomPopup(group, position) {
+      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
+      const payload = buildPopupHTML(group);
+      const overlay = new CustomPopup(position, payload);
+      overlay.setMap(map);
+      currentOverlay = overlay;
+    }
+
+    /* ===== 렌더링 파이프라인 ===== */
     function plotByType(type) {
-      // 기존 마커 제거 및 InfoWindow 초기화
       markers.forEach(m => m.setMap(null));
       markers = [];
       bounds = new naver.maps.LatLngBounds();
-      if (currentInfoWindow) { currentInfoWindow.close(); currentInfoWindow = null; }
+      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
 
-      const subset = addresses.filter(a => type==='all' || a.type===type);
-      let completed = 0;
-      subset.forEach(item => geocodeAndMark(item, () => {
-        completed++;
-        if (completed===subset.length && markers.length) {
-          map.fitBounds(bounds);
-        }
-      }));
+      if (!Array.isArray(addresses) || addresses.length === 0) return;
+
+      const filtered = addresses.filter(a => type === 'all' || a.type === type);
+      if (filtered.length === 0) return;
+
+      groups = groupByLocation(filtered);
+
+      let doneCount = 0;
+      const total = groups.length;
+      groups.forEach(g => {
+        geocodeIfNeeded(g, (result) => {
+          doneCount++;
+          if (!result) return;
+          createCountMarker(g);
+          if (doneCount === total && markers.length) map.fitBounds(bounds);
+        });
+      });
     }
 
-    // 5) 초기 실거래 표시
-    //plotByType('all');
-
-    // 6) 필터 변경시 다시 그리기
-    document.getElementById('filter').addEventListener('change', function(){
+    /* ===== 이벤트 ===== */
+    document.getElementById('filter').addEventListener('change', function() {
       plotByType(this.value);
     });
 
-    // 7) 지도 클릭 시 InfoWindow 닫기
     naver.maps.Event.addListener(map, 'click', () => {
-      if (currentInfoWindow) {
-        currentInfoWindow.close();
-        currentInfoWindow = null;
+      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
+    });
+
+    window.addEventListener('message', function(event) {
+      // if (event.origin !== window.location.origin) return;
+      const data = event.data;
+
+      if (Array.isArray(data.options)) {
+        const optionDiv = document.getElementById('optionInfo');
+        const formatted = data.options.map(opt => {
+          const yearText  = opt.year ? `${opt.year}년` : '';
+          const floorText = opt.floor || '';
+          const areaText  = opt.area || '';
+          return `${opt.region}(${[yearText, floorText, areaText].filter(Boolean).join('/')})`;
+        }).join(' / ');
+        optionDiv.textContent = formatted || '지역';
+      }
+
+      if (Array.isArray(data.addresses)) {
+        addresses = data.addresses;
+        plotByType('all');
       }
     });
 
-    //
-    window.addEventListener('message', function(event) {
-          // 반드시 origin 체크!
-          if (event.origin !== window.location.origin) return;
-
-          const data = event.data;
-
-          if (Array.isArray(data.options)) {
-            console.log("수신된 옵션 목록:", data.options);
-            const optionDiv = document.getElementById('optionInfo');
-
-            // 각 옵션을 "지역(년식/층수/평수)" 형태로 포맷팅 후, '/' 구분자로 합치기
-            const formatted = data.options.map(opt => {
-              // opt.year 이 없으면 빈 문자열, opt.floor과 opt.area는 그대로 사용
-              const yearText  = opt.year   ? `${opt.year}년` : '';
-              const floorText = opt.floor  || '';
-              const areaText  = opt.area   || '';
-              return `${opt.region}(${[yearText, floorText, areaText].filter(Boolean).join('/')})`;
-            }).join(' / ');
-
-            optionDiv.textContent = formatted;
-        }
-        // 차후 같은 주소에 여러개 마킹되는부문 숫자로 표시후 선택시 div형식에 리스트로 표시방법 체크
-        if (Array.isArray(data.addresses)) {
-          console.log("수신된 주소 목록:", data.addresses);
-          // 이후 마커 렌더링 등 처리
-          addresses =  data.addresses;
-
-          // 5) 초기 실거래 표시
-          plotByType('all');
-        }
-    });
-
+    // 테스트용
+    // window.postMessage({addresses:[
+    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-30', floor:'10층', area:'33.7평', unitPrice:'36,000,000', price:'1,200,000,000', apt_name:'테스트빌딩'},
+    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-28', floor:'12층', area:'25평', unitPrice:'32,000,000', price:'800,000,000', apt_name:'테스트빌딩'},
+    //   {address:'서울 중구 세종대로 110, 1층 101호(중구,테스트빌딩)', type:'auction', date:'2025-08-27', floor:'1층 101호', area:'33평', unitPrice:'-', price:'120,000,000', apt_name:'테스트빌딩'}
+    // ]}, "*");
   </script>
 </body>
 </html>

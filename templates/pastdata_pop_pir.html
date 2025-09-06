@@ -68,6 +68,7 @@
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <!-- Chart.js CDN 불러오기 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/common.js"></script>
 </head>
 <body>
   <div style="text-align: center;">
@@ -96,6 +97,18 @@
       </button>
       <button id="kb-info-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
         KB지수 조회
+      </button>
+      <button id="man-count-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
+        인구수
+      </button>
+<!--      <button id="year-interest-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">-->
+<!--        연복리-->
+<!--      </button>-->
+      <button id="area-news-btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
+        지역뉴스
+      </button>
+      <button id="anal-report--btn" style="margin-left:10px; padding:2px 8px; font-size:13px; cursor:pointer;">
+        보고서생성
       </button>
     </p>
     <div id="supply-info-list" style="display:none; margin-top:10px; font-size:12px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto; border:1px solid #ccc; border-radius:8px; background:#f9f9f9; padding:12px; position:absolute; left:50%; transform:translateX(-50%); top:70px; z-index:1000;">
@@ -212,6 +225,24 @@
         // kb-info-btn 클릭시 KB지수(매매및 전세)
         $("#kb-info-btn").click(function() {
           alert('KB지수 조회..어떻게 가져오나(네이버가다막아버리네ㅠ.ㅠ)?? \n(매매지수, 전세지수)');
+        });
+        // 연복리 버튼 클릭시
+        $("#year-interest-btn").click(function() {
+              // 팝업창 열기 함수 (연복리)
+              openYearProfitPopup();
+        });
+        // man-count-btn 클릭시 인구수
+        $("#man-count-btn").click(function() {
+          // 팝업창 열기 함수 (인구수)
+          populationCountPopup();
+        });
+        // man-count-btn 클릭시 인구수
+        $("#area-news-btn").click(function() {
+          alert('RSS피드를 이용한 지역일자리 및 뉴스 조회');
+        });
+        // anal-report--btn 클릭시 분석보고서 생성
+        $("#anal-report--btn").click(function() {
+          alert('분석보고서생성(pptx) 기능은 아직 구현되지 않았습니다.');
         });
     </script>
   </div>
@@ -623,6 +654,72 @@
       updateSummary();
       updateIncomeChart();
       updateSummaryCaption();
+    }
+
+    // 팝업창 열기 함수 (연복리)
+    function openYearProfitPopup() {
+      const apt_name = '{{ apt_data[0].apt_name }}';  // 아파트명
+      const min_month = '2008';
+      const sale_rent_diff_amt = '1200';
+      let url = BASE_URL + '/api/pastapt/interest?apt_name=' + apt_name + '&min_month=' + min_month + '&sale_rent_diff_amt=' + sale_rent_diff_amt;
+      var width = 1400;
+      var height = 1200;
+      const left = (screen.width - width) / 2 + 50;
+      const top = (screen.height - height) / 2 - 50;
+      var popupWindow = window.open(url, "popup2", `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+      if (popupWindow) { popupWindow.focus(); }
+    }
+
+    // 주민등록기준 인구수 조회 팝업
+    function populationCountPopup() {
+      // 주민등록기준 인구수 조회
+      // var stdgCd = '{{ apt_data[0].stdg_cd }}';  // 법정동코드 (예: 청주시-4311000000)
+      // var sggNm = '{{ apt_data[0].mcode_name }}';  // 시군구명 (예: 청주시, 개신동 등)
+      var stdgCd = "4311000000";        // 법정동코드 (예: 청주시-4311000000)
+      var sggNm = '청주시';
+      var lvl = 2; // 1:광역시, 2:시군구, 3:읍면동
+
+      if (!stdgCd) {
+        stdgCd = (prompt('법정동코드(stdg_cd)를 입력하세요 (예: 4311000000)') || '').trim();
+        if (!stdgCd) {
+          alert('stdg_cd 가 필요합니다.');
+          return;
+        }
+      }
+
+      // 쿼리스트링으로 보낼 파라미터
+      var data = { stdg_cd: stdgCd, sgg_nm: sggNm, lvl: lvl };
+
+      // AJAX로 /api/apt/population 호출
+      $.ajax({
+        url: BASE_URL + '/api/apt/population',
+        method: 'GET',                 // 조회이므로 GET
+        data: data,                    // 쿼리 파라미터
+        dataType: 'json',              // 응답은 JSON
+        success: function (response) {
+          // 서버가 jsonify({ source, count, tot_population, sums, items }) 형태로 반환
+          var sums = (response && response.sums) || {};
+          var tot  = Number(sums.totNmprCnt || 0);
+          var male = Number(sums.maleNmprCnt || 0);
+          var feml = Number(sums.femlNmprCnt || 0);
+
+          var nf = new Intl.NumberFormat('ko-KR');
+          var msg = [
+            '== 행안부 주민등록기준 인구수 조회 ==',
+            '법정동코드: ' + stdgCd,
+            '시군구명: ' + (sggNm || '(전체)'),
+            '',
+            '총인구수: ' + nf.format(tot)  + '명',
+            '남자인구수: ' + nf.format(male) + '명',
+            '여자인구수: ' + nf.format(feml) + '명'
+          ].join('\n');
+
+          alert(msg);
+        },
+        error: function (xhr, status, error) {
+          $('#error-message').text('오류가 발생했습니다: ' + (xhr.responseText || error));
+        }
+      });
     }
 
     $(document).ready(function () {

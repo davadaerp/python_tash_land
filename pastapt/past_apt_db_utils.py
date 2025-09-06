@@ -19,6 +19,7 @@ def past_apt_create_table():
     cur.execute(f'''
            CREATE TABLE IF NOT EXISTS {PAST_APT_TABLE} (
                id INTEGER PRIMARY KEY AUTOINCREMENT,
+               stdg_cd TEXT,            # 법정동코드(청주시: 4311000000)
                region_name TEXT,
                mcode_name TEXT,
                sname TEXT,
@@ -143,6 +144,7 @@ def fetch_grouped_apt_data(region_name, mcode_name, sname, houseCnt):
     min_month_data AS (
         SELECT
             a.apt_id,
+            pa.stdg_cd, -- 법정동코드
             a.region_name,
             a.mcode_name,
             a.sname,
@@ -164,6 +166,7 @@ def fetch_grouped_apt_data(region_name, mcode_name, sname, houseCnt):
     )
     SELECT
         apt_id,
+        stdg_cd, -- 법정동코드
         region_name,
         mcode_name,
         sname,
@@ -203,26 +206,28 @@ def fetch_apt_detail_data(apt_id):
     cur = conn.cursor()
 
     query = f"""
-    SELECT 
-        id,
-        apt_id,
-        region_name,
-        mcode_name,
-        sname,
-        apt_name,
-        size,
-        month,
-        sale_low,
-        sale_high,
-        sale_change,
-        rent_low,
-        rent_high,
-        rent_change
-    FROM {PAST_PRICE_TABLE}
-    WHERE apt_id = ?
-    ORDER BY month DESC;
+        SELECT
+            a.id,
+            a.apt_id,
+            b.stdg_cd,  -- 법정동코드
+            a.region_name,
+            a.mcode_name,
+            a.sname,
+            a.apt_name,
+            a.size,
+            a.month,
+            a.sale_low,
+            a.sale_high,
+            a.sale_change,
+            a.rent_low,
+            a.rent_high,
+            a.rent_change
+        FROM past_apt_price a, past_apt b
+        WHERE a.apt_id = ?
+          AND b.id = a.apt_id
+        ORDER BY month DESC;
     """
-
+    # apt_id를 사용하여 past_apt_price 테이블에서 해당 아파트의 시세 정보를 조회
     cur.execute(query, (apt_id,))
     rows = cur.fetchall()
     conn.close()

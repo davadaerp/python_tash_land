@@ -13,7 +13,8 @@
 import os
 import json
 import requests
-from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory
+import secrets
+from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -39,9 +40,11 @@ from pastapt.past_apt_db_utils import query_region_hierarchy, fetch_apt_detail_d
     fetch_apt_by_name_and_size
 from pastapt.past_average_annual_income_db_utils import fetch_all_income_data
 from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_address
+# 국토부공공데이타 가져오기
+from pubdata.public_population_stats import get_population_rows, prev_month_yyyymm
 
 # auth.py에서 토큰 관련 함수 가져오기
-from common.auth import token_required, create_access_token, extract_user_info_from_token
+from common.auth import token_required, create_access_token, extract_user_info_from_token, kakao_token_required
 #
 from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, SAVE_MODE, UPLOAD_FOLDER_PATH
 
@@ -70,6 +73,7 @@ def loginForm():
 
 @app.route("/api/token", methods=["POST"])
 def token_create():
+
     # 1) create_access_token 호출
     resp = create_access_token()
 
@@ -148,13 +152,85 @@ def logout():
 
     return response
 
+
+from kakao.kakao_api_utils import KakaoAPI
+
+# 필요시 scope를 None으로 두고 최소 동작 확인
+DEFAULT_SCOPE = None  # 예: ["profile_nickname", "profile_image"]
+
+# === KakaoAPI 인스턴스화 ===
+kakao = KakaoAPI()
+
+@app.route("/api/kakao/login")
+def kakao_login():
+    state = secrets.token_urlsafe(16)
+    # session["oauth_state"] = state
+    auth_url = kakao.build_authorize_url(state, DEFAULT_SCOPE)
+    print("== kakao_login() kakao_auth_url:", auth_url)
+    return redirect(auth_url)
+
+@app.route("/api/kakao/callback")
+def kakao_callback():
+    # CSRF 방지
+    # state = request.args.get("state")
+    # if not state or state != session.get("oauth_state"):
+    #     return make_response("잘못된 state 값입니다.", 400)
+
+    code = request.args.get("code")
+    if not code:
+        error = request.args.get("error_description") or request.args.get("error") or "인가 코드를 찾을 수 없습니다."
+        return make_response(f"카카오 인가 실패: {error}", 400)
+
+    print("== kakao_callback() code:", code)
+
+    # 1) 코드 → 토큰 (유틸 사용)
+    token = kakao.exchange_code_for_token(code)
+    access_token = token.get("access_token")
+    refresh_token = token.get("refresh_token")
+    expires_in = token.get("expires_in")
+
+    # 2) 사용자 정보 (유틸 사용)
+    me = kakao.get_user_me(access_token)
+    kakao_id = str(me.get("id"))
+    kakao_account = me.get("kakao_account", {}) or {}
+    needs_email = kakao_account.get("email_needs_agreement") is True
+    email = kakao_account.get("email")
+    profile = kakao_account.get("profile") or {}
+    nickname = profile.get("nickname")
+    profile_img = profile.get("profile_image_url")
+
+    print("== kakao_callback() 사용자 정보:", {
+        "kakao_id": kakao_id,
+        "email": email,
+        "nickname": nickname,
+        "profile_img": profile_img,
+        "needs_email": needs_email
+    })
+
+    # (옵션) 이메일 추가동의 유도 로직
+    if needs_email and not email:
+        session["oauth_state"] = secrets.token_urlsafe(16)
+        auth_url = kakao.build_authorize_url(session["oauth_state"], ["account_email"], prompt="consent")
+        return redirect(auth_url)
+
+    #session["user_id"] = user.id
+
+    # ✅ 응답 객체 생성 후 쿠키에 access_token 저장
+    resp = make_response(redirect("/api/main"))  # main으로 리다이렉트
+    resp.set_cookie("access_token", access_token, httponly=True, samesite="Lax")
+
+    return resp
+    #return redirect("/api/main")
+
 @app.route("/api/main")
-@token_required
+#@token_required
+@kakao_token_required
 def main(current_user):
     return render_template("main.html")
 
 @app.route("/api/menu", methods=["GET"])
-@token_required
+#@token_required
+@kakao_token_required
 def menu(current_user):
     menu = request.args.get("menu", "")
     print(menu)
@@ -313,7 +389,7 @@ def get_users_data():
 
     return jsonify(data)
 
-#===== 아파트 데이타 처리 =============
+#===== 네이버 아파트 매물 데이타 처리 =============
 @app.route('/api/apt', methods=['GET'])
 def get_apt_data():
     lawdCd = request.args.get('lawdCd', '')
@@ -355,10 +431,7 @@ def get_apt_pir_data():
     apt_name = request.args.get('apt_name', '')
     size = request.args.get('size', '')
 
-    print(f"🔍 아파트명: {apt_name}, 크기: {size}")
-
-    # 아파트 이름과 크기로 시세 정보(매매호가/전세가-최대치)를 가져옴
-    #
+    print(f"🔍 아파트명: {apt_name}, 평형(크기): {size}")
 
     # past_apt에서 데이타를 가져옴
     data = fetch_apt_by_name_and_size(apt_name, size)
@@ -367,6 +440,97 @@ def get_apt_pir_data():
         return jsonify({"result": "Fail", "message": "해당 아파트의 시세 정보가 없습니다."})
 
     return jsonify(data)
+
+# 인구 통계 데이타 처리
+@app.route('/api/apt/population', methods=['GET'])
+def get_public_population():
+    """
+    쿼리 파라미터:
+      - stdg_cd:  법정동코드(시/군/구 등)       예) 4311000000
+      - srch_fr_ym: 조회시작년월(YYYYMM)       예) 202507
+      - srch_to_ym: 조회종료년월(YYYYMM)       예) 202507
+      - lv: 1(광역시)/2(시군구)/3(읍면동)      예) 3
+      - prefer_db: 'true'|'false' (기본 true)
+      - service_key: 공공데이터포털 키(옵션; 미제공 시 환경변수/기본값 사용)
+    응답:
+      { "source": "DB|API", "count": n, "items": [...] }
+    """
+
+    print(request.args)
+
+    # 기본 파라미터(없으면 이 값으로)
+    # STDG_CD_DEFAULT = "4311000000"  # 법정동코드-청주시(4311000000)
+    # SRCH_SGG_NM = "청주시"  # 시군구명 (선택, 빈 문자열이면 전체)
+    SRCH_FR_YM_DEFAULT = prev_month_yyyymm()
+    SRCH_TO_YM_DEFAULT = prev_month_yyyymm()
+    #LV_DEFAULT = "3"  # 1:광역시, 2:시군구, 3:읍면동
+
+    # 1) 파라미터 수집 (대소문자/스네이크-카멜 혼용 대응)
+    stdg_cd    = request.args.get('stdg_cd')    or request.args.get('stdgCd')
+    sgg_nm    = request.args.get('sgg_nm')    or request.args.get('sggNm')
+    srch_fr_ym = request.args.get('srch_fr_ym') or request.args.get('srchFrYm')  or SRCH_FR_YM_DEFAULT
+    srch_to_ym = request.args.get('srch_to_ym') or request.args.get('srchToYm')  or SRCH_TO_YM_DEFAULT
+    lv         = request.args.get('lv')
+
+    # 최신 시그니처(서비스키 받는 버전)
+    rows_for_display, rows_source = get_population_rows(
+        stdg_cd=stdg_cd,
+        sgg_nm=sgg_nm,
+        srch_fr_ym=srch_fr_ym,
+        srch_to_ym=srch_to_ym,
+        lv=lv,
+        prefer_db=True,
+    )
+
+    # 합계 대상 필드
+    NUM_FIELDS = [
+        "totNmprCnt", "maleNmprCnt", "femlNmprCnt",
+        "male0AgeNmprCnt", "male10AgeNmprCnt", "male20AgeNmprCnt", "male30AgeNmprCnt", "male40AgeNmprCnt",
+        "male50AgeNmprCnt", "male60AgeNmprCnt", "male70AgeNmprCnt", "male80AgeNmprCnt", "male90AgeNmprCnt",
+        "male100AgeNmprCnt",
+        "feml0AgeNmprCnt", "feml10AgeNmprCnt", "feml20AgeNmprCnt", "feml30AgeNmprCnt", "feml40AgeNmprCnt",
+        "feml50AgeNmprCnt", "feml60AgeNmprCnt", "feml70AgeNmprCnt", "feml80AgeNmprCnt", "feml90AgeNmprCnt",
+        "feml100AgeNmprCnt",
+    ]
+
+    def _as_int(v):
+        try:
+            if v in (None, "", "null", "None"):
+                return 0
+            return int(str(v).replace(",", ""))
+        except Exception:
+            return 0
+
+    display_rows = len(rows_for_display or [])
+
+    # ── 청주시( sggNm 가 '청주시' 로 시작 ) 집계 대상 선택
+    rows = rows_for_display or []
+    cheongju_rows = [r for r in rows if str(r.get("sggNm", "")).startswith("청주시")]
+    target_rows = cheongju_rows if cheongju_rows else rows  # 없으면 전체 합계
+
+    # ── 합계 계산
+    sums = {f: 0 for f in NUM_FIELDS}
+    for r in target_rows:
+        for f in NUM_FIELDS:
+            sums[f] += _as_int(r.get(f, 0))
+
+    tot_population = sums.get("totNmprCnt", 0)  # 총인구 합계
+
+    # 로그(콘솔)
+    print(f"\n=== Normalized items (all {display_rows}) — source: {rows_source} ===")
+    #preview = (rows_for_display or [])[:2]
+    # print(json.dumps(preview, ensure_ascii=False, indent=2))
+    print(f"집계 기준: {'청주시' if cheongju_rows else '전체'} / tot_population={tot_population:,}")
+    print(f"\n총 {display_rows}건 출력 (source: {rows_source})")
+
+    # 3) 응답 JSON
+    return jsonify({
+        "source": rows_source,
+        "count": display_rows,
+        "sums": sums,  # ✅ 요구사항 1: 각 필드별 총합(청주시 기준)
+        "items": rows_for_display or []
+    }), 200
+
 
 #===== 상가 데이타 처리 =============
 @app.route('/api/sanga', methods=['GET'])
@@ -428,8 +592,8 @@ def get_auction_data():
     #category = request.args.get('category')
     dangiName = request.args.get('dangiName', '')
 
-    print(
-        f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}")
+    # print(
+    #     f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}")
 
     categories = []
     if main_category != '':
@@ -1005,4 +1169,5 @@ def get_pastapt_property_download():
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
     # app.run(host='0.0.0.0', port=8081)
-    app.run(host='localhost', port=8080, debug=True)
+    # app.run(host='localhost', port=8080, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)

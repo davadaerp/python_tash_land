@@ -1114,6 +1114,37 @@
             });
         });
 
+        // 중앙 로딩 오버레이 표시/해제 (detailPopup 안에)
+        function showCenterLoading(message) {
+            const container = document.getElementById('detailPopup');
+            if (!container) return;
+
+            let el = document.getElementById('globalLoadingOverlay');
+            if (!el) {
+              el = document.createElement('div');
+              el.id = 'globalLoadingOverlay';
+              el.className = 'loading-overlay';
+              el.style.position = 'absolute';
+              el.style.top = '50%';
+              el.style.left = '50%';
+              el.style.transform = 'translate(-50%, -50%)';
+              el.style.zIndex = '3000';
+              el.style.fontSize = '20px';
+              el.style.fontWeight = 'bold';
+              el.style.color = 'red';
+              el.style.animation = 'blink 1s infinite';  // 반짝반짝 효과
+              container.appendChild(el);
+            }
+            el.textContent = message || '처리중입니다...';
+            el.style.display = 'block';
+        }
+
+        function hideCenterLoading() {
+            const el = document.getElementById('globalLoadingOverlay');
+            if (el) el.style.display = 'none';
+        }
+        //================================================
+
         // HTML이 모두 파싱완료되어진 시점에 처리..
         document.addEventListener('DOMContentLoaded', function () {
 
@@ -1124,6 +1155,8 @@
 
               // 실거래와 경매데이터 지도로 보여주기
               document.getElementById("extool-map-btn").addEventListener("click", async function () {
+                showCenterLoading('지도데이타 처리중입니다.\n\n조금만 기다려주세요...');
+
                 const lawName = document.getElementById("popup-lawName").textContent;
                 const dealItems = window.currentDealFilteredItems || [];
                 const aucItems  = window.currentAuctionFetchedItems || [];
@@ -1146,7 +1179,7 @@
                     floor:      `${item.floor}층`,
                     area:       area ? `${area}평` : "",
                     unitPrice:  formatNumber(unitPrice),
-                    price:      `${convertToKoreanAmount(amount)}@${unitPrice}`,
+                    price:      `${convertToKoreanAmount(amount)}`,
                     latitude: latitude,
                     longitude: longitude
                   };
@@ -1173,7 +1206,7 @@
                     floor:      `${item.floor}층`,
                     area:       area ? `${area}평` : "",
                     unitPrice:  formatNumber(unitPrice),
-                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})@${unitPrice}`,
+                    price:      `${convertToKoreanAmount(amount)}(${sale_percent})`,
                     latitude,
                     longitude
                   };
@@ -1208,6 +1241,8 @@
                 // 팝업이 준비되면 메시지 전송
                 popup.onload = () => {
                   popup.postMessage(payload, window.location.origin);
+                  // 로딩 오버레이 숨기기
+                  hideCenterLoading();
                 };
               });
         });
