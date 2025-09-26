@@ -37,9 +37,7 @@
 		],
 		"js": [
             "/libs/jquery-3.6.4.min.js",
-            "/login/popup.js",
-            "/login/popup_kakao.js",
-			"contents_yana.js"
+            "/login/popup_kakao.js"
         ],
        "run_at": "document_start",
        "type": "module"

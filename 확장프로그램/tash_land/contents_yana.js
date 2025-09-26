@@ -2077,6 +2077,27 @@ function loginValid() {
 // content_yana.js 내 코드
 function login() {
     return new Promise((resolve, reject) => {
+        // content.js (예: new.land.naver.com에 매칭)
+        chrome.storage.local.get(["access_token", "apt_key", 'villa_key', "sanga_key"], (items) => {
+            //const { access_token, apt_key, sanga_key } = items;
+            const access_token = items.access_token;
+            apt_key = items.apt_key;
+            villa_key = items.villa_key;
+            sanga_key = items.sanga_key;
+            //alert('access_token: ' + access_token;
+            if (!access_token) {
+                isLoggedInStatus = false;
+                return resolve(false);  // reject 대신 resolve
+            }
+            isLoggedInStatus = true;
+            return resolve(true);  // reject 대신 resolve
+        });
+    });
+}
+
+
+function login_old() {
+    return new Promise((resolve, reject) => {
         chrome.storage.local.get(['access_token', 'apt_key', 'villa_key', 'sanga_key'], function(data) {
             const accessToken = data.access_token;
             apt_key = data.apt_key;
@@ -2086,9 +2107,11 @@ function login() {
             console.log('accessToken: ' + accessToken);
             if (accessToken === '' || accessToken === null || accessToken === 'undefined') {
                 //alert('로그인 후 사용바랍니다.');
+                isLoggedInStatus = false;
                 return resolve(false);  // reject 대신 resolve
             }
 
+            // 토큰 유효성 검사 API 호출-이부문은 user_id/password 방식에서 토큰방식으로 변경됨
             $.ajax({
                 url: BASE_URL + '/api/login_token',
                 method: 'GET',
@@ -2110,10 +2133,9 @@ function login() {
                     resolve(false);
                 }
             });
-        });
+        }); // chrome.storage.local.get
     });
 }
-
 
 // **MutationObserver를 활용한 자동 감시**
 function observeMutations_old버전() {

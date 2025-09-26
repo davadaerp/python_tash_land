@@ -66,7 +66,12 @@
     <br><br>
     <!-- 로그인 버튼과 네이버 버튼을 나란히 배치 -->
     <button type="submit">로그인</button>
+    <!--
     <button type="button" id="naver-login-btn">간편회원가입(네이버)</button>
+    -->
+    <button id="kakao-login-btn" style="display:inline-block;padding:10px 16px;background:#FEE500;border-radius:8px;
+      color:#000;text-decoration:none;font-weight:700">카카오로 시작하기</button>
+     <button type="button" id="signup">회원가입</button>
     <p class="error" id="error-message"></p>
   </form>
 
@@ -151,9 +156,30 @@
       //   });
       // });
 
-      // 회원가입 버튼 클릭 시
+      // 카카오 로그인 버튼 클릭 시
+      $('#kakao-login-btn').click(function(){
+        // 카카오 로그인 API 호출
+        window.location.href= BASE_URL + '/api/kakao/login';
+        // $.ajax({
+        //   url: BASE_URL + '/api/login/kakao',
+        //   method: 'GET'
+        // }).done(function(res){
+        //   // 서버에서 카카오 OAuth URL을 돌려주거나 바로 리디렉션 처리
+        //   alert(re)
+        // }).fail(function(){
+        //   alert('카카오 로그인 요청 중 오류가 발생했습니다.');
+        // });
+
+      });
+
+      // 네이버 회원가입 버튼 클릭 시
       $('#naver-login-btn').click(function(){
         window.location.href = BASE_URL + '/api/register';
+      });
+
+      // 회원가입 버튼 클릭 시
+      $('#signup').click(function(){
+        window.location.href = BASE_URL + '/api/user/register';
       });
 
       // 폼 제출 시 일반 로그인

@@ -9,6 +9,8 @@ MASTER_DB_PATH = os.environ.get("MASTER_DB_PATH", BASE_PATH + "/master")
 APT_BASE_PATH = os.environ.get("APT_BASE_PATH", BASE_PATH + "/apt")
 SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
+PUBLIC_BASE_PATH = os.environ.get("PUBLIC_BASE_PATH", BASE_PATH + "/pubdata")
+#
 NPL_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/npl")
 REALTOR_DB_PATH = os.environ.get("REALTOR_DB_PATH", BASE_PATH + "/realtor")
 JUMPO_BASE_PATH = os.environ.get("JUMPO_BASE_PATH", BASE_PATH + "/jumpo")

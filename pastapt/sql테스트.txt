@@ -43,6 +43,7 @@ WITH min_max_month AS (
 min_month_data AS (
     SELECT
         a.apt_id,
+        pa.stdg_cd, -- 법정동코드
         a.region_name,
         a.mcode_name,
         a.sname,
@@ -62,6 +63,7 @@ min_month_data AS (
 )
 SELECT
     apt_id,
+    stdg_cd,
     region_name,
     mcode_name,
     sname,

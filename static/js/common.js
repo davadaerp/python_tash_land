@@ -1,7 +1,8 @@
 
     //BASE_URL = 'http://192.168.45.167:5002';
     //BASE_URL = 'https://erp-dev.bacchuserp.com/ts/';
-    BASE_URL = 'http://localhost:8080';
+    //BASE_URL = 'http://localhost:8080';
+    BASE_URL = 'http://127.0.0.1:5000';
 
     // 자동완성 공통필드
     let selectedLawdCd = "";
@@ -342,4 +343,14 @@
       img.onerror = () => {
         console.error('이미지 로드 실패:', file.name);
       };
+    }
+
+    // 쿠키 도우미
+    function setCookie(name, value, opts={}){
+      const parts = [`${name}=${encodeURIComponent(value)}`];
+      parts.push(`path=${opts.path || '/'}`);
+      if (opts.maxAge) parts.push(`max-age=${opts.maxAge}`);
+      if (opts.sameSite) parts.push(`SameSite=${opts.sameSite}`);
+      if (opts.secure) parts.push('Secure');
+      document.cookie = parts.join('; ');
     }

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>간편회원가입</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f7f7f7;
+      padding: 40px;
+    }
+    h2 {
+      color: #333;
+    }
+    .section {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .consent-label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: inline-block;
+    }
+    .radio-group {
+      margin-top: 10px;
+    }
+    .input-group {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .input-group input[type="text"] {
+      width: 200px;
+      padding: 8px;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .input-group button {
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .note {
+      font-size: 13px;
+      color: #555;
+      margin-top: 5px;
+    }
+    .button-blue {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      margin-top: 15px;
+      cursor: pointer;
+    }
+    .button-green {
+      background-color: #c4e7c4;
+      color: #000;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    .button-group {
+      margin-top: 20px;
+    }
+    .button-group button {
+      padding: 10px 20px;
+      margin-right: 10px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <h2>간편회원가입</h2>
+
+  <div class="section">
+    <div class="consent-label">* 이용약관 (필수)</div>
+    <table>
+      <tr>
+        <td>
+          여기에 이용약관 내용을 입력합니다. 서비스 사용과 관련된 필수 조항을 명시합니다.
+        </td>
+      </tr>
+    </table>
+    <div class="radio-group">
+      <label><input type="radio" name="agree_terms" value="yes"> 동의함</label>
+      <label><input type="radio" name="agree_terms" value="no"> 동의하지 않음</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="consent-label">* 개인정보 수집 및 이용 동의 (필수)</div>
+    <table>
+      <tr>
+        <td>
+          여기에 개인정보 수집 및 이용에 대한 내용을 입력합니다. 목적, 항목, 보유기간 등을 명시합니다.
+        </td>
+      </tr>
+    </table>
+    <div class="radio-group">
+      <label><input type="radio" name="agree_privacy" value="yes"> 동의함</label>
+      <label><input type="radio" name="agree_privacy" value="no"> 동의하지 않음</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="consent-label">공공기관 고객만족도 조사를 위한 개인정보 제3자 제공 동의 (선택)</div>
+    <div class="note">
+      ※ 신청인에게는 개인정보 제공을 거부할 권리가 있으며, 거부할 경우 어떠한 불이익도 발생하지 않습니다.
+    </div>
+    <table>
+      <tr>
+        <td>
+          여기에 개인정보 제3자 제공 동의에 대한 설명 내용을 입력합니다.
+        </td>
+      </tr>
+    </table>
+    <div class="radio-group">
+      <label><input type="radio" name="agree_thirdparty" value="yes"> 예</label>
+      <label><input type="radio" name="agree_thirdparty" value="no"> 아니오</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="consent-label">* 회원 ID 중복확인</div>
+    <div class="note">
+      * 영문 소문자(첫 글자 영문), 숫자 조합 4~12자 이내로 입력해 주시기 바랍니다. (예시 : onbid12345)
+    </div>
+    <div class="input-group">
+      <input type="text" id="user-id" placeholder="아이디 입력">
+      <button id="check-duplicate">중복확인</button>
+    </div>
+    <div class="note">
+      ※ 간편회원가입 후 아이디로 로그인시 초기비밀번호는 설정되어 있지 않으므로
+      [나의온비드 > 나의 정보관리 > 비밀번호 변경] 메뉴에서 설정하여 사용하시기 바랍니다.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="consent-label">* 본인확인 인증</div>
+    <button class="button-blue">휴대폰 인증</button>
+  </div>
+
+  <div class="button-group">
+    <button id="cancel-btn">가입취소</button>
+    <button class="button-green" id="naver-login-btn">네이버아이디로 회원가입</button>
+  </div>
+
+  <script>
+    const BASE_URL = '';
+
+    // 네이버 로그인 버튼 클릭 시
+    $('#naver-login-btn').click(function(){
+      $.ajax({
+        url: BASE_URL + '/api/login/naver',
+        method: 'GET'
+      }).done(function(res){
+        if (res.auth_url) {
+          window.location.href = res.auth_url;
+        }
+      }).fail(function(){
+        alert('네이버 로그인 요청 중 오류가 발생했습니다.');
+      });
+    });
+
+    // 가입취소 클릭 시 이동
+    $('#cancel-btn').click(function(){
+      window.location.href = '/ts/';
+    });
+
+    // 중복확인 버튼 클릭 이벤트
+    $('#check-duplicate').click(function() {
+      const userId = $('#user-id').val().trim();
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+      if (!userId) {
+        alert('아이디를 입력해주세요.');
+        return;
+      }
+
+      if (!emailRegex.test(userId)) {
+        alert('아이디는 이메일 형식이어야 합니다.');
+        return;
+      }
+
+      $.ajax({
+        url: BASE_URL + '/api/login/check',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ userId: userId })
+      }).done(function(res){
+        if (res.is_duplicate) {
+          alert('이미 사용 중인 아이디입니다.');
+        } else {
+          alert('사용 가능한 아이디입니다.');
+        }
+      }).fail(function(){
+        alert('중복확인 요청 중 오류가 발생했습니다.');
+      });
+    });
+  </script>
+</body>
+</html>

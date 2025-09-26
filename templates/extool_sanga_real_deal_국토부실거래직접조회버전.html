@@ -589,64 +589,113 @@
             //================================================
             // 실거래 데이타 팝업목록 함수
             async function applyDealPricePopupList(selectedItem) {
-                // 경기도 김포시 운양동
-                const fullLawName = document.getElementById("popup-lawName").textContent.trim();
-                // 앞에 "경기도"만 추출
-                const lawdNm = fullLawName.split(" ")[0];
-                //
-                let lawdCd = selectedLawdCd.slice(0,5);     // 종로구 예시(차후 찾을때는 지번으로 찾음됨
-                let umdNm = selectedUmdNm;  // 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+
+                 // 상가,아파트,빌라 국토부 키체크
+                // if (existingKey == '' || existingKey == null) {
+                //     alert('상가키가 존재하지 않습니다.')
+                //     return;
+                // }
+                const lawdCd = selectedLawdCd.slice(0,5);
+                const umdNm = selectedUmdNm;
                 let allItems = [];
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
-                //
-                //alert(lawdCd + ',' +  lawdNm + ',' +  umdNm);
-                $.ajax({
-                    url: "/api/sanga/land_data",
-                    method: "GET",
-                    data: { lawd_cd: lawdCd, lawd_nm: lawdNm, umd_nm: umdNm },
-                    dataType: "json"
-                  })
-                  .done(function(data) {
-                    data.forEach(itemData => {
-                      // 날짜, 평수, 금액변환
-                      itemData.dealDate = `${itemData.dealYear}-${itemData.dealMonth.padStart(2, "0")}-${itemData.dealDay.padStart(2, "0")}`;
-                      itemData.buildingArPyeong = calcPyeong(itemData.buildingAr);
-                      itemData.convertedDealAmount = convertToKoreanAmount(itemData.dealAmount);
-                      // select설정위함(층및 전용면적)
-                      itemData.cfloor = itemData.floor;
-                      // 수정 → 공백/없음 → "0층"
-                      //itemData.cfloor = (itemData.floor && itemData.floor.trim() !== "") ? itemData.floor : "0";
-                      itemData.exclusive_area_pyeong = itemData.buildingArPyeong;
-                      // 평단가
-                      const tradeAmountNum = parseFloat((itemData.dealAmount || "0").replace(/,/g, ""));
-                      const areaNum = parseFloat((itemData.buildingArPyeong || "0").replace(/,/g, ""));
-                      const unitPrice = areaNum > 0 ? tradeAmountNum / areaNum : 0;
-                      itemData.sortPyeongPrice = unitPrice.toFixed(1).toString();
-                      // 위경도 (서버값 있으면 그대로, 없으면 0)
-                      itemData.latitude = itemData.lat || 0;
-                      itemData.longitude = itemData.lon || 0;
-                      // 기타
-                      itemData.lawdCD = lawdCd;
-                      itemData.ymd = getCurrentDate();
-
-                      allItems.push(itemData);
-                    });
-                    console.log("가공된 결과:", allItems);
-
-                    window.currentDealFilteredItems = allItems;
-
-                    // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
-                    set_rent_deal_auction_floor(allItems, 'deal');
-                    // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
-                    set_rent_deal_auction_area(allItems, 'deal');
+                // indexedDB kland_sanga(국토부실거래-상가)에 조회및 저장
+                let storeName = 'kland_sanga';
+                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                if (exists) {
+                    allItems = await  getAllItems(lawdCd, umdNm, storeName);
+                    console.log("데이터가 존재합니다.", allItems);
                     //
-                    renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
-                  })
-                  .fail(function(xhr, status, error) {
-                    console.error("호출 실패:", status, error);
-                    dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
-                });
+                } else {
+                    // 검색시작
+                    const url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade";
+                    const serviceKey = existingKey;
+                    try {
+                        // 검색할년범위선택함(년월별로 검색을 때림)
+                        const selectedYearRange = 2;  // 2년치 기준
+                        const yearsToFetch = Array.from({length: selectedYearRange}, (_, i) => currentYear - i);
+                        for (const year of yearsToFetch) {
+                            const monthsToFetch = Array.from({length: currentMonth + 1}, (_, i) => (i + 1).toString().padStart(2, "0"));
+                            for (const month of monthsToFetch) {
+                                const params = {
+                                    serviceKey: serviceKey,
+                                    LAWD_CD: lawdCd,
+                                    DEAL_YMD: `${year}${month}`,
+                                    pageNo: 1,
+                                    numOfRows: 500
+                                };
+                                const response = await fetch(`${url}?${new URLSearchParams(params)}`);
+                                if (!response.ok) {
+                                    throw new Error(`API 요청 실패: ${response.status}`);
+                                }
+                                const text = await response.text();
+                                const parser = new DOMParser();
+                                const xmlDoc = parser.parseFromString(text, "text/xml");
+                                const items = xmlDoc.querySelectorAll("item");
+                                if (items.length === 0) {
+                                    console.log(`${year}년 ${month}월: 검색된 데이터가 없습니다.`);
+                                    continue;
+                                }
+                                items.forEach(item => {
+                                    const itemData = {};
+                                    item.childNodes.forEach(node => {
+                                        if (node.nodeType === 1) {
+                                            itemData[node.nodeName] = node.textContent;
+                                        }
+                                    });
+                                    console.log(item);
+                                    if (!umdNm || itemData.umdNm === umdNm) {
+                                        itemData.dealDate = `${itemData.dealYear}-${itemData.dealMonth.padStart(2, "0")}-${itemData.dealDay.padStart(2, "0")}`;
+                                        itemData.buildingArPyeong = calcPyeong(itemData.buildingAr);
+                                        itemData.convertedDealAmount = convertToKoreanAmount(itemData.dealAmount);
+                                        //
+                                        // select설정위함(층및 전용면적)
+                                        itemData.cfloor = itemData.floor;
+                                        itemData.exclusive_area_pyeong = itemData.buildingArPyeong;
+                                        // 평단가 계산
+                                        let tradeAmountNum = parseFloat((itemData.dealAmount || "0").replace(/,/g, ""));
+                                        let areaNum = parseFloat((itemData.buildingArPyeong || "0").replace(/,/g, ""));
+                                        let unitPrice = tradeAmountNum / areaNum;
+                                        itemData.sortPyeongPrice = unitPrice.toFixed(1).toString();
+
+                                        // 주소를통한 위경도 가져오기
+                                        itemData.latitude = 0;
+                                        itemData.longitude = 0;
+                                        // const address = itemData.sggNm + ' ' + itemData.umdNm + ' ' + itemData.jibun;
+                                        // getLatLngFromAddress(address).then(coords => {
+                                        //   if (coords) {
+                                        //     // 여기서 지도 마커 찍기 등 처리 가능
+                                        //     console.log("리턴된 위경도:", coords.lat, coords.lon);
+                                        //     itemData.latitude = coords.lat;
+                                        //     itemData.longitude = coords.lon;
+                                        //   }
+                                        // });
+                                        //
+                                        itemData.lawdCD = lawdCd;
+                                        itemData.ymd = getCurrentDate();
+                                        //
+                                        allItems.push(itemData);
+                                    }
+                                });
+                            }
+                        }
+                        console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
+                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
+                        //
+                    } catch (error) {
+                        console.error("오류 발생:", error);
+                        dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
+                    }
+                } // end if
+                window.currentDealFilteredItems = allItems;
+
+                // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
+                set_rent_deal_auction_floor(allItems, 'deal');
+                // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
+                set_rent_deal_auction_area(allItems, 'deal');
+                //
+                renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
 
                 //
                 // 10. "평형분석" button click event
@@ -1119,11 +1168,9 @@
                   const unitPrice = area > 0 ? Math.round(amount / area) : 0; // 평단가 계산
                   const address   = [lawName, item.jibun].filter(Boolean).join(" ");
 
-                  // 국토부 지오코딩 API를 사용하여 위/경도 가져오기(서버에서 처리함)
-                  // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                  // 국토부 지오코딩 API를 사용하여 위/경도 가져오기
+                  const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
                   //console.log(address, latitude, longitude);
-                  const latitude  = item.latitude  || 0;
-                  const longitude = item.longitude || 0;
                   return {
                     type:       "real",
                     address,

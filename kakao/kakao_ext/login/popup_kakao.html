@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kakao Login</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 0; }
+    .container { width: 320px; padding: 16px; }
+    h1 { font-size: 18px; margin: 0 0 12px 0; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
+    .row { display: flex; justify-content: space-between; margin: 8px 0; }
+    .label { color: #666; }
+    .value { font-weight: 600; }
+    .hidden { display: none; }
+    .btn { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn-kakao { background: #FEE500; color: #381e1f; font-weight: 700; }
+    .btn-secondary { background: #efefef; color: #333; }
+    .center { text-align: center; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; background: rgba(0,0,0,0.8); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>투자멘토스</h1>
+
+    <!-- 비로그인 상태 -->
+    <div id="login-section" class="card hidden">
+      <p class="center">카카오로 로그인 하세요</p>
+      <button id="btn-login" class="btn btn-kakao">카카오 로그인</button>
+    </div>
+
+    <!-- 로그인 상태 -->
+    <div id="user-section" class="card hidden">
+      <div class="row">
+        <span class="label">닉네임</span>
+        <span id="nickname" class="value">-</span>
+      </div>
+      <div class="row">
+        <span class="label">문자 건수</span>
+        <span id="sms-count" class="value">-</span>
+      </div>
+      <button id="btn-logout" class="btn btn-secondary">로그아웃</button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="popup_kakao.js"></script>
+</body>
+</html>

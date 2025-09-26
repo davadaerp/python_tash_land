@@ -276,16 +276,21 @@
         ? cleanAuctionAddress(group.address || '주소 미상')
         : (group.address || '주소 미상');
 
-      // 필터 버튼 구성
+      // 건수 계산
+      const totalCount   = itemsSorted.length;
+      const realCount    = itemsSorted.filter(it => it.type === 'real').length;
+      const auctionCount = itemsSorted.filter(it => it.type === 'auction').length;
+
+      // 필터 버튼 구성 (텍스트에 건수 포함)
       const filterOptions = [];
       if (meta.hasReal && meta.hasAuction) {
-        filterOptions.push({key:'all', text:'전체'});
-        filterOptions.push({key:'real', text:'실거래'});
-        filterOptions.push({key:'auction', text:'경매'});
+        filterOptions.push({key:'all',     text:`전체 (${totalCount})`});
+        filterOptions.push({key:'real',    text:`실거래 (${realCount})`});
+        filterOptions.push({key:'auction', text:`경매 (${auctionCount})`});
       } else if (meta.hasReal) {
-        filterOptions.push({key:'real', text:'실거래'});
+        filterOptions.push({key:'real',    text:`실거래 (${realCount})`});
       } else {
-        filterOptions.push({key:'auction', text:'경매'});
+        filterOptions.push({key:'auction', text:`경매 (${auctionCount})`});
       }
       const defaultFilter = filterOptions[0].key; // 혼합이면 all, 아니면 단일 항목
 

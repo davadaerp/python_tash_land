@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kakao Login</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center; /* 가로 중앙 */
+      align-items: center;     /* 세로 중앙 */
+      height: 100vh;           /* 화면 높이 채우기 */
+      background: #fafafa;
+    }
+    .container { width: 320px; padding: 16px; }
+    h1 { font-size: 18px; margin: 0 0 12px 0; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
+    .row { display: flex; justify-content: space-between; margin: 8px 0; }
+    .label { color: #666; }
+    .value { font-weight: 600; }
+    .hidden { display: none; }
+    .btn { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn-kakao { background: #FEE500; color: #381e1f; font-weight: 700; }
+    .btn-secondary { background: #efefef; color: #333; }
+    .center { text-align: center; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; background: rgba(0,0,0,0.8); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
+  </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- BASE_URL 등은 /static/js/common.js에서 주입된다고 가정 -->
+  <script src="/static/js/common.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>투자멘토스</h1>
+
+    <!-- 비로그인 상태 -->
+    <div id="login-section" class="card hidden">
+      <p class="center">카카오로 로그인 하세요</p>
+      <button id="btn-login" class="btn btn-kakao">카카오 로그인</button>
+    </div>
+
+    <!-- 로그인 상태 -->
+    <div id="user-section" class="card hidden">
+      <div class="row">
+        <span class="label">닉네임</span>
+        <span id="nickname" class="value">-</span>
+      </div>
+      <div class="row">
+        <span class="label">문자 건수</span>
+        <span id="sms-count" class="value">-</span>
+      </div>
+      <button id="btn-logout" class="btn btn-secondary">로그아웃</button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script>
+    const SERVER = "http://127.0.0.1:5000";
+    //const SERVER = "https://erp-dev.bacchuserp.com";
+    const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
+    const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
+    const API_ME_URL = `${SERVER}/api/kakao/me`;
+
+    const loginSection = document.getElementById("login-section");
+    const userSection  = document.getElementById("user-section");
+    const nicknameEl   = document.getElementById("nickname");
+    const smsCountEl   = document.getElementById("sms-count");
+    const btnLogin     = document.getElementById("btn-login");
+    const btnLogout    = document.getElementById("btn-logout");
+    const toast        = document.getElementById("toast");
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 1500);
+    }
+
+    // 화면초기화(로그아웃 상태-카카오 로그인 버튼 보임)
+    function setLoggedOutUI() {
+      userSection.classList.add("hidden");
+      loginSection.classList.remove("hidden");
+    }
+
+    function setLoggedInUI(profile) {
+      nicknameEl.textContent = profile.nickname || "-";
+      smsCountEl.textContent = (profile.sms_count ?? 0).toString();
+      loginSection.classList.add("hidden");
+      userSection.classList.remove("hidden");
+    }
+
+    // 쿠키 설정 함수및 메인페이지 이동(3초후)
+    function mainLogin() {
+      setTimeout(() => {
+          // 1) 서버가 읽는 건 쿠키이므로, 없으면 localStorage에서 보강
+          // const at = localStorage.getItem('access_token') || '';
+          // if (at) {
+          //   setCookie('access_token', at, {
+          //     path: '/',
+          //     sameSite: 'Lax',
+          //     secure: (location.protocol === 'https:')
+          //     // 필요시 maxAge: 1800  // 예: 30분
+          //   });
+          // }
+           const access_token = localStorage.getItem('access_token') || '';
+           document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
+          // 2) 이동
+          window.location.href = SERVER + "/api/main";
+        }, 1000);
+    }
+
+    // 세션 복원 시도
+    async function restoreSession() {
+      const token = localStorage.getItem("access_token");
+      const nickname = localStorage.getItem("nickname");
+      const sms_count = localStorage.getItem("sms_count");
+
+      console.log("Restoring session, token:", token);
+      if (!token) {
+        setLoggedOutUI();
+        return;
+      }
+
+      try {
+        // jwt 토큰체크(일정시간 지나면 401 응답)
+        const r = await fetch(API_ME_URL, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        // 상태 확인
+        console.log("🔎 Response status:", r.status, "ok:", r.ok);
+        // 응답 바디(원본 텍스트) 확인이 필요하면 아래 두 줄 주석 해제
+        // const rawText = await r.clone().text();
+        // console.log("🔎 Response body text:", rawText);
+
+        if (!r.ok) throw new Error("세션 만료");
+        const me = await r.json(); // {nickname, sms_count}
+        console.log("🔎 Parsed JSON:", me);
+
+        localStorage.setItem("nick_name", me.nickname);
+        localStorage.setItem("sms_count", me.sms_count);
+        setLoggedInUI(me);
+
+        showToast("자동 로그인 완료");
+
+        // 3초후 /api/main으로 로그인 페이지로 이동
+        mainLogin();
+      } catch (e) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("nick_name");
+        localStorage.removeItem("sms_count");
+        setLoggedOutUI();
+      }
+    }
+
+    // 카카오 로그인 버튼 클릭
+    btnLogin.addEventListener("click", async () => {
+      const w = 480, h = 640;
+      const left = Math.round((screen.width - w) / 2);
+      const top  = Math.round((screen.height - h) / 2);
+      const loginWin = window.open(
+        OAUTH_LOGIN_URL,
+        "kakao_login",
+        `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no`
+      );
+
+      function onMessage(ev) {
+        // 디버깅용 간단 알림
+        //alert("postMessage 수신: " + JSON.stringify(ev));
+
+        // 배포 시에는 보안상 origin 체크 권장
+        // if (!ev.origin.startsWith("chrome-extension://") &&
+        //     !ev.origin.startsWith("https://your-server.example.com")) return;
+
+        const data = ev.data || {};
+        console.log("📩 수신된 데이터:", data);
+        if (data.type === "kakao_login_success") {
+            window.removeEventListener("message", onMessage);
+            try { loginWin && loginWin.close(); } catch {}
+            const { token, nickname, sms_count, apt_key, villa_key, sanga_key } = data;
+
+            // localStorage 저장
+            localStorage.setItem("access_token", token);
+            localStorage.setItem("nick_name", nickname);
+            localStorage.setItem("sms_count", sms_count);
+            localStorage.setItem("apt_key", apt_key);
+            localStorage.setItem("villa_key", villa_key);
+            localStorage.setItem("sanga_key", sanga_key);
+
+            setLoggedInUI({ nickname, sms_count });
+            showToast("로그인 완료");
+            // 3초후 /api/main으로 로그인 페이지로 이동
+            mainLogin();
+        }
+      }
+      window.addEventListener("message", onMessage);
+    });
+
+    // 로그아웃 버튼 클릭
+    btnLogout.addEventListener("click", async () => {
+      const token = localStorage.getItem("access_token");
+      try {
+        await fetch(OAUTH_LOGOUT_URL, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+      } catch (e) {
+        // 네트워크 오류여도 로컬 세션은 비우고 UI 초기화
+      }
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("nick_name");
+      localStorage.removeItem("sms_count");
+
+      setLoggedOutUI();
+      showToast("로그아웃 완료");
+    });
+
+    // 페이지 로드 시 세션 복원 시도
+    document.addEventListener("DOMContentLoaded", restoreSession);
+  </script>
+</body>
+</html>

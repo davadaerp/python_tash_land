@@ -61,10 +61,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type"
 # 메모리 기반의 토큰 저장소 (유저ID:토큰)
 active_tokens = {}
 
-APT_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
-VILLA_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
-SANGA_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
-
 # 아마존 로드발라서 헬스체크처리
 @app.route('/q/health/ready')
 def health_ready():
@@ -160,7 +156,7 @@ def logout():
 
 
 # 카카오 로그인 관련
-from kakao.kakao_api_utils import KakaoAPI, TOKENS
+from kakao.kakao_api_utils import KakaoAPI
 
 # 필요시 scope를 None으로 두고 최소 동작 확인
 DEFAULT_SCOPE = None  # 예: ["profile_nickname", "profile_image"]
@@ -176,8 +172,8 @@ def kakao_login():
     print("== kakao_login() kakao_auth_url:", auth_url)
     return redirect(auth_url)
 
-@app.get("/api/kakao/callback")
-def kakao_auth_callback():
+@app.route("/api/kakao/callback")
+def kakao_callback_old():
     code = request.args.get("code")
     if not code:
         error = request.args.get("error_description") or request.args.get("error") or "인가 코드를 찾을 수 없습니다."
@@ -197,7 +193,6 @@ def kakao_auth_callback():
     # 2) 사용자 정보
     me = kakao.get_user_me(access_token)
     kakao_id = str(me.get("id"))
-    user_id = kakao_id
     kakao_account = me.get("kakao_account", {}) or {}
     email = kakao_account.get("email")
     profile = kakao_account.get("profile") or {}
@@ -210,7 +205,7 @@ def kakao_auth_callback():
     #     auth_url = kakao.build_authorize_url(session["oauth_state"], ["account_email"], prompt="consent")
     #     return redirect(auth_url)
 
-    # 2) DB에서 user_id로 사용자 조회
+    # # 2) DB에서 user_id로 사용자 조회
     rows = user_read_db(user_id=kakao_id)
     sms_count = rows[0].get("recharge_sms_count", 0) if rows else 0
     if not rows:
@@ -245,36 +240,55 @@ def kakao_auth_callback():
         "sms_count": sms_count,
     })
 
-    # 우리 서비스용 JWT 발급(user_id 기반)
-    app_token = kakao.make_jwt(user_id)
+    # 4) (성공 시) 프론트에서 쓸 키 값 준비  ← 기존 payload.setdefault(...) 대신
+    apt_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
+    villa_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
+    sanga_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
 
-    # 확장프로그램 팝업으로 토큰/프로필 전달 (postMessage)
-    # 보안 고려: origin 체크는 확장 프로그램에서 수행
-    html = f"""
-<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8"><title>로그인 완료</title></head>
-<body>
-<script>
-  try {{
-    window.opener && window.opener.postMessage({{
-        type: "kakao_login_success",
-        token: {repr(app_token)},
-        nickname: {repr(nickname)},
-        sms_count: {sms_count},
-        apt_key: {repr(APT_KEY)},
-        villa_key: {repr(VILLA_KEY)},
-        sanga_key: {repr(SANGA_KEY)}
-    }}, "*");
-  }} catch (e) {{}}
-  window.close();
-</script>
-로그인 처리 중...
-</body>
-</html>
-"""
-    resp = make_response(html)
-    resp.headers["Content-Security-Policy"] = "default-src 'none'; script-src 'unsafe-inline';"
+    # 4) (선택) httpOnly 쿠키 병행 설정
+    #    ※ JS에서 읽을 수 없지만, 서버 측 인증용으로 안전합니다.
+    #    secure=True (HTTPS), samesite='Lax' 권장
+    bridge_html = f"""
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head><meta charset="utf-8"><title>로그인 처리중...</title></head>
+    <body>
+    <script>
+      try {{
+        // 1) localStorage 저장
+        localStorage.setItem('access_token', {json.dumps(access_token)});
+        localStorage.setItem('user_id', {json.dumps(kakao_id)});
+        localStorage.setItem('nick_name', {json.dumps(nickname or "")});
+        localStorage.setItem('email', {json.dumps(email or "")});
+        localStorage.setItem('profile_image', {json.dumps(profile_img or "")});
+        localStorage.setItem('sms_count', {json.dumps(sms_count)});
+        
+        // 1-1) 추가 키 저장
+        localStorage.setItem('apt_key', {json.dumps(apt_key)});
+        localStorage.setItem('villa_key', {json.dumps(villa_key)});
+        localStorage.setItem('sanga_key', {json.dumps(sanga_key)});  // 오타 주의: snaga_key X
+
+        // 3) 메인으로 이동
+        window.location.href = {json.dumps(request.host_url.rstrip('/') + '/api/main')};
+      }} catch (e) {{
+        document.body.innerText = '로그인 후 이동 중 오류가 발생했습니다: ' + e;
+      }}
+    </script>
+    </body>
+    </html>
+        """
+
+    resp = make_response(bridge_html)
+    # 쿠키를 쓰실 거면 주석 해제
+    resp.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,  # JS 접근 불가(보안상 권장)
+        samesite="Lax",
+        secure=False  # 운영은 True(HTTPS) 권장
+    )
     return resp
+
 
 def _error_bridge_html(msg: str) -> str:
     return f"""<!doctype html><meta charset="utf-8">
@@ -286,63 +300,51 @@ def _error_bridge_html(msg: str) -> str:
 </div>
 """
 
-@app.get("/api/kakao/logout")
-def kakao_auth_logout():
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        access_token = auth.split(" ", 1)[1]
-        payload = kakao.verify_jwt(access_token)
-        user_id = payload["sub"]  # user_id는 kakao_id와 동일하게 설정됨
-        if payload:
-            jti = payload.get("jti")
-            if jti in TOKENS:
-                del TOKENS[jti]
+@app.route("/api/kakao/unlink", methods=["POST"])
+def unlink():
+    # 1) user_id 입력 받기 (query, form, json 모두 허용)
+    user_id = request.values.get("user_id")
+    if not user_id and request.is_json:
+        body = request.get_json(silent=True) or {}
+        user_id = body.get("user_id")
 
-        #==============================================
-        # 사용자 삭제
-        print("== unlink() user_id:", user_id)
-        print("== unlink() access_token:", access_token)
+    if not user_id:
+        return make_response("user_id is required", 400)
 
-        # 3) Kakao Unlink 시도 (토큰이 있는 경우에만)
-        try:
-            if access_token:
-                kakao.unlink(access_token)  # KakaoAPI 유틸 사용
-        except Exception as e:
-            # 언링크 실패 시 에러 반환
-            return make_response(f"연결 해제 실패: {e}", 400)
+    #
+    access_token = request.values.get("access_token")
 
-        # 4) 해당 user_id 토큰 필드 초기화 및 updated_at 갱신
-        user_update_exist_record({
-            "user_id": user_id,
-            "kakao_id": user_id,
-            "access_token": "",
-            "refresh_token": "",
-            "token_expires_at": "",
-            "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-        })
+    print("== unlink() user_id:", user_id)
+    print("== unlink() access_token:", access_token)
 
-    return jsonify({"result": "ok"})
+    # # 2) DB에서 user_id로 사용자 조회
+    # rows = user_read_db(user_id=user_id)
+    # if not rows:
+    #     return make_response("User not found", 404)
+    #
+    # user = rows[0]
+    # access_token = user.get("access_token")
 
-@app.get("/api/kakao/me")
-def api_me():
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return jsonify({"error": "unauthorized"}), 401
-    token = auth.split(" ", 1)[1]
-    payload = kakao.verify_jwt(token)
-    if not payload:
-        return jsonify({"error": "unauthorized"}), 401
+    # 3) Kakao Unlink 시도 (토큰이 있는 경우에만)
+    try:
+        if access_token:
+            kakao.unlink(access_token)  # KakaoAPI 유틸 사용
+    except Exception as e:
+        # 언링크 실패 시 에러 반환
+        return make_response(f"연결 해제 실패: {e}", 400)
 
-    user_id = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
-    # 닉네임/문자건수는 실제론 DB에서 조회
-    # 여기서는 간단히 유저아이디 기반으로 예시값 구성
-    nickname = "야나르타쉬"
-    sms_count = 100
-    return jsonify({
-        "nickname": nickname, "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
+    # 4) 해당 user_id 토큰 필드 초기화 및 updated_at 갱신
+    user_update_exist_record({
+        "user_id": user_id,
+        "kakao_id": user_id,
+        "access_token": "",
+        "refresh_token": "",
+        "token_expires_at": "",
+        "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
-# ===== 메인 페이지 및 메뉴 =====
+    return jsonify({"result": "Success", "message": "카카오 연결 해제 및 사용자 토큰 초기화를 완료했습니다."})
+
 @app.route("/api/main")
 #@token_required
 @kakao_token_required

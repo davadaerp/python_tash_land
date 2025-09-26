@@ -28,15 +28,55 @@
       box-sizing: border-box;
       margin: 5px auto;
     }
-    .menu-left a {
+    .menu-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .menu-left a.brand {
       color: #fff;
       text-decoration: none;
       font-size: 20px;
       font-weight: bold;
+      white-space: nowrap;
     }
+
+    /* 닉네임/문자건수 배지 영역 */
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 8px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(255,255,255,0.35);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .badge .label {
+      opacity: 0.9;
+    }
+    .badge .value {
+      font-weight: 900;
+    }
+    /* 문자건수 배지는 숫자 구분감 높이기 위해 조금 더 진한 배경 */
+    .badge.count {
+      background: rgba(255,255,255,0.28);
+    }
+
     .menu-center {
       display: flex;
       gap: 10px;
+      position: relative;
     }
     .menu-center a {
       color: #fff;
@@ -62,52 +102,106 @@
     .menu-right a:hover {
       background-color: #0056b3;
     }
+
     /* 컨텐츠 영역 (iframe 포함) */
     #content {
       width: 99%;
       max-width: 1350px;
       margin: 3px auto;
-      /*box-sizing: border-box;*/
-      /*border: 1px solid #ddd;       !* 컨텐츠 영역 테두리 추가 *!*/
-      padding: 1px;                 /* 내부 여백 추가 (선택사항) */
+      padding: 1px;
     }
-
     iframe {
       width: 100%;
       height: 1190px;
-      border: 1px solid #ddd;       /* iframe 테두리 보이도록 변경 */
-      /*background-color: azure;*/
-      /*border-radius: 8px;           !* 둥근 모서리 (선택사항) *!*/
-      /*box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); !* 그림자 효과 (선택사항) *!*/
-      /*display: block;               !* block 요소로 설정 *!*/
+      border: 1px solid #ddd;
+    }
+
+    /* 드롭다운 메뉴 스타일 */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .dropdown > a {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      transition: background-color 0.3s ease;
+      display: inline-block;
+    }
+    .dropdown > a:hover {
+      background-color: #0056b3;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      background-color: #007bff;
+      min-width: 120px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+      z-index: 1;
+      border-radius: 4px;
+      top: 100%;
+      left: 0;
+    }
+    .dropdown-content a {
+      color: white;
+      padding: 8px 12px;
+      text-decoration: none;
+      display: block;
+    }
+    .dropdown-content a:hover {
+      background-color: #0056b3;
+    }
+    .dropdown:hover .dropdown-content {
+      display: block;
+    }
+    .dropdown:hover > a {
+      background-color: #0056b3;
+    }
+    .dropdown.active > a {
+      background-color: #0056b3;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
   <!-- 상단 메뉴 -->
   <nav class="menu">
-    <!-- 왼쪽 로고 -->
+    <!-- 왼쪽 로고 + 사용자 배지 -->
     <div class="menu-left">
-      <a href="#">야나르타쉬</a>
+      <!--
+      <a href="#" class="brand">야나르타쉬</a>
+      -->
+      <div class="user-info" id="userInfo" style="display:none;">
+        <span class="badge name">
+          <span class="value" id="nickNameDisplay">-</span>
+        </span>
+        <span class="badge count">
+          <span class="value" id="smsCountDisplay">0건</span>
+        </span>
+      </div>
     </div>
+
     <!-- 중앙 메뉴 -->
     <div class="menu-center">
       <a href="#" data-src="/api/menu?menu=user">회원관리</a>
-      <a href="#" data-src="/api/menu?menu=apt">아파트</a>
-      <a href="#" data-src="/api/menu?menu=villa">빌라</a>
-      <a href="#" data-src="/api/menu?menu=sanga">상가</a>
+      <div class="dropdown">
+        <a href="#" class="dropbtn">실거래조회</a>
+        <div class="dropdown-content">
+          <a href="#" data-src="/api/menu?menu=apt">아파트</a>
+          <a href="#" data-src="/api/menu?menu=villa">빌라</a>
+          <a href="#" data-src="/api/menu?menu=sanga">상가</a>
+        </div>
+      </div>
       <a href="#" data-src="/api/menu?menu=apt_search">아파트매물</a>
       <a href="#" data-src="/api/menu?menu=sanga_search">상가매물</a>
-<!--      <a href="#" onclick="extSangaSearchDemand()">확장툴상가매물</a>-->
-<!--      <a href="#" onclick="analyzeRealdealDemand()">실거래검색</a>-->
-<!--      <a href="#" onclick="formDownload()">양식다운</a>-->
       <a href="#" data-src="/api/menu?menu=auction">경매</a>
       <a href="#" data-src="/api/menu?menu=npl">NPL</a>
       <a href="#" data-src="/api/menu?menu=past_apt">연복리분석</a>
       <a href="#" data-src="/api/menu?menu=realtor">중개사</a>
       <a href="#" data-src="/api/menu?menu=jumpo">점포</a>
-<!--      <a href="#" onclick="formEditor()">양식작성</a>-->
     </div>
+
     <!-- 오른쪽 로그아웃 -->
     <div class="menu-right">
       <a href="#" onclick="logout()">로그아웃</a>
@@ -120,86 +214,114 @@
   </div>
 
   <script>
-    function logout() {
-      // 로그아웃 처리: 예시로 로그아웃 페이지로 리다이렉트
-      localStorage.setItem("access_token", "");
-      window.location.href = "/api/logout";
-    }
-    // 실거래분석(국토부및경매데이터)
-    function extSangaSearchDemand() {
-        // 지역선택 가져오기
-        // const {region, sigungu, umdNm} = getSelectedRegions();
-        // alert(region + ',' + sigungu + ',' + umdNm);
-        //
-        //const regions = '경기도,김포시,운양동'
-        const regions = '경기도,고양시 덕양구,신원동'
-        //const regions = '인천시,남동구,논현동'
-        const popupWidth = 1490;  // 원하는 팝업 너비
-        const popupHeight= 1300;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        window.open("/api/ext_tool?menu=sanga_search&regions=" + regions, "analyzeCatchmentDemand",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    async function logout() {
+      // 필요한 경우 로컬스토리지 비우고 로그아웃
+      const token = localStorage.getItem("access_token");
+      try {
+        const r = await fetch("/api/kakao/logout", {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        //if (!r.ok) throw new Error("세션 만료");
+
+        const keys = ['access_token','user_id','nick_name','email','profile_image','apt_key','villa_key','sanga_key','sms_count'];
+        keys.forEach(k => localStorage.removeItem(k));
+
+        window.location.href = "/ts/"; // 맨처음 로그인 페이지로 이동
+      } catch (e) {
+        // 네트워크 오류여도 로컬 세션은 비우고 UI 초기화
+        alert('로그아웃 처리 중 오류가 발생했습니다. 세션을 초기화합니다.');
+      }
     }
 
-    // 실거래분석(국토부및경매데이터)
-    function analyzeRealdealDemand() {
-        // 지역선택 가져오기
-        // const {region, sigungu, umdNm} = getSelectedRegions();
-        // alert(region + ',' + sigungu + ',' + umdNm);
-        //
-        const regions = '경기도,김포시,운양동'
-        const popupWidth = 950;  // 원하는 팝업 너비
-        const popupHeight= 830;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        window.open("/api/ext_tool?menu=sanga_real_deal&regions=" + regions, "analyzeCatchmentDemand",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    // JSON 또는 일반 문자열을 안전하게 파싱
+    function safeGet(key) {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return null;
+      try {
+        // JSON 문자열("홍길동", 123 등)일 수도 있으므로 우선 파싱 시도
+        return JSON.parse(raw);
+      } catch (e) {
+        // JSON이 아니면 원문 그대로 사용
+        return raw;
+      }
     }
 
-    // 실거래분석(국토부및경매데이터)
-    function formDownload() {
-        //const regions = '경기도,김포시,운양동'
-        const regions = '경기도,고양시 덕양구,신원동'
-        //const regions = '인천시,남동구,논현동'
-        const popupWidth = 500;  // 원하는 팝업 너비
-        const popupHeight= 400;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        window.open("/api/ext_tool?menu=form_down&regions=" + regions, "analyzeCatchmentDemand",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    function renderUserInfo() {
+      const nickname = safeGet('nick_name');
+      const smsCountRaw = safeGet('sms_count');
+
+      // 문자열/숫자 혼용 가능 → 숫자 변환 시도
+      const smsCount = (smsCountRaw === null || smsCountRaw === undefined || smsCountRaw === '')
+        ? null
+        : Number(smsCountRaw);
+
+      const nickSpan = document.getElementById('nickNameDisplay');
+      const smsSpan = document.getElementById('smsCountDisplay');
+      const userInfoBox = document.getElementById('userInfo');
+
+      const hasNickname = !!(nickname && String(nickname).trim().length > 0);
+      const hasSms = Number.isFinite(smsCount);
+
+      if (hasNickname) nickSpan.textContent = String(nickname).trim();
+      if (hasSms) smsSpan.textContent = `${smsCount}건`;
+
+      // 둘 중 하나라도 있으면 표시
+      userInfoBox.style.display = (hasNickname || hasSms) ? 'flex' : 'none';
     }
 
-    // 양식작성
-    function formEditor() {
-        const popupWidth = 500;  // 원하는 팝업 너비
-        const popupHeight= 400;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        window.open("/api/form_editor", "양식작성",
-          `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-    }
-
-    // 중앙 메뉴 링크 요소들
-    const menuLinks = document.querySelectorAll('.menu-center a');
+    // 중앙 메뉴 링크 요소들 (드롭다운 버튼 제외)
+    const mainMenuLinks = document.querySelectorAll('.menu-center > a:not(.dropdown a)');
+    // 드롭다운 버튼
+    const dropdownBtn = document.querySelector('.dropdown > a');
+    // 드롭다운 요소
+    const dropdown = document.querySelector('.dropdown');
+    // 드롭다운 메뉴 링크들
+    const dropdownLinks = document.querySelectorAll('.dropdown-content a');
     const iframe = document.getElementById('content-frame');
 
-    // 클릭 시 active 클래스를 관리하고 iframe의 src를 변경
-    menuLinks.forEach(link => {
+    // 메인 메뉴 클릭 시 처리
+    mainMenuLinks.forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
-        menuLinks.forEach(link => link.classList.remove('active'));
+        mainMenuLinks.forEach(item => item.classList.remove('active'));
+        dropdownLinks.forEach(item => item.classList.remove('active'));
+        dropdown.classList.remove('active');
         this.classList.add('active');
-        const newSrc = this.getAttribute('data-src');
-        iframe.setAttribute('src', newSrc);
+        iframe.setAttribute('src', this.getAttribute('data-src'));
       });
     });
 
-    // 초기 로드 시 첫 번째 메뉴 링크 active 처리 및 컨텐츠 로드
-    if (menuLinks.length > 0) {
-      menuLinks[0].classList.add('active');
-      iframe.setAttribute('src', menuLinks[0].getAttribute('data-src'));
+    // 드롭다운 버튼 클릭 시 처리 (표시는 CSS :hover로 처리)
+    dropdownBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+    });
+
+    // 드롭다운 메뉴 클릭 시 처리
+    dropdownLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        mainMenuLinks.forEach(item => item.classList.remove('active'));
+        dropdownLinks.forEach(item => item.classList.remove('active'));
+        this.classList.add('active');
+        dropdown.classList.add('active');
+        iframe.setAttribute('src', this.getAttribute('data-src'));
+      });
+    });
+
+    // 초기 로드: 사용자 정보 표시 + 첫 메뉴 활성화
+    renderUserInfo();
+    if (mainMenuLinks.length > 0) {
+      mainMenuLinks[0].classList.add('active');
+      iframe.setAttribute('src', mainMenuLinks[0].getAttribute('data-src'));
     }
+
+    // 다른 탭/창에서 localStorage 변경될 때 반영
+    window.addEventListener('storage', (e) => {
+      if (['nick_name','sms_count'].includes(e.key)) {
+        renderUserInfo();
+      }
+    });
   </script>
 </body>
 </html>
