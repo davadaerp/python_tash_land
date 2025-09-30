@@ -6,11 +6,11 @@
   <title>Kakao Login</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; padding: 0; }
-    .container { width: 320px; padding: 16px; }
+    .container { width: 320px; padding: 16px; margin: 0 auto; }
     h1 { font-size: 18px; margin: 0 0 12px 0; }
     .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
-    .row { display: flex; justify-content: space-between; margin: 8px 0; }
-    .label { color: #666; }
+    .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; gap: 8px; }
+    .label { font-size: 12px; font-weight: 700; color: #666; white-space: nowrap; }
     .value { font-weight: 600; }
     .hidden { display: none; }
     .btn { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; font-size: 14px; }
@@ -18,6 +18,52 @@
     .btn-secondary { background: #efefef; color: #333; }
     .center { text-align: center; }
     .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; background: rgba(0,0,0,0.8); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
+    .btn-group { display: flex; gap: 8px; }
+    .btn-group .btn { width: auto; flex: 1; }
+
+    /* 문자 건수 행 오른쪽 정렬 */
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 문자 건수 + 버튼 묶음을 오른쪽 끝으로 */
+    .sms-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto; /* 오른쪽 끝으로 밀기 */
+    }
+
+    /* 충전 버튼 크기 고정 */
+    .btn-charge {
+      background: #ffae00;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 6px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 10ch;   /* "10" 정도의 크기 */
+      text-align: center;
+    }
+    .btn-charge:hover {
+      filter: brightness(1.1);
+    }
+
+    /* 구독 뱃지 & 구독 버튼 */
+    .tag-sub { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eaf2ff; color: #0b68ff; }
+    .tag-nosub { font-size: 12px; font-weight: 600; color: #999; }
+    .btn-subscribe {
+      background: linear-gradient(135deg, #7b5cff, #4cc3ff);
+      color: #fff; font-weight: 700; box-shadow: 0 6px 16px rgba(123,92,255,0.25);
+    }
+    .btn-subscribe:hover { filter: brightness(1.05); }
+
+    /* 닉네임 옆 라인 정렬 */
+    .userline { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
   </style>
 </head>
 <body>
@@ -34,18 +80,28 @@
     <div id="user-section" class="card hidden">
       <div class="row">
         <span class="label">닉네임</span>
-        <span id="nickname" class="value">-</span>
+        <span class="value userline">
+          <span id="nickname">-</span>
+          <span id="sub-status" class="tag-nosub hidden">(미구독)</span>
+        </span>
       </div>
+
       <div class="row">
         <span class="label">문자 건수</span>
-        <span id="sms-count" class="value">-</span>
+        <div class="sms-wrap">
+          <span id="sms-count" class="value">-</span>
+          <button id="btn-charge" class="btn btn-charge">충전</button>
+        </div>
       </div>
-      <button id="btn-logout" class="btn btn-secondary">로그아웃</button>
+
+      <div class="btn-group">
+        <button id="btn-mypage" class="btn btn-secondary">마이페이지</button>
+        <button id="btn-logout" class="btn btn-secondary">로그아웃</button>
+      </div>
     </div>
 
     <div id="toast" class="toast hidden"></div>
   </div>
-
   <script src="popup_kakao.js"></script>
 </body>
 </html>
