@@ -18,6 +18,7 @@ from flask import Flask, jsonify, request, redirect, render_template, url_for, m
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
@@ -170,6 +171,9 @@ kakao = KakaoAPI()
 
 @app.route("/api/kakao/login")
 def kakao_login():
+    #
+    user_create_table()  # 테이블 없으면 생성
+    #
     state = secrets.token_urlsafe(16)
     # session["oauth_state"] = state
     auth_url = kakao.build_authorize_url(state, DEFAULT_SCOPE)
@@ -336,10 +340,51 @@ def api_me():
     user_id = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
     # 닉네임/문자건수는 실제론 DB에서 조회
     # 여기서는 간단히 유저아이디 기반으로 예시값 구성
-    nickname = "야나르타쉬"
-    sms_count = 100
+    # 2) DB에서 user_id로 사용자 조회
+    rows = user_read_db(user_id=user_id)
+    if not rows:
+        return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
+    #
+    print(rows)
+    #
+    nick_name = rows[0].get("nick_name")
+    sms_count = rows[0].get("recharge_sms_count", 0) if rows else 0
+    #  구독상태 (active, canceled 등) : 차후 관리자 페이지에서 on/off 처리용
+    is_subscribed = "cancelled"
+    plan_name = "0개월"
+    plan_date = '0일남음'
+    #
+    subscription_status = rows[0].get("subscription_status", 'cancelled') if rows else 'cancelled'
+    if subscription_status == 'active':
+        is_subscribed = "active"
+        subscription_start_date = rows[0].get("subscription_start_date", "")
+        subscription_end_date = rows[0].get("subscription_end_date", "")
+        plan_name = f"{rows[0].get('subscription_month', 1)}개월"
+        #
+        # 날짜 포맷: "2025-09-30 07:54:28"
+        fmt = "%Y-%m-%d %H:%M:%S"
+        try:
+            start_date = datetime.strptime(subscription_start_date, fmt).date()
+            end_date = datetime.strptime(subscription_end_date, fmt).date()
+
+            # 남은 날짜 계산
+            remaining_days = (end_date - start_date).days
+            if remaining_days < 0:
+                remaining_days = 0
+
+            plan_date = f"{remaining_days}일남음"
+        except Exception as e:
+            # 날짜 파싱 실패 시 기본값
+            plan_date = "0일남음"
+    #
+    print(is_subscribed , plan_name, plan_date)
+
     return jsonify({
-        "nickname": nickname, "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
+        "nickname": nick_name,
+        "is_subscribed": is_subscribed,
+        "plan_name": plan_name,
+        "plan_date": plan_date,
+        "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
     })
 
 # ===== 메인 페이지 및 메뉴 =====
@@ -386,21 +431,128 @@ def menu(current_user):
         return render_template("realdata_pop_key.html")
     if menu == 'past_apt':
         return render_template("pastdata_apt.html")
+    if menu == 'subscribe':
+        return render_template("user_subscribe.html")
+    if menu == 'recharge':
+        return render_template("user_recharge.html")
 
 #===== 사용자(회원) 데이타 처리 =============
 @app.route('/api/user/register', methods=['GET'])
 def user_register_form():
     return render_template("user_register.html")
 
+@app.route('/api/user/subscribe', methods=['POST'])
+def user_subscribe():
+    data = request.get_json()
+    #print(f"🔍data: {data}")
+    auth = request.headers.get("Authorization", "")
+     # 토큰 정합성 체크
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "unauthorized"}), 401
+    token = auth.split(" ", 1)[1]
+    payload = kakao.verify_jwt(token)
+    if not payload:
+        return jsonify({"error": "인증이 안된 사용자입니다."}), 401
+
+    # user_id는 kakao_id와 동일하게 설정됨
+    user_id = payload["sub"]
+    print(f"🔍 user_id: {user_id}, token: {token}")
+    subscription_month = data.get("plan")
+    print("📋 subscription_month:", subscription_month)
+
+    # 오늘 일시 (YYYY-MM-DD HH:MM:SS)
+    subscription_start_date = datetime.now()
+
+    # 종료일 = 시작일 + plan 개월
+    try:
+        months = int(subscription_month)
+    except (TypeError, ValueError):
+        months = 0  # plan 값이 잘못 들어왔을 때 fallback
+
+    # 구독 종료일 계산
+    subscription_end_date = subscription_start_date + relativedelta(months=months)
+
+    # DB 저장용 포맷 문자열
+    start_str = subscription_start_date.strftime("%Y-%m-%d %H:%M:%S")
+    end_str = subscription_end_date.strftime("%Y-%m-%d %H:%M:%S")
+
+    print("user found. update user info.")
+    user_update_exist_record({
+        "user_id": user_id,
+        "subscription_start_date": start_str,
+        "subscription_end_date": end_str,
+        "subscription_month": months,
+        "subscription_status": "active"
+    })
+
+    # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
+
+    return jsonify(data), 200
+
+# 사용자 구독정보 체크(구독기간 만료 등)
+@app.route('/api/user/subscribe_check', methods=['POST'])
+def user_subscribe_check():
+    return None
+
+# 사용자 문자및 등기비용 충전처리
+@app.route('/api/user/sms_recharge', methods=['POST'])
+def user_sms_recharge():
+    data = request.get_json()
+    #print(f"🔍data: {data}")
+    auth = request.headers.get("Authorization", "")
+     # 토큰 정합성 체크
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "unauthorized"}), 401
+    token = auth.split(" ", 1)[1]
+    payload = kakao.verify_jwt(token)
+    if not payload:
+        return jsonify({"error": "인증이 안된 사용자입니다."}), 401
+
+    # user_id는 kakao_id와 동일하게 설정됨
+    user_id = payload["sub"]
+    print(f"🔍 user_id: {user_id}, token: {token}")
+    recharge_cnt = data.get("recharge")
+    print("📋 recharge_cnt:", recharge_cnt)
+
+    # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
+
+    return jsonify(data), 200
+
 @app.route('/api/user/mypage', methods=['GET'])
 def user_mypage_form():
-    userId = request.args.get('user_id', '')  # 사용자 ID
-    access_token = request.cookies.get('access_token')
+    # 카카오 JWT 토큰
+    access_token = request.args.get('access_token', '')  # 카카오 JWT 토큰
+    #access_token = request.cookies.get('access_token')
+    payload = kakao.verify_jwt(access_token)
+    if not payload:
+        return jsonify({"error": "unauthorized"}), 401
+    #
+    userId = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
+    print(f"🔍 userId: {userId}, access_token: {access_token}")
     # 리스트 dictionary로 변환되어 넘어옴
     userInfo = user_read_db(userId)
     print(userInfo)
 
     return render_template("user_mypage.html", userInfo=userInfo[0])
+
+@app.route('/api/user/mypage/member')
+# @login_required
+def user_member():
+  # DB 조회 예시
+  data = {
+    "user_id": "tash001",
+    "user_name": "홍길동",
+    "phone": "010-1234-5678",
+    "nickname": "길동이",
+    "apt_key": "B2BtWbuZV...",
+    "villa_key": "B2BtWbuZV...",
+    "sanga_key": "B2BtWbuZV...",
+    "subscribe_date": "2025-01-15",
+    "unsubscribe_date": None,
+    "sms_quota": 50,
+    "deed_balance": "10,000원"
+  }
+  return jsonify(data)
 
 @app.route('/api/user/dup_check', methods=['POST'])
 def user_dup_check():
@@ -1065,26 +1217,31 @@ def upload_files():
         'files': saved_files
     })
 
+# == 문서양식 다운로드 리스트 =============
+@app.route('/api/form_list', methods=['GET'])
+def form_list():
+    try:
+        # FORM_DIRECTORY 내 파일 목록 가져오기
+        files = os.listdir(FORM_DIRECTORY)
+
+        # 숨김파일(.DS_Store 등) 제거
+        files = [f for f in files if not f.startswith('.')]
+
+        # JSON 응답으로 리턴
+        return jsonify({"files": files})
+    except Exception as e:
+        print("❌ Error reading FORM_DIRECTORY:", e)
+        return jsonify({"error": "파일 목록을 불러올 수 없습니다."}), 500
 
 @app.route('/api/form_down', methods=['GET'])
 def form_download():
     # 쿼리 파라미터 form 값을 확인
-    form_type = request.args.get('form')
-
-    if form_type == 'contents':
-        filename = '명도확인서.docx'
-    elif form_type == 'yieldcalc':
-        filename = '수익율계산.xls'
-    elif form_type == 'checklist':
-        filename = '투자체크리스트.xls'
-    else:
-        # 잘못된 파라미터면 404 에러
-        abort(404)
+    fileName = request.args.get('fileName')
 
     try:
-        print(form_type, filename)
+        print(fileName)
         # 파일을 첨부파일로 전송 (다운로드 처리)
-        return send_from_directory(FORM_DIRECTORY, filename, as_attachment=True)
+        return send_from_directory(FORM_DIRECTORY, fileName, as_attachment=True)
     except Exception as e:
         abort(404)
 

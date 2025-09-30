@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>충전 결제</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
+    h2 { margin: 0 0 12px 0; font-size: 18px; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
+    .bank { background:#f7fbff; border:1px dashed #bfe0ff; padding:10px; border-radius:10px; margin-bottom:12px; }
+    .bank strong { color:#0b68ff; }
+    .copy { font-size:12px; color:#0b68ff; cursor:pointer; margin-left:8px; }
+    .opt { display:flex; gap:8px; align-items:center; margin:8px 0; }
+    .small { color:#666; font-size:12px; }
+
+    /* (1) 플랜 영역과 버튼 사이 간격 */
+    .options { margin: 8px 0 16px 0; }           /* 아래쪽 여백 16px */
+
+    /* (3) 선택한 조건 강조 영역 */
+    .selected-wrap { margin: 6px 0 16px 0; }      /* 버튼 전 추가 여백 */
+    .selected-label { font-size: 12px; color:#666; }
+    .selected-plan {
+      margin-top: 6px;
+      font-size: 24px;           /* 더 크게 */
+      font-weight: 900;          /* 더 두껍게 */
+      color: #0b68ff;            /* 파란색 */
+      letter-spacing: 0.2px;
+    }
+
+    .btn { width:100%; padding:10px 12px; border:0; border-radius:10px; cursor:pointer; font-size:14px; }
+    .btn-confirm { background: linear-gradient(135deg, #ffae00, #4cc3ff); color:#fff; font-weight:700; box-shadow:0 6px 16px rgba(123,92,255,.25); }
+    .btn-cancel { background:#efefef; color:#333; }
+    /* (2) 버튼 한 줄 정렬 */
+    .btn-row { display:flex; gap:8px; }
+    .btn-row .btn { flex: 1; }
+  </style>
+</head>
+<body>
+  <h2>충전 신청</h2>
+  <div class="card">
+    <div class="bank">
+      <div><strong>입금 계좌</strong></div>
+      <div>
+        국민은행&nbsp;<b>1110-11-11111</b>&nbsp;
+        <span id="copy" class="copy">복사</span>
+      </div>
+      <div class="small">입금자명은 카카오 닉네임과 동일하게 부탁드립니다.</div>
+    </div>
+
+    <!-- 플랜 선택 -->
+    <div class="options">
+      <label class="opt"><input type="radio" name="recharge" value="100" checked> 100건 (5만원)</label>
+      <label class="opt"><input type="radio" name="recharge" value="200"> 200건 (7만원)</label>
+      <label class="opt"><input type="radio" name="recharge" value="300"> 300건 (10만원)</label>
+    </div>
+
+    <!-- 버튼 한 줄 -->
+    <div class="btn-row">
+      <button id="btnDoRecharge" class="btn btn-confirm">충전 요청</button>
+      <button id="btnCancel" class="btn btn-cancel">닫기</button>
+    </div>
+
+    <p class="small">※ 신청 후 관리자가 확인하여 충전건수를 활성화합니다.</p>
+  </div>
+
+  <script>
+    // URL 파라미터에서 access_token 추출
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('access_token') || "";
+
+    // 계좌 복사
+    document.getElementById('copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText('국민 1110-11-11111');
+        alert('계좌번호가 복사되었습니다.');
+      } catch(_) {
+        alert('복사 실패. 수동으로 복사해주세요.');
+      }
+    });
+
+    // 닫기
+    document.getElementById('btnCancel').addEventListener('click', () => window.close());
+
+    // 신청
+    document.getElementById('btnDoRecharge').addEventListener('click', async () => {
+        const checkedInput = document.querySelector('input[name="recharge"]:checked');
+        if (!checkedInput) {
+          alert('충전 금액을 선택해주세요.');
+          return;
+        }
+
+        // value 값 (예: "100")
+        const val = checkedInput.value;
+
+        // label 안의 전체 텍스트 (예: "100건 (5만원)")
+        const chosenText = checkedInput.parentElement.textContent.trim();
+
+        // confirm은 스타일 적용이 불가하므로, 본문에서 이미 크게/컬러로 강조해두었습니다.
+        if (!confirm(`${chosenText} 선택하신 조건으로 충전하시겠습니까?`)) return;
+
+        try {
+          const r = await fetch('/api/user/sms_recharge', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ recharge: val })
+          });
+
+          if (!r.ok) {
+            const t = await r.text();
+            alert('충전 신청 실패: ' + t);
+            return;
+          }
+
+          alert('충전 신청이 접수되었습니다.');
+          if (window.opener) {
+            window.opener.postMessage({ type: 'recharge_updated' }, '*');
+          }
+          window.close();
+        } catch (e) {
+          alert('네트워크 오류로 실패했습니다. 잠시 후 다시 시도해주세요.');
+        }
+    });
+  </script>
+</body>
+</html>

@@ -29,10 +29,15 @@ def user_create_table():
             apt_key TEXT,
             villa_key TEXT,
             sanga_key TEXT,
-            registration_date TEXT,   -- 가입일자
+            registration_date TEXT,   -- 가입일자(카카오)
             cancellation_date TEXT,   -- 탈퇴일자
             recharge_sms_count INTEGER DEFAULT 0,   -- 충전문자건수(건당 100원)
             recharge_amount INTEGER DEFAULT 0,      -- 충전금액(등기부발급-건당 1000원)
+            subscription_start_date TEXT, -- 구독시작일자
+            subscription_end_date TEXT,   -- 구독종료일자
+            subscription_month INTEGER DEFAULT 1,    -- 구독월수(1, 3, 6, 12개월)
+            subscription_payment  INTEGER DEFAULT 0, -- 구독결제금액(1개월: 3만원, 3개월: 5만원, 6개월: 7만원, 12개월: 10만원)
+            subscription_status TEXT DEFAULT 'canceled',     -- 구독상태 (active, canceled 등) : 차후 관리자 페이지에서 on/off 처리용
             etc TEXT,
             -- 신규 스키마 (모두 TEXT)
             kakao_id TEXT,
@@ -65,6 +70,7 @@ def user_insert_record(record):
     cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE user_id = ?", (user_id,))
     count = cursor.fetchone()[0]
 
+
     if count == 0:
         created_at = record.get("created_at") or _now_iso()
         updated_at = record.get("updated_at") or created_at
@@ -78,9 +84,11 @@ def user_insert_record(record):
                 kakao_id, email, nick_name, profile_image,
                 created_at, updated_at,
                 access_token, refresh_token, token_expires_at
-            ) VALUES (?,?,?,?, ?,?,?,
-                      ?,?,
+            ) VALUES (?,?,?,?, 
                       ?,?,?,
+                      ?,?,
+                      ?,?,
+                      ?,
                       ?,?,?,?,
                       ?,?,
                       ?,?,?)
@@ -95,11 +103,12 @@ def user_insert_record(record):
             record.get("villa_key"),
             record.get("sanga_key"),
 
-            record.get("registration_date") or datetime.datetime.now().strftime("%Y-%m-%d"),
+            created_at,
             record.get("cancellation_date"),
 
             record.get("recharge_sms_count") if record.get("recharge_sms_count") is not None else 0,
             record.get("recharge_amount") if record.get("recharge_amount") is not None else 0,
+
             record.get("etc"),
 
             record.get("kakao_id"),
@@ -226,6 +235,11 @@ def user_update_exist_record(record):
         "cancellation_date",
         "recharge_sms_count",
         "recharge_amount",
+        "subscription_start_date",
+        "subscription_end_date",
+        "subscription_month",
+        "subscription_payment",
+        "subscription_status",
         "etc",
         "kakao_id",
         "email",

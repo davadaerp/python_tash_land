@@ -6,6 +6,7 @@ let isScheduled = false; // 함수 호출이 예약되었는지 여부를 나타
 let tableData = []; // 테이블 만들 데이터 { key: data, key2: data2} 형식으로 저장
 let tabGubun = '';
 let BASE_URL = "https://erp-dev.bacchuserp.com";
+//let BASE_URL = 'http://127.0.0.1:5000';
 let currSelectedType = 'all';
 let isLoggedInStatus = false;
 let apt_key = "";

@@ -97,22 +97,69 @@
 
   <h2>마이페이지</h2>
   <script>
+
+    function activateTab(tabName) {
+        // 탭 활성화/비활성
+        document.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.tab === tabName);
+        });
+        // 패널 표시 전환
+        document.querySelectorAll('.panel').forEach(p => {
+          p.style.display = (p.id === tabName) ? 'block' : 'none';
+        });
+    }
+
+    // ===== 서버 호출 함수들(탭별) =====
+    async function loadMember() {
+      const panel = 'member';
+      showLoading(panel);
+      try {
+        const res = await fetch('/api/user/mypage/member', { credentials: 'include' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const j = await res.json();
+        const rows = [
+          ['아이디', j.user_id],
+          ['사용자명', j.user_name],
+          ['폰번호', j.phone],
+          ['별명', j.nickname],
+          ['apt_key', j.apt_key],
+          ['villa_key', j.villa_key],
+          ['sanga_key', j.sanga_key],
+          ['구독일자', j.subscribe_date],
+          ['탈퇴일자', j.unsubscribe_date || '—'],
+          ['문자충전건수', j.sms_quota],
+          ['등기충전금액', j.deed_balance]
+        ];
+        renderKeyValue(panel, '회원정보', rows);
+      } catch (e) {
+        console.error(e);
+        showError(panel, '회원정보를 불러오지 못했습니다.');
+      }
+    }
+
+    // ===== 탭 라우팅 =====
+    //const loaders = { member: loadMember, payment: loadPayment, requests: loadRequests, etc: loadEtc };
+
+    function bindTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', async () => {
+          const name = tab.dataset.tab;
+          activateTab(name);
+          // const loader = loaders[name];
+          // if (loader) loader();  // 화면은 유지, 해당 패널만 데이터 교체
+        });
+      });
+    }
+
     window.addEventListener('DOMContentLoaded', function() {
-      var userInfo = {{ userInfo|tojson }};
-      alert('userInfo: ' + JSON.stringify(userInfo));
-      console.log('userInfo:', userInfo);
+        // var userInfo = {{ userInfo|tojson }};
+        // alert('userInfo: ' + JSON.stringify(userInfo));
+        // console.log('userInfo:', userInfo);
+        bindTabs();
+        activateTab('member');
+        //loadMember();  // 첫 탭 자동 로드
     });
 
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        // 탭 활성화 토글
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        // 패널 표시 전환
-        document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-        document.getElementById(tab.dataset.tab).style.display = 'block';
-      });
-    });
   </script>
 
   <div class="tabs">
