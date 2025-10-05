@@ -4,23 +4,25 @@
   <meta charset="UTF-8">
   <title>메시지보내기 팝업</title>
   <style>
-    /* Overlay */
+    /* ===== 0) 전체 레이아웃: 상단 기준 아래쪽 위치 ===== */
     #overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.5);
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-start;            /* 상단 정렬 */
+      justify-content: center;            /* 가로 중앙 */
+      padding-top: 1px;                  /* 상단에서 약간 아래로 */
       z-index: 1000;
     }
+
     /* Popup Container */
     #popup {
       background: #fff;
       border-radius: 8px;
-      width: 90%;
-      max-width: 800px;
-      max-height: 99vh;
+      width: 95%;
+      /*max-width: 800px;*/
+      max-height: 96vh;                   /* 상단 정렬이라 여유 공간 조금 */
       overflow-y: auto;
       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       padding: 20px;
@@ -32,57 +34,62 @@
       font-weight: bold;
       margin: 0 0 15px;
     }
-    /* List area */
+
+    /* ===== 1) 전화번호 목록: 고정 사이즈 ===== */
     #listContainer {
-      max-height: 250px;
+      height: 230px;                      /* 고정 높이 */
       overflow-y: auto;
       border: 1px solid #ccc;
       border-radius: 4px;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
+
+    /* ===== 2) 테이블 스타일 (헤더 연회색, 본문 10px 볼드, 낮은 높이) ===== */
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #f4f5f7;               /* 옅은 회색 */
+      color: #333;
+      font-weight: 700;
       padding: 8px;
+      border-bottom: 1px solid #e6e8eb;
+      position: sticky; top: 0;          /* 스크롤 시 헤더 고정(깔끔함) */
+      z-index: 1;
+    }
+    tbody td {
+      font-size: 15px;                   /* 요청: 기본 10 */
+      /*font-weight: 700;                  !* 요청: 굵게 *!*/
+      padding: 6px 4px;                  /* 높이 낮춤 */
+      border-bottom: 1px solid #f0f2f4;
       text-align: center;
-      border-bottom: 1px solid #eee;
     }
-    tr:hover {
-      background: #f0f8ff;
-    }
-    .delete-btn {
-      color: #e74c3c;
-      cursor: pointer;
-      font-weight: bold;
-    }
+    tbody tr:hover { background: #f0f8ff; }
+    .delete-btn { color: #e74c3c; cursor: pointer; font-weight: bold; }
+
     /* Controls below list */
     .controls {
       display: flex;
       align-items: center;
       margin: 15px 0;
+      gap: 10px;
     }
-    .controls label {
-      margin-right: 10px;
-    }
+    .controls label { margin-right: 10px; }
     .controls select,
-    .controls input[type="radio"] {
-      margin-right: 20px;
-    }
-    /* Add entry area */
+    .controls input[type="radio"] { margin-right: 10px; }
+
+    /* ===== 4) 전송번호추가 토글 영역 (초기 숨김) ===== */
     #addArea {
-      display: flex;
+      display: none;                      /* 초기 미표시 */
       gap: 10px;
       margin-bottom: 15px;
+      align-items: center;
     }
     #addArea input {
       padding: 6px;
       flex: 1;
+      min-width: 0;
     }
     #addArea label {
       display: inline-block;
       vertical-align: middle;
-      /*margin-right: 0.5em;*/
     }
     #addButton {
       background: #2ecc71;
@@ -91,12 +98,11 @@
       padding: 6px 12px;
       cursor: pointer;
       border-radius: 4px;
+      white-space: nowrap;
     }
+
     /* Message fields */
-    .message-field {
-      width: 100%;
-      margin-bottom: 10px;
-    }
+    .message-field { width: 100%; margin-bottom: 10px; }
     .message-field input,
     .message-field textarea {
       width: 100%;
@@ -105,25 +111,30 @@
       border-radius: 4px;
       resize: vertical;
     }
-    /* File input & thumbnails */
-    #fileInput {
-      margin-bottom: 10px;
-    }
+
+    /* ===== 3) 파일 썸네일 영역: 파일 없어도 고정 높이 ===== */
+    #fileInput { margin-bottom: 10px; }
     #thumbnailContainer {
+      height: 96px;                       /* 80px 썸네일 + 여백 = 고정 높이 */
       overflow-x: auto;
       white-space: nowrap;
-      padding-bottom: 10px;
+      padding: 8px 0 10px;
       margin-bottom: 15px;
+      border: 1px dashed #e3e6ea;         /* 비어 있어도 영역 가시화 */
+      border-radius: 6px;
+      background: #fafbfc;                /* 은은한 배경 */
     }
     #thumbnailContainer img {
-      width: 80px;
-      height: 80px;
+      width: 95px;
+      height: 95px;
       object-fit: cover;
       margin-right: 8px;
       border: 1px solid #ccc;
       border-radius: 4px;
       cursor: pointer;
+      vertical-align: middle;
     }
+
     /* Image preview popup */
     #imgOverlay {
       position: fixed;
@@ -134,15 +145,9 @@
       justify-content: center;
       z-index: 1100;
     }
-    #imgPopup {
-      max-width: 90%;
-      max-height: 90%;
-    }
-    #imgPopup img {
-      max-width: 100%;
-      max-height: 100%;
-      display: block;
-    }
+    #imgPopup { max-width: 90%; max-height: 90%; }
+    #imgPopup img { max-width: 100%; max-height: 100%; display: block; }
+
     /* Preview popup */
     #previewPopup {
       position: fixed;
@@ -158,94 +163,117 @@
       border-radius: 8px;
       width: 80%;
       max-width: 700px;
-      max-height: 80vh;
+      max-height: 88vh;
       overflow-y: auto;
       padding: 20px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       font-family: Arial, sans-serif;
     }
-    #previewContent h2 {
-      margin-top: 0;
-    }
+    #previewContent h2 { margin-top: 0; }
     #previewThumbnails {
       overflow-x: auto;
       white-space: nowrap;
       margin: 10px 0;
     }
     #previewThumbnails img {
-      width: 60px;
-      height: 60px;
-      object-fit: cover;
-      margin-right: 6px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      width: 60px; height: 60px; object-fit: cover;
+      margin-right: 6px; border: 1px solid #ccc; border-radius: 4px;
     }
     #confirmSend {
-      background: #e74c3c;
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      cursor: pointer;
-      margin-right: 10px;
-      border-radius: 4px;
+      background: #e74c3c; color: #fff; border: none;
+      padding: 8px 16px; cursor: pointer; margin-right: 10px; border-radius: 4px;
     }
     #closePreview {
-      background: #ccc;
-      color: #333;
-      border: none;
-      padding: 8px 16px;
-      cursor: pointer;
-      border-radius: 4px;
+      background: #ccc; color: #333; border: none;
+      padding: 8px 16px; cursor: pointer; border-radius: 4px;
     }
-      /* 연락처 영역 스타일 */
-    #contact-phone {
-        padding: 5px;
-        font-size: 1.1rem; /* 일반 input보다 약간 크게 */
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
+    #sending-message {
+      position: absolute;
+      inset: 0;                 /* 팝업 전체 덮기 */
+      display: none;            /* 기본 숨김 */
+      align-items: center;      /* 중앙 정렬 */
+      justify-content: center;  /* 중앙 정렬 */
+      font-family: Arial, sans-serif;
+      z-index: 1300;            /* #previewContent(1200) 보다 위 */
+      pointer-events: none;     /* 클릭 방해 X */
+    }
 
-    /* label 스타일 (기존과 동일한 높이 정렬 유지) */
-    label[for="contact-phone"] {
-      display: inline-block;
-      vertical-align: middle;
-      margin-right: 0.5em;
+    #sending-message > span {
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      pointer-events: auto;     /* 메시지 박스는 이벤트 가능 (원하면 유지/삭제) */
     }
+
+    /* 연락처 영역 (현재 미사용) */
+    #contact-phone {
+      padding: 5px; font-size: 1.1rem; border: 1px solid #ccc; border-radius: 4px;
+    }
+    label[for="contact-phone"] {
+      display: inline-block; vertical-align: middle; margin-right: 0.5em;
+    }
+
+    /* ===== 4) 우측 버튼 정렬 깔끔하게 ===== */
+    .controls-right {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .ghost-btn {
+      background: #f5f6f7;
+      color: #333;
+      border: 1px solid #e3e6ea;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .ghost-btn:hover { background: #eef1f4; }
   </style>
 </head>
 <body>
   <div id="overlay">
     <div id="popup">
       <h1>메시지보내기</h1>
+
       <!-- 2. 전송할 전화번호 리스트 -->
       <div id="listContainer">
         <table>
           <thead>
             <tr><th>순번</th><th>대표자</th><th>전화번호</th><th>삭제</th></tr>
           </thead>
-          <tbody id="listBody">
-            <!-- JSON 샘플 출력 -->
-          </tbody>
+          <tbody id="listBody"></tbody>
         </table>
       </div>
-      <!-- 3. 라디오 + 리스트박스 -->
+
+      <!-- 3. 라디오 + 리스트박스 + (우측) 전송번호추가 버튼 -->
       <div class="controls">
-        <label><input type="radio" name="sendChannel" value="kakao" checked>알림톡</label>
-        <label><input type="radio" name="sendChannel" value="sms">문자</label>
-        <select id="templateType" style="margin-left: auto;">
-          <option value="sms">일반</option>
-          <option value="house">주택</option>
-          <option value="store">상가</option>
-        </select>
+        <label><input type="radio" name="sendChannel" value="naver_mms" checked>네이버문자</label>
+        <label><input type="radio" name="sendChannel" value="kakao">알림톡</label>
+<!--        <label><input type="radio" name="sendChannel" value="sms">문자</label>-->
+
+        <div class="controls-right">
+          <select id="templateType">
+            <option value="house">주택</option>
+            <option value="store">상가</option>
+            <option value="sms">일반</option>
+          </select>
+          <!-- 요청: 우측에 전송번호추가 버튼 배치 -->
+          <button id="toggleAddArea" type="button" class="ghost-btn">전송번호추가</button>
+        </div>
       </div>
-      <!-- 4. 이름/전화 입력 및 추가 버튼 -->
+
+      <!-- 4. 이름/전화 입력 (초기 숨김, 버튼으로 표시) -->
       <div id="addArea">
         <label for="newName">이름:</label>
         <input type="text" id="newName" placeholder="이름">
         <label for="newPhone">전화번호:</label>
         <input type="text" id="newPhone" placeholder="전화번호">
-        <button id="addButton">추가</button>
+        <button id="addButton" type="button">추가</button>
       </div>
+
       <!-- 6. 제목과 메시지 -->
       <div class="message-field">
         <input type="text" id="message-title" placeholder="제목">
@@ -253,15 +281,17 @@
       <div class="message-field">
         <textarea id="message-content" rows="17" placeholder="전송할 메시지"></textarea>
       </div>
-<!--      <div>-->
-<!--        <label for="contact-phone">연락처 번호:</label>-->
-<!--        <input type="text" id="contact-phone" placeholder="연락처 번호">-->
-<!--      </div>-->
-      <!-- 7. 파일선택 버튼 -->
+
+      <!-- 7. 파일선택 버튼 + 썸네일 (비어도 고정 높이) -->
+      <!--
       <input type="file" id="fileInput" accept="image/*" multiple>
+      -->
+      <!-- JPG와 PNG만 허용: .jpg,.jpeg -->
+      <input type="file" id="fileInput" accept=".jpg,.jpeg" multiple>
       <div id="thumbnailContainer"></div>
+
       <!-- 10. 전송 버튼 -->
-      <button id="sendButton" style="background:#e74c3c;color:#fff;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">전송</button>
+      <button id="sendButton" style="background:#e74c3c;color:#fff;padding:10px 20px;border:none;border-radius:4px;cursor:pointer;">미리보기</button>
     </div>
   </div>
 
@@ -269,6 +299,7 @@
   <div id="imgOverlay">
     <div id="imgPopup"><img src="" alt=""></div>
   </div>
+
   <!-- 미리보기 팝업 -->
   <div id="previewPopup">
     <div id="previewContent">
@@ -281,25 +312,29 @@
         <button id="closePreview">닫기</button>
       </div>
     </div>
+    <!-- ✅ 전송 진행 메시지(초기 hidden) -->
+    <div id="sending-message" style="display:none;">
+      파일 전송 중...
+    </div>
   </div>
-
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script src="/static/js/imageResize.js"></script>
   <script>
-
     let selectedItems = [];
+
     window.addEventListener("load", function() {
-      // var popup = document.getElementById('popup');
-      // var height = 990;
-      // if (popup) {
-      //   popup.style.maxHeight = (height * 0.9) + "px";  // height의 90%로 설정
-      // }
-      // 부모 창으로부터 selectedItems 가져오기
       if (window.opener && window.opener.selectedItems) {
         selectedItems = window.opener.selectedItems;
-        console.log(selectedItems);
-        // 선택된 항목들을 팝업에 렌더링하는 코드 추가
         renderList();
       } else {
         console.error("부모 창에서 selectedItems를 찾을 수 없습니다.");
+      }
+      // ✅ 로딩 시 templateType을 강제로 change 이벤트 발생시켜
+      //    주택 기본 템플릿 메시지가 자동 입력되도록 처리
+      const templateType = document.getElementById("templateType");
+      if (templateType) {
+        templateType.dispatchEvent(new Event("change"));
       }
     });
 
@@ -308,6 +343,23 @@
     const messageTitle = document.getElementById('message-title');
     const messageContent = document.getElementById('message-content');
 
+    // === [추가] addArea 토글 시 message textarea 높이 조절 ===
+    const addAreaEl = document.getElementById('addArea');
+    const messageTextarea = document.getElementById('message-content');
+    let originalMsgHeight = messageTextarea.offsetHeight;  // 최초 높이 기억
+
+    function adjustMessageHeight(show) {
+      const addAreaHeight = addAreaEl.offsetHeight || 0;
+      if (show) {
+        // addArea 보일 때 → 메시지창 줄이기
+        messageTextarea.style.height = (originalMsgHeight - addAreaHeight) + "px";
+      } else {
+        // addArea 숨김 → 원래 높이로 복원
+        messageTextarea.style.height = originalMsgHeight + "px";
+      }
+    }
+
+    // ===== 전화번호 형식 변환 및 정규화 =====
     function renderList() {
       listBody.innerHTML = '';
       selectedItems.forEach((item, idx) => {
@@ -326,16 +378,72 @@
       });
     }
 
+    // 휴대폰 번호 포맷/검증 유틸
+    // === [추가] 휴대폰(010) 전용 포맷/검증 유틸 ===
+    function normalizeDigits(str) {
+      return (str || '').replace(/\D/g, '');
+    }
+
+    function toMobileFormat(str) {
+      const d = normalizeDigits(str);
+      // 010으로 시작 + 총 11자리만 허용
+      if (d.length === 11 && d.startsWith('010')) {
+        return d.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+      }
+      return null; // 형식 불가
+    }
+
+    // === [추가] 입력 중 자동 포맷(010-####-#### 형태로 보이게) ===
+    document.getElementById('newPhone').addEventListener('input', (e) => {
+      const d = normalizeDigits(e.target.value);
+      if (d.length <= 3) {
+        e.target.value = d;
+      } else if (d.length <= 7) {
+        e.target.value = d.replace(/(\d{3})(\d{0,4})/, '$1-$2');
+      } else {
+        e.target.value = d.slice(0, 11).replace(/(\d{3})(\d{4})(\d{0,4})/, '$1-$2-$3');
+      }
+    });
+
+    // ===== 4) 전송번호추가 토글 버튼
+    const addArea = document.getElementById('addArea');
+    document.getElementById('toggleAddArea').addEventListener('click', () => {
+      const isHidden = (addArea.style.display === '' || addArea.style.display === 'none');
+      addArea.style.display = isHidden ? 'flex' : 'none';
+      adjustMessageHeight(isHidden);   // 토글에 맞춰 메시지창 크기 조정
+    });
+
     // 추가 버튼
     document.getElementById('addButton').addEventListener('click', () => {
-      const name = document.getElementById('newName').value.trim();
-      const phone = document.getElementById('newPhone').value.trim();
-      if(name && phone) {
-        selectedItems.push({name, phone});
+        const name = document.getElementById('newName').value.trim();
+        const phoneRaw = document.getElementById('newPhone').value.trim();
+
+        if (!name) {
+          alert('이름을 입력해주세요.');
+          return;
+        }
+
+        // 010-####-#### 형식 강제
+        const formatted = toMobileFormat(phoneRaw);
+        if (!formatted) {
+          alert('휴대폰 번호는 010-####-#### 형식만 가능합니다.');
+          return;
+        }
+
+        // 중복 번호 체크(하이픈 제거 후 비교)
+        const digits = normalizeDigits(formatted);
+        const isDup = selectedItems.some(it => normalizeDigits(it.phone) === digits);
+        if (isDup) {
+          alert('중복번호가 있습니다.');
+          return;
+        }
+
+        // 통과 → 포맷된 형태로 저장
+        selectedItems.push({ name, phone: formatted });
+
         document.getElementById('newName').value = '';
         document.getElementById('newPhone').value = '';
         renderList();
-      }
     });
 
     // 템플릿 변경
@@ -378,46 +486,46 @@
     // 파일 입력
     const fileInput = document.getElementById('fileInput');
     const thumbnailContainer = document.getElementById('thumbnailContainer');
-    const MAX_FILES = 5;
-    const MAX_SIZE = 9 * 1024 * 1024; // 2MB
+    const MAX_FILES = 3;
+    //const MAX_SIZE = 1 * 1024 * 1024; // 기존 값 유지
     let fileList = [];
-
-    fileInput.addEventListener('change', e => {
+    // 파일 선택
+    fileInput.addEventListener('change', async e => {
       const files = Array.from(e.target.files);
       if (fileList.length + files.length > MAX_FILES) {
         alert(`최대 ${MAX_FILES}개까지만 첨부 가능합니다.`);
         return;
       }
-      files.forEach(file => {
-        if (file.size > MAX_SIZE) {
-          alert(`${file.name}의 크기가 2MB를 초과합니다.`);
-          return;
-        }
-        // 파일을 배열에 추가 후 파일 참조 저장
-        fileList.push(file);
-        const currentFile = file;
+      for (const file of files) {
+        // ➊ 먼저 1500x1440 상자에 맞추고 용량도(선택) 맞춤
+        const processed = await resizeToBoxAndBytes(file, {
+          maxWidth: 1500,
+          maxHeight: 1440,
+          maxBytes: MAX_SIZE // 용량 제한이 필요 없다면 null 또는 생략
+        });
+
+        // [1] 리사이즈 결과 파일명/사이즈 출력 (push 전에)
+        // console.info(
+        //  `[RESIZED] name="${processed.name}", size=${processed.size} (${formatBytes(processed.size)})`
+        // );
+
+        // ➋ 이후 로직은 processed 사용
+        fileList.push(processed);
+        // 파일 미리보기 생성
         const reader = new FileReader();
         reader.onload = () => {
-          // 썸네일을 감싸는 컨테이너 생성 (포지션 relative)
           const thumbDiv = document.createElement('div');
           thumbDiv.style.position = 'relative';
           thumbDiv.style.display = 'inline-block';
           thumbDiv.style.marginRight = '8px';
 
-          // 이미지 생성
           const img = document.createElement('img');
           img.src = reader.result;
-          img.style.width = '80px';
-          img.style.height = '80px';
-          img.style.objectFit = 'cover';
-          img.style.border = '1px solid #ccc';
-          img.style.borderRadius = '4px';
           img.addEventListener('click', () => {
             document.querySelector('#imgOverlay img').src = reader.result;
             document.getElementById('imgOverlay').style.display = 'flex';
           });
 
-          // 삭제 버튼 생성
           const delBtn = document.createElement('button');
           delBtn.textContent = '×';
           delBtn.style.position = 'absolute';
@@ -429,15 +537,17 @@
           delBtn.addEventListener('click', e => {
             e.stopPropagation();
             thumbnailContainer.removeChild(thumbDiv);
-            fileList = fileList.filter(f => f !== currentFile);
+            fileList = fileList.filter(f => f !== processed);
+            // 파일건수 업데이트
+            //document.getElementById('fileCount').textContent = `첨부파일: ${fileList.length}개`;
           });
 
           thumbDiv.appendChild(img);
           thumbDiv.appendChild(delBtn);
           thumbnailContainer.appendChild(thumbDiv);
         };
-        reader.readAsDataURL(file);
-      });
+        reader.readAsDataURL(processed);
+      }
     });
 
     // 이미지 팝업 닫기
@@ -445,53 +555,190 @@
       document.getElementById('imgOverlay').style.display = 'none';
     });
 
-    // 전송 버튼 -> 미리보기 팝업
+    // 전송 버튼 -> 미리보기
     document.getElementById('sendButton').addEventListener('click', () => {
-        if (selectedItems.length === 0) {
-            alert('전송할 대상이 없습니다.');
-            return;
-        }
-        if (!messageTitle.value.trim() || !messageContent.value.trim()) {
-            alert('제목과 메시지를 입력해주세요.');
-            return;
-        }
-        // 첨부파일 존재여부 체크
-        if (fileList.length === 0) {
-            alert('첨부파일을 선택해주세요.');
-            return;
-        }
+      if (selectedItems.length === 0) { alert('전송할 대상이 없습니다.'); return; }
+      if (!messageTitle.value.trim() || !messageContent.value.trim()) { alert('제목과 메시지를 입력해주세요.'); return; }
+      if (fileList.length === 0) { alert('첨부파일을 선택해주세요.'); return; }
 
-        document.getElementById('previewTitle').textContent =
-          document.querySelector('input[name="sendChannel"]:checked').nextSibling.textContent.trim() + " 전송 미리보기";
-        const count = selectedItems.length;
-        document.getElementById('previewStats').innerHTML =
-          `<span>전송목록: ${count}명</span>
-           <span style="float:right;">전송금액: <span style="color:red; font-weight:bold;">${count*20}원</span></span>`;
-        // 메시지
-        //const messageContent = '안녕하세요. <h3>${messageTitle.value}</h3>합니다.'
-        let contentHtml = `
-          <h3>안녕하세요. ${messageTitle.value}합니다.</h3>
-          <pre>${messageContent.value}</pre>
-        `;
-        document.getElementById('previewMessage').innerHTML = contentHtml;
-        // thumbnails
-        const previewTh = document.getElementById('previewThumbnails');
-        previewTh.innerHTML = thumbnailContainer.innerHTML;
-        document.getElementById('previewPopup').style.display = 'flex';
+      document.getElementById('previewTitle').textContent =
+        document.querySelector('input[name="sendChannel"]:checked').nextSibling.textContent.trim() + " 전송 미리보기";
+
+      const count = selectedItems.length;
+      document.getElementById('previewStats').innerHTML =
+        `<span>전송목록: ${count}명</span>
+         <span style="float:right;">전송금액: <span style="color:red; font-weight:bold;">${count*20}원</span></span>`;
+
+      let contentHtml = `
+        <h3>안녕하세요. ${messageTitle.value}합니다.</h3>
+        <pre>${messageContent.value}</pre>
+      `;
+      document.getElementById('previewMessage').innerHTML = contentHtml;
+
+      const previewTh = document.getElementById('previewThumbnails');
+      previewTh.innerHTML = thumbnailContainer.innerHTML;
+
+      document.getElementById('previewPopup').style.display = 'flex';
     });
 
-    // 미리보기 닫기
+    // 미리보기 닫기 / 실제 전송
     document.getElementById('closePreview').addEventListener('click', () => {
       document.getElementById('previewPopup').style.display = 'none';
     });
-    // 실제 전송
+
+    // 실제 전송 (확인)  — 기존 핸들러 전체 교체
     document.getElementById('confirmSend').addEventListener('click', () => {
-      if (confirm('전송하시겠습니까?')) {
-        // TODO: 전송 로직
-        alert('전송되었습니다.');
-        document.getElementById('previewPopup').style.display = 'none';
+      // 제목/메시지/파일/대상 체크(미리보기 전에 이미 했겠지만 안전 차원에서 한 번 더)
+      const titleEl = document.getElementById('message-title');
+      const contentEl = document.getElementById('message-content');
+      const messageTitle = titleEl ? titleEl.value.trim() : '';
+      const messageContent = contentEl ? contentEl.value.trim() : '';
+
+      if (!selectedItems || selectedItems.length === 0) {
+        alert('전송할 대상이 없습니다.');
+        return;
       }
+      if (!messageTitle || !messageContent) {
+        alert('제목과 메시지를 입력해주세요.');
+        return;
+      }
+      if (!Array.isArray(fileList) || fileList.length === 0) {
+        alert('첨부파일을 선택해주세요.');
+        return;
+      }
+
+      // ===== 전송 타입별 레이블 맵
+      const typeLabels = {
+        kakao:     '알림톡',
+        naver_mms: '네이버문자',
+        sms:       '일반문자'
+      };
+
+      // 선택된 전송 타입
+      const checked = document.querySelector('input[name="sendChannel"]:checked');
+      const selectedSendType = checked ? (checked.value || 'naver_mms') : 'naver_mms';
+
+      // 선택된 항목들의 이름:휴대번호 쌍을 전역변수에 저장
+      const rows = document.querySelectorAll('#listBody tr');
+      const pairs = [];
+      rows.forEach(tr => {
+        // 컬럼 순서: 0=순번, 1=대표자(이름), 2=전화번호, 3=삭제
+        const tds = tr.querySelectorAll('td');
+        const name   = (tds[1]?.textContent || '').trim();
+        const mobile = (tds[2]?.textContent || '').trim();
+        if (!name || !mobile) return;
+        //
+        pairs.push(`${name}:${mobile}`);
+      });
+      window.selectedPhoneNumbers = pairs.join(',');
+      console.log('현재 선택된 이름:전화번호 목록:', window.selectedPhoneNumbers);
+      //alert(window.selectedPhoneNumbers);
+
+      // 전송 대상 건수/라벨
+      const count = window.selectedPhoneNumbers.split(',').length;
+      const label = typeLabels[selectedSendType] || '메시지';
+
+      // 사용자 확인
+      if (!confirm(`${label} ${count}건을 전송하시겠습니까?`)) {
+        return;
+      }
+
+      // 파일 유효 목록(여기서는 fileList 전체를 사용)
+      const validFiles = Array.from(fileList);
+
+      // ===== 환경값/요소 준비
+      const BASE_URL = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : ''; // 기존 상수와 연동
+      const loginId = window.loginId || '';           // 필요 시 적절히 세팅
+      const loginPassword = window.loginPassword || '';// 필요 시 적절히 세팅
+
+      // ✅ HTML에 이미 존재하는 진행상태 메시지 요소 사용
+      const sendingEl = document.getElementById('sending-message');
+
+      // ===== 1차: 파일 업로드
+      const formData = new FormData();
+      validFiles.forEach(f => formData.append('files', f));
+      formData.append('sender', 'web_client');
+      formData.append('upload_time', new Date().toISOString());
+
+      // 로딩 표시
+      if (window.$) {
+        $('#sending-message').html('<span>파일 전송 중...</span>').show().css('display','flex');
+      } else {
+        sendingEl.innerHTML = '<span>파일 전송 중...</span>';
+        sendingEl.style.display = 'flex'; // 중앙 정렬을 위해 flex
+      }
+
+      // jQuery AJAX 사용 (요청 코드 그대로 반영)
+      $.ajax({
+        url: BASE_URL + '/api/upload_files',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        timeout: 60000,
+        success: function(response) {
+          if (window.$) { $('#sending-message').hide(); } else { sendingEl.style.display = 'none'; }
+
+          if (!response.success) {
+            alert('파일 전송 실패: ' + response.message);
+            return;
+          }
+
+          // 업로드된 서버 저장 파일명 배열
+          const image_files = (response.files || []).map(f => f.saved_name);
+          console.log('image_files:', image_files);
+
+          // ===== 2차: 메시지 전송
+          if (window.$) { $('#sending-message').html('<span>메시지 전송 중...</span>').show().css('display','flex'); }
+          else { sendingEl.innerHTML = '<span>메시지 전송 중...</span>'; sendingEl.style.display = 'flex'; }
+
+          $.ajax({
+            url: BASE_URL + '/api/sms_send',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+              userid: loginId,
+              userpswd: loginPassword,
+              sendType: selectedSendType,
+              phoneNumbers: window.selectedPhoneNumbers,
+              title: messageTitle,
+              message: messageContent,
+              imageFiles: image_files
+            }),
+            timeout: 60000,
+            complete: function() {
+              if (window.$) { $('#sending-message').hide(); } else { sendingEl.style.display = 'none'; }
+            },
+            success: function(resp) {
+              if (resp.result === 'Success') {
+                alert('메시지 전송 성공');
+                // 미리보기/팝업 닫기 (id가 다를 수 있어 둘 다 시도)
+                const pv = document.getElementById('previewPopup');
+                if (pv) pv.style.display = 'none';
+                const mp = document.getElementById('message-popup');
+                if (mp) mp.style.display = 'none';
+              } else if (resp.result === 'PartialSuccess') {
+                alert('메시지 부분전송 성공\n' + (resp.errmsg || ''));
+                const pv = document.getElementById('previewPopup');
+                if (pv) pv.style.display = 'none';
+                const mp = document.getElementById('message-popup');
+                if (mp) mp.style.display = 'none';
+              } else {
+                alert('메시지 전송 실패: ' + (resp.errmsg || ''));
+              }
+            },
+            error: function(xhr, status, error) {
+              alert('전송 중 오류가 발생했습니다: ' + error);
+            }
+          });
+        },
+        error: function(xhr, status, error) {
+          if (window.$) { $('#sending-message').hide(); } else { sendingEl.style.display = 'none'; }
+          alert('파일 전송 중 오류 발생: ' + error);
+        }
+      });
     });
+
   </script>
 </body>
 </html>

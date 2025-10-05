@@ -99,6 +99,8 @@ def send_sms(to_number, content, subject=None, msg_type='SMS'):
     except Exception as e:
         print("⚠️ 응답 파싱 오류:", e)
 
+    return res
+
 
 # MMS 전송
 # --- 1) send_mms는 file_ids를 바로 받아서 전송만 담당하도록 수정 ---

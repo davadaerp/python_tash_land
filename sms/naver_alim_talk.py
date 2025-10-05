@@ -82,7 +82,7 @@ def alimtalk_send(data):
     # POST 요청 전송
     response = requests.post(url, headers=headers, json=payload)
 
-    # 응답 상태 및 결과 출력
+    # 응답 상태 및 결과 출력(202: 성공, 4xx, 5xx: 실패)
     print("Sending to phones:", phone_list)
     print("Response Code:", response.status_code)
     try:
@@ -90,6 +90,7 @@ def alimtalk_send(data):
     except Exception as e:
         print("응답 처리 중 오류 발생:", e)
 
+    return response
 
 if __name__ == "__main__":
     # JSON 샘플 데이터

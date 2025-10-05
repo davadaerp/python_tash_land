@@ -111,6 +111,35 @@
     .marker-mixed { background: conic-gradient(#16a34a 0 50%, #ef4444 50% 100%); }
 
     #optionInfo { font-weight:600; color:#111827; }
+
+    /* 경매 필터 버튼 전용 */
+    .filter-btn.auction {
+      background:#ef4444;
+      border-color:#ef4444;
+      color:#fff;
+    }
+    .filter-btn.auction:hover {
+      filter: brightness(0.95);
+    }
+    .filter-btn.auction.selected {
+      background:#ef4444;
+      border-color:#ef4444;
+      color:#fff;
+    }
+
+    /* 기존 CSS 아래에 추가 */
+    thead th .sort-arrow {
+      margin-left: 4px;
+      opacity: .65;
+      font-size: 11px;
+    }
+
+    /* 평당가 정렬 화살표 */
+    th.price-per .sort-arrow {
+      margin-left: 4px;
+      opacity: .65;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -298,7 +327,7 @@
       const filterButtonsHTML = `
         <div class="popup-filters" data-filterbar>
           ${filterOptions.map((opt, idx) =>
-            `<button class="filter-btn ${idx===0?'selected':''}" data-filter="${opt.key}">${opt.text}</button>`
+            `<button class="filter-btn ${opt.key==='auction'?'auction':''} ${idx===0?'selected':''}" data-filter="${opt.key}">${opt.text}</button>`
           ).join('')}
         </div>
       `;
@@ -343,6 +372,19 @@
       };
     }
 
+    // "36,000,000" / "36만" / "36만 원" / "-" 등에서 숫자만 뽑아 정렬용으로 사용
+    function parseCurrencyNumber(v) {
+      if (v == null) return NaN;
+      const s = String(v).trim();
+      if (s === '' || s === '-' ) return NaN;
+      // "36만" 같은 경우를 대비: 만(=10,000) 단위 처리
+      const manMatch = s.match(/(-?\d+(?:\.\d+)?)\s*만/);
+      if (manMatch) return parseFloat(manMatch[1]) * 10000;
+      // 일반 쉼표/문자 제거
+      const num = s.replace(/[^\d.-]/g,'');
+      return num ? parseFloat(num) : NaN;
+    }
+
     /* ===== 커스텀 오버레이 ===== */
     class CustomPopup extends naver.maps.OverlayView {
       constructor(position, payload) {
@@ -350,6 +392,7 @@
         this._position = position;
         this._itemsSorted = payload.itemsSorted;
         this._currentFilter = payload.defaultFilter;
+        this._pricePerSortDir = null; // null -> 'asc' -> 'desc' 토글 상태
 
         this._el = document.createElement('div');
         this._el.innerHTML = payload.html;
@@ -378,9 +421,114 @@
 
             // 테이블 갱신
             tbody.innerHTML = buildRowsHTML(this._itemsSorted, this._currentFilter);
+            // 정렬 상태 초기화 (필터 바꾸면 헤더 정렬도 초기화)
+            this._pricePerSortDir = null;
+          });
+        }
+        // 정렬(거래일자)
+        // === "거래일자" 헤더 클릭 시 정렬 토글(+ 화살표 표시) ===
+        this._dateSortDir = null; // null -> 'asc' -> 'desc' 토글 상태
+        const dateTh = this._container.querySelector('thead th:nth-child(2)');
+        if (dateTh && tbody) {
+          dateTh.style.cursor = 'pointer';
+          dateTh.title = '거래일자로 정렬 (클릭 시 오름/내림차순 토글)';
+
+          // 헤더 내부에 라벨/화살표 스팬이 없으면 주입
+          let dateArrow = dateTh.querySelector('[data-date-arrow]');
+          if (!dateArrow) {
+            const label = document.createElement('span');
+            label.textContent = '거래일자';
+            const arrowSpan = document.createElement('span');
+            arrowSpan.setAttribute('data-date-arrow', '');
+            arrowSpan.className = 'sort-arrow';
+            dateTh.textContent = '';            // 기존 텍스트 비우고
+            dateTh.appendChild(label);          // 라벨
+            dateTh.appendChild(arrowSpan);      // 화살표
+            dateArrow = arrowSpan;
+          }
+          // ✅ 팝업 초기 표시 시 기본 화살표 표시
+          dateArrow.textContent = '▼';  // 최신순(default)
+
+          dateTh.addEventListener('click', () => {
+            // 토글: null -> asc(오래된↑) -> desc(최신↓) -> asc ...
+            this._dateSortDir = (this._dateSortDir === 'asc') ? 'desc' : 'asc';
+
+            // 현재 필터 반영한 아이템
+            const filtered = this._itemsSorted.filter(it => {
+              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
+            });
+
+            // 정렬: 날짜 파싱 (NaN/유효치 못한 날짜는 항상 뒤로)
+            filtered.sort((a, b) => {
+              const av = parseDateKey(a.date);
+              const bv = parseDateKey(b.date);
+              const aBad = !Number.isFinite(av) || av === -Infinity;
+              const bBad = !Number.isFinite(bv) || bv === -Infinity;
+              if (aBad && bBad) return 0;
+              if (aBad) return 1;
+              if (bBad) return -1;
+              return this._dateSortDir === 'asc' ? (av - bv) : (bv - av);
+            });
+
+            // 렌더 (필터는 이미 적용했으니 'all'로 출력)
+            tbody.innerHTML = buildRowsHTML(filtered, 'all');
+
+            // 화살표 업데이트: asc=▲, desc=▼
+            dateArrow.textContent = (this._dateSortDir === 'asc') ? '▲' : '▼';
+          });
+        }
+        // 평당가 헤더 클릭 정렬
+        // === "평당가" 헤더 클릭 시 정렬 토글 ===
+        const pricePerTh = this._container.querySelector('th.price-per');
+        if (pricePerTh && tbody) {
+          pricePerTh.style.cursor = 'pointer';
+          pricePerTh.title = '평당가로 정렬 (클릭 시 오름/내림차순 토글)';
+
+          // 1) 헤더 내부에 라벨/화살표 스팬이 없으면 주입
+          let arrow = pricePerTh.querySelector('[data-sort-arrow]');
+          if (!arrow) {
+            const label = document.createElement('span');
+            label.textContent = '평당가';
+            const arrowSpan = document.createElement('span');
+            arrowSpan.setAttribute('data-sort-arrow', '');
+            arrowSpan.className = 'sort-arrow';
+            pricePerTh.textContent = ''; // 기존 텍스트 지우고
+            pricePerTh.appendChild(label);
+            pricePerTh.appendChild(arrowSpan);
+            arrow = arrowSpan;
+          }
+          // ✅ 팝업 초기 표시 시 기본 화살표 표시
+          arrow.textContent = '▼';  // 최신순(default)
+
+          pricePerTh.addEventListener('click', () => {
+            // 토글: null -> asc -> desc -> asc ...
+            this._pricePerSortDir = (this._pricePerSortDir === 'asc') ? 'desc' : 'asc';
+
+            // 현재 필터 반영한 아이템
+            const filtered = this._itemsSorted.filter(it => {
+              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
+            });
+
+            // 정렬: NaN(숫자 아님)은 항상 뒤로
+            filtered.sort((a, b) => {
+              const av = parseCurrencyNumber(a.unitPrice);
+              const bv = parseCurrencyNumber(b.unitPrice);
+              const aNaN = Number.isNaN(av), bNaN = Number.isNaN(bv);
+              if (aNaN && bNaN) return 0;
+              if (aNaN) return 1;
+              if (bNaN) return -1;
+              return this._pricePerSortDir === 'asc' ? (av - bv) : (bv - av);
+            });
+
+            // 렌더
+            tbody.innerHTML = buildRowsHTML(filtered, 'all');
+            // buildRowsHTML의 필터는 이미 filtered에서 적용했으므로 'all'로 출력
+            // 2) 화살표 업데이트
+            arrow.textContent = (this._pricePerSortDir === 'asc') ? '▲' : '▼';
           });
         }
       }
+
       onAdd() { this.getPanes().floatPane.appendChild(this._container); }
       draw() {
         const proj = this.getProjection(); if (!proj) return;

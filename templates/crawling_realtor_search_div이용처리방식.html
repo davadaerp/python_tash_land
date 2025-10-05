@@ -721,31 +721,551 @@
       // #message-btn 클릭 이벤트
       // 두가지방식: 1. 윈도우오픈방식처리, 2.DIV모달팝업방식처리
       document.getElementById('message-btn').addEventListener('click', function() {
-        //
-        let selectedItems = [];
-        document.querySelectorAll('input.row-checkbox:checked').forEach(function (checkbox) {
-          let row = checkbox.closest('tr');
-          let tds = row.querySelectorAll('td');
-          let seq = tds[1].textContent;
-          let name = tds[3].textContent;
-          let phone = tds[6].textContent.trim();
-          if (phone.startsWith("010")) {
-            selectedItems.push({seq: seq, name: name, phone: phone});
+             // --- 초기화 시작 ---
+            // 1) 파일 인풋 초기화
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.value = '';
+
+            // // 2) 썸네일 리스트 초기화
+            // const thumbnailList = document.querySelector('.thumbnail-list');
+            // if (thumbnailList) thumbnailList.innerHTML = '';
+
+            // 4) 라디오 버튼을 알림톡(카카오)으로 초기화
+            const kakaoRadio = document.querySelector('input[name="send-type"][value="kakao"]');
+            if (kakaoRadio) kakaoRadio.checked = true;
+
+            // 5) SMS 템플릿(select)을 “일반”으로 초기화
+            const smsTypeSelect = document.getElementById('sms_type');
+            if (smsTypeSelect) smsTypeSelect.value = 'sms';
+            // --- 초기화 끝 --
+            //
+            let selectedItems = [];
+            document.querySelectorAll('input.row-checkbox:checked').forEach(function(checkbox) {
+              let row = checkbox.closest('tr');
+              let tds = row.querySelectorAll('td');
+              let seq = tds[1].textContent;
+              let name = tds[3].textContent;
+              let phone = tds[6].textContent.trim();
+              if (phone.startsWith("010")) {
+                selectedItems.push({ seq: seq, name: name, phone: phone });
+              }
+            });
+            if (selectedItems.length === 0) {
+              alert("선택된 항목 중 휴대전화가 '010'인 목록이 없습니다.");
+              return;
+            }
+            //
+            // // 1.윈도우 오픈방식
+            // window.selectedItems = selectedItems;
+            // var width = 700;
+            // var height = 990;
+            // var left = (window.screen.width - width) / 2;
+            // var top = (window.screen.height - height) / 2;
+            // window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
+
+            // 2. 모달팝업방식
+
+            // 팝업 헤더에 건수 표시
+            let popupCountElem = document.querySelector('.popup-count');
+            if (popupCountElem) {
+              popupCountElem.textContent = `(${selectedItems.length}건)`;
+            }
+            // 선택 목록 구성: 순번, 대표자, 휴대전화
+            let listHtml = `
+              <div id="selected-list-container">
+                <div class="selected-list-header">
+                  <span>순번</span>
+                  <span>대표자</span>
+                  <span>휴대전화</span>
+                  <span>삭제</span>
+                </div>
+                <div id="selected-list">
+            `;
+            selectedItems.forEach(function(item, index) {
+              listHtml += `<div class="selected-list-item">
+                             <span>${index + 1}</span>
+                             <span>${item.name}</span>
+                             <span>${item.phone}</span>
+                             <span class="delete-btn">×</span>
+                           </div>`;
+            });
+            listHtml += `</div></div>`;
+            document.getElementById('selected-list-container').innerHTML = listHtml;
+
+            // 첨부파일 영역 초기화
+            let thumbnailList = document.querySelector('.thumbnail-list');
+            if (thumbnailList) {
+              thumbnailList.innerHTML = '';
+            }
+            currentSlide = 0;
+            updateThumbnailSlider();
+            document.getElementById('message-title').value = "";
+            document.getElementById('message-content').value = "";
+            document.getElementById('message-popup').style.display = 'block';
+          });
+
+          // #send-message-btn 클릭 이벤트
+          document.getElementById('send-message-btn').addEventListener('click', function() {
+
+            // kakao, sms, naver_mms
+            const selectedSendType = document.querySelector('input[name="send-type"]:checked').value;
+
+            // 로그인 아이디와 패스워드 입력값 체크
+            let loginId = document.getElementById('login-id').value.trim();
+            let loginPassword = document.getElementById('login-password').value.trim();
+            if (loginId === '' || loginPassword === '') {
+              alert("로그인 아이디와 패스워드를 입력하세요.");
+              return;
+            }
+            // 전송할메시지선택
+            let messageTitle = document.getElementById('message-title').value.trim();
+            if (messageTitle === '') {
+              alert("제목을 작성해주세요..");
+              return;
+            }
+
+            // 전송할메시지선택
+            let messageContent = document.getElementById('message-content').value.trim();
+            if (messageContent === '') {
+              alert("메시지를 작성해주세요.");
+              return;
+            }
+
+            // 선택된 항목들의 이름:휴대번호 쌍을 전역변수에 저장
+            const pairs = Array.from(
+              document.querySelectorAll('.selected-list-item')
+            ).map(div => {
+              const name   = div.querySelectorAll('span')[1].textContent.trim(); // 두 번째 span: 이름
+              const mobile = div.querySelectorAll('span')[2].textContent.trim(); // 세 번째 span: 휴대번호
+              return `${name}:${mobile}`;
+            });
+            window.selectedPhoneNumbers = pairs.join(',');
+            console.log('현재 선택된 이름:전화번호 목록:', window.selectedPhoneNumbers);
+
+            // 선택된 휴대전화 목록 (메시지 버튼 클릭 이벤트에서 전역변수로 저장)
+            if (!window.selectedPhoneNumbers || window.selectedPhoneNumbers.length === 0) {
+              alert("전송할 휴대전화 목록이 없습니다.");
+              return;
+            }
+            //
+            const fileInput = document.getElementById('file-input');
+            const files = fileInput.files;
+            if (files.length === 0) {
+                  alert("첨부할 파일을 선택하세요.");
+                  return;
+            }
+
+            // // 유효한 파일만 담을 배열
+            // const validFiles = [];
+            //
+            // for (let i = 0; i < files.length; i++) {
+            //   const file = files[i];
+            //   const ext = file.name.split('.').pop().toLowerCase();
+            //
+            //   // 확장자 체크
+            //   if (ext !== 'jpg') {
+            //     alert(`"${file.name}"은(는) jpg 파일만 업로드 가능합니다.`);
+            //     return;
+            //   }
+            //
+            //   // 사이즈 체크 (1MB = 1024*1024 바이트)
+            //   if (file.size > 1 * 1024 * 1024) {
+            //     alert(`"${file.name}"의 크기가 1MB를 초과합니다.`);
+            //     return;
+            //   }
+            //
+            //   validFiles.push(file);
+            // }
+
+            // 전송 타입별 레이블 맵
+            const typeLabels = {
+              kakao:     '알림톡',
+              naver_mms: '네이버문자',
+              sms:       '일반문자'
+            };
+
+            // 전송 대상 건수
+            const count = window.selectedPhoneNumbers.split(',').length;
+            // 레이블 결정 (기본 '메시지')
+            const label = typeLabels[selectedSendType] || '메시지';
+
+            // 사용자 확인
+            if (!confirm(`${label} ${count}건을 전송하시겠습니까?`)) {
+              return;
+            }
+
+            // 1차로 먼저 파일을 먼저 업로드 처리하고 처리한 업로드파일 목록을 넙겨준다.
+            // FormData 객체 생성
+            const formData = new FormData();
+            // 선택된 파일들을 FormData에 추가
+            validFiles.forEach(f => formData.append('files', f));
+
+            // 추가 데이터 (선택적)
+            formData.append('sender', 'web_client');
+            formData.append('upload_time', new Date().toISOString());
+
+            // 로딩 표시
+            $("#sending-message").text("파일 전송 중...").show();
+
+            let image_files = [];
+            // AJAX로 파일 전송
+            $.ajax({
+              url: BASE_URL + '/api/upload_files',
+              method: 'POST',
+              data: formData,
+              processData: false,
+              contentType: false,
+              timeout: 60000,
+              success: function(response) {
+                $("#sending-message").hide();
+
+                if (!response.success) {
+                  return alert("파일 전송 실패: " + response.message);
+                }
+
+                // 업로드된 파일명만 추출
+                const image_files = response.files.map(f => f.saved_name);
+                console.log('image_files:', image_files);
+
+                // 2) 이제 SMS/MMS 전송
+                $("#sending-message").text("메시지 전송 중...").show();
+                $.ajax({
+                  url: BASE_URL + '/api/sms_send',
+                  method: 'POST',
+                  contentType: 'application/json',
+                  data: JSON.stringify({
+                    userid: loginId,
+                    userpswd: loginPassword,
+                    sendType: selectedSendType,
+                    phoneNumbers: window.selectedPhoneNumbers,
+                    title: messageTitle,
+                    message: messageContent,
+                    imageFiles: image_files
+                  }),
+                  timeout: 60000,
+                  complete: function() {
+                    $("#sending-message").hide();
+                  },
+                  success: function(resp) {
+                    if (resp.result === 'Success') {
+                      alert("메시지 전송 성공");
+                      document.getElementById('message-popup').style.display = 'none';
+                    }
+                    else if (resp.result === 'PartialSuccess') {
+                      alert("메시지 부분전송 성공\n" + resp.errmsg);
+                      document.getElementById('message-popup').style.display = 'none';
+                    }
+                    else {
+                      alert("메시지 전송 실패: " + resp.errmsg);
+                    }
+                  },
+                  error: function(xhr, status, error) {
+                    alert("전송 중 오류가 발생했습니다: " + error);
+                  }
+                });
+              },
+              error: function(xhr, status, error) {
+                $("#sending-message").hide();
+                alert("파일 전송 중 오류 발생: " + error);
+              }
+            }); // end of AJAX for file upload
+          }); //
+
+          // 팝업 닫기 (메시지 팝업 내 .close-btn 클릭)
+          document.querySelectorAll('#message-popup .close-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  document.getElementById('message-popup').style.display = 'none';
+                });
+          });
+
+          // default 라디오 설정
+          $('input[name="send-type"][value="kakao"]').prop('checked', true);
+
+          // 삭제(X) 버튼 처리 (이벤트 위임)
+          $('#selected-list-container').on('click', '.delete-btn', function() {
+            $(this).closest('.selected-list-item').remove();
+            updatePopupCount();
+          });
+
+          // 추가 입력 area: 이름/전화번호 포맷팅
+          $('#new-phone').on('input', function() {
+            let num = $(this).val().replace(/\D/g, '');
+            if (num.startsWith('010')) {
+              if (num.length > 3 && num.length <= 7)
+                num = num.replace(/(\d{3})(\d+)/, '$1-$2');
+              else if (num.length > 7)
+                num = num.replace(/(\d{3})(\d{4})(\d+)/, '$1-$2-$3');
+            }
+            $(this).val(num);
+          });
+
+          // 추가 버튼 클릭
+          $('#add-entry-btn').on('click', function() {
+            const name = $('#new-name').val().trim();
+            const phone = $('#new-phone').val().trim();
+            if (!name) { alert('이름을 입력하세요.'); return; }
+            const phonePattern = /^010-\d{4}-\d{4}$/;
+            if (!phonePattern.test(phone)) { alert('전화번호를 형식에 맞게 입력하세요 (010-xxxx-xxxx).'); return; }
+            // 리스트에 추가
+            const itemCount = $('#selected-list-container .selected-list-item').length + 1;
+            const $item = $(`
+              <div class="selected-list-item">
+                <span>${itemCount}</span>
+                <span>${name}</span>
+                <span>${phone}</span>
+                <span class="delete-btn">×</span>
+              </div>
+            `);
+            $('#selected-list-container').append($item);
+            updatePopupCount();
+            // 초기화
+            $('#new-name, #new-phone').val('');
+          });
+
+          function updatePopupCount() {
+            const cnt = $('#selected-list-container .selected-list-item').length;
+            $('.popup-count').text(`(${cnt}건)`);
+            // update global phone list if needed...
           }
-        });
-        if (selectedItems.length === 0) {
-          alert("선택된 항목 중 휴대전화가 '010'인 목록이 없습니다.");
-          return;
-        }
-        //
-        // 1.윈도우 오픈방식
-        window.selectedItems = selectedItems;
-        var width = 700;
-        var height = 925;
-        var left = (window.screen.width - width) / 2;
-        var top = (window.screen.height - height) / 2;
-        window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
-      });
+
+          // 파일 첨부 (이미지 썸네일 미리보기) - 최대 7개 첨부
+          document.getElementById('file-input').addEventListener('change', function(event) {
+            const originalFiles = Array.from(event.target.files);
+            const thumbnailList = document.querySelector('.thumbnail-list');
+            thumbnailList.innerHTML = '';
+            if (originalFiles.length > MAX_ATTACH) {
+              alert(`파일첨부는 최대 ${MAX_ATTACH}개까지 가능합니다.`);
+              event.target.value = "";
+              totalThumbnails = 0;
+              return;
+            }
+
+            currentSlide = 0;
+            totalThumbnails = 0;
+            originalFiles.forEach(origFile => {
+              // compressImage(file, maxSize, callback) 내부에서, 1500×1440 해상도, 300KB 제한
+              // Canvas → toBlob('image/jpeg') → 크기 맞춰 재시도 등으로 JPEG blob을 반환한다고 가정합니다.
+              compressImage(origFile, 1500, 1440, 300, jpegBlob => {
+                // blob을 JPG 파일로 래핑 (확장자 강제 변경)
+                const newFileName = origFile.name.replace(/\.[^/.]+$/, '') + '.jpg';
+                const jpegFile = new File([jpegBlob], newFileName, { type: 'image/jpeg' });
+
+                // 3) 확장자·크기 검증
+                const ext = jpegFile.name.split('.').pop().toLowerCase();
+                if (ext !== 'jpg') {
+                  alert(`"${origFile.name}"은(는) jpg 파일만 업로드 가능합니다.`);
+                } else if (jpegFile.size > MAX_SIZE) {
+                  alert(`"${origFile.name}"의 크기가 1MB를 초과합니다.`);
+                } else {
+                  validFiles.push(jpegFile);
+
+                  // URL.createObjectURL 로 썸네일에 사용
+                  const url = URL.createObjectURL(jpegFile);
+                  const div = document.createElement('div');
+                  div.className = 'thumbnail-item';
+                  div.innerHTML = `
+                      <img src="${url}" alt="첨부이미지">
+                      <span class="thumb-delete">&times;</span>
+                    `;
+                  // 삭제 버튼
+                  div.querySelector('.thumb-delete').addEventListener('click', ev => {
+                      ev.stopPropagation();
+                      div.remove();
+                      totalThumbnails--;
+                      // 슬라이더가 앞으로 가야 한다면 인덱스 조정
+                      if (currentSlide + VISIBLE_COUNT > totalThumbnails) {
+                        currentSlide = Math.max(0, totalThumbnails - VISIBLE_COUNT);
+                      }
+                      // 옵션: validFiles에서도 해당 파일 제거
+                      const idx = validFiles.indexOf(jpegFile);
+                      if (idx > -1) validFiles.splice(idx, 1);
+                      // 썸네일 업데이트
+                      updateThumbnailSlider();
+                  });
+
+                  thumbnailList.appendChild(div);
+                  totalThumbnails++;
+                  updateThumbnailSlider();
+                }
+              });
+            });
+          });
+
+          // 썸네일 슬라이더 좌측 네비 버튼 클릭
+          let thumbNavLeft = document.querySelector('.thumb-nav.left');
+          if (thumbNavLeft) {
+            thumbNavLeft.addEventListener('click', function() {
+              if (currentSlide > 0) {
+                currentSlide--;
+                updateThumbnailSlider();
+              }
+            });
+          }
+
+          // 썸네일 슬라이더 우측 네비 버튼 클릭
+          document.querySelector('.thumb-nav.right').addEventListener('click', () => {
+            if (currentSlide + VISIBLE_COUNT < totalThumbnails) {
+              currentSlide++;
+              updateThumbnailSlider();
+            }
+          });
+
+          // 썸네일 클릭 시 해당 이미지를 팝업으로 표시 (이벤트 위임)
+          let thumbnailList = document.querySelector('.thumbnail-list');
+          if (thumbnailList) {
+            thumbnailList.addEventListener('click', function(e) {
+              if (e.target && e.target.matches('.thumbnail-item img')) {
+                const src = e.target.getAttribute('src');
+                let imagePopup = document.getElementById('image-popup');
+                if (imagePopup) {
+                  imagePopup.querySelector('img').setAttribute('src', src);
+                  imagePopup.style.display = 'block';
+                }
+              }
+            });
+          }
+
+          // 이미지 팝업 클릭 시 닫기
+          let imagePopup = document.getElementById('image-popup');
+          if (imagePopup) {
+            imagePopup.addEventListener('click', function() {
+              this.style.display = 'none';
+            });
+          }
+
+          // #excel-btn 클릭 시 CSV 생성 및 다운로드
+          $('#download-btn').click(function(){
+              // 선택된 행이 없으면 알림 후 종료
+              if ($('input.row-checkbox:checked').length === 0) {
+                  alert("체크된 데이터가 없습니다.");
+                  return;
+              }
+
+              // 헤더 행 생성
+              var tableHTML = "<table>";
+              tableHTML += "<tr>" +
+                              "<th>순번</th>" +
+                              "<th>제목</th>" +
+                              "<th>대표자</th>" +
+                              "<th>주소지</th>" +
+                              "<th>일반전화</th>" +
+                              "<th>휴대전화</th>" +
+                           "</tr>";
+
+              // 선택된 각 행에 대해 데이터를 추출하여 테이블 행 생성
+              $('input.row-checkbox:checked').each(function(){
+                  var row = $(this).closest('tr');
+                  var tds = row.find('td');
+                  var seq = $(tds[1]).text();
+                  var title = $(tds[2]).text();
+                  var rep = $(tds[3]).text();
+                  var addr = $(tds[4]).text();
+                  var phone = $(tds[5]).text();
+                  var mobile = $(tds[6]).text();
+                  tableHTML += "<tr>" +
+                                  "<td>" + seq + "</td>" +
+                                  "<td>" + title + "</td>" +
+                                  "<td>" + rep + "</td>" +
+                                  "<td>" + addr + "</td>" +
+                                  "<td>" + phone + "</td>" +
+                                  "<td>" + mobile + "</td>" +
+                               "</tr>";
+              });
+              tableHTML += "</table>";
+
+              // 첫번째 h1 요소의 outerHTML 추출 (엑셀 문서 상단 제목)
+              var titleHTML = $("h1").first().prop("outerHTML");
+
+              // 엑셀에서 인식할 수 있도록 HTML 문서 형태로 감싸기
+              var excelHTML = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+                              'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+                              'xmlns="http://www.w3.org/TR/REC-html40">' +
+                              '<head><meta charset="UTF-8"></head><body>' +
+                              titleHTML + tableHTML +
+                              '</body></html>';
+
+              // Blob 객체 생성
+              var blob = new Blob([excelHTML], { type: "application/vnd.ms-excel" });
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement('a');
+              a.href = url;
+              // apt_name 변수가 정의되지 않았다면 아래와 같이 기본 파일명("selected_data.xls")을 사용할 수 있습니다.
+              const excel_file_name = $('#sel_type').val() == 'realtor' ? "중계사" : "대출상담사";
+              a.download = excel_file_name + '.xls';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+          });
+
+          // 전송(확인후) 버튼 클릭 이벤트
+          document.getElementById('send-message-pop').addEventListener('click', function() {
+            // 전송 유형 확인 (알림톡/문자)
+            const sendType = document.querySelector('input[name="send-type"]:checked').value;
+            const sendTypeText = sendType === 'kakao' ? '알림톡' : '문자';
+
+            // 모달 제목 설정
+            document.getElementById('confirm-modal-title').textContent = `${sendTypeText} 전송 확인`;
+
+            // 전송 목록 설정
+            const selectedItems = document.querySelectorAll('.selected-list-item');
+            const recipientCount = selectedItems.length;
+            const firstRecipient = selectedItems.length > 0 ?
+              selectedItems[0].querySelector('span:nth-child(2)').textContent : '';
+
+            let recipientText = firstRecipient;
+            if (recipientCount > 1) {
+              recipientText += `외 ${recipientCount - 1}명`;
+            }
+            document.getElementById('confirm-recipients').textContent = recipientText;
+
+            // 메시지 내용 설정
+            const title = document.getElementById('message-title').value;
+            const content = document.getElementById('message-content').value;
+
+            const formattedMessage = `안녕하세요. ${firstRecipient}님\n` +
+                                    `물건 ${title} 요청합니다.\n` +
+                                    `${content}\n` +
+                                    `잘부탁합니다.\n` +
+                                    `감사합니다.`;
+
+            document.getElementById('confirm-message').value = formattedMessage;
+
+            // 첨부 이미지 설정
+            const thumbnailList = document.querySelector('.thumbnail-list');
+            const confirmThumbnailList = document.getElementById('confirm-thumbnail-list');
+            confirmThumbnailList.innerHTML = '';
+
+            if (thumbnailList) {
+              const thumbnails = thumbnailList.querySelectorAll('.thumbnail-item img');
+              thumbnails.forEach(thumb => {
+                const src = thumb.getAttribute('src');
+                confirmThumbnailList.innerHTML += `
+                  <div class="confirm-thumbnail-item">
+                    <img src="${src}" alt="첨부이미지">
+                  </div>
+                `;
+              });
+            }
+
+            // 모달 표시
+            document.getElementById('confirm-modal').style.display = 'block';
+          });
+
+          // 확인 모달 닫기 버튼
+          document.querySelector('.confirm-close-btn').addEventListener('click', function() {
+            document.getElementById('confirm-modal').style.display = 'none';
+          });
+
+          // 확인 모달 전송 버튼
+          document.getElementById('confirm-send-btn').addEventListener('click', function() {
+            // 실제 전송 로직 실행 (기존 send-message-btn의 로직 재사용)
+            document.getElementById('send-message-btn').click();
+
+            // 모달 닫기
+            document.getElementById('confirm-modal').style.display = 'none';
+          });
+
     });
 
   </script>

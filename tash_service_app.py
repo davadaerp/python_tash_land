@@ -12,6 +12,8 @@
 #
 import os
 import json
+import time
+
 import requests
 import secrets
 from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, session
@@ -19,11 +21,13 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from pathlib import Path
 
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
 from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 from pubdata.public_land_db_search import run_sanga, sanga_items_to_json
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
 #from naver.naver_login import naver_authorization, naver_callback
 #
 from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
@@ -33,7 +37,7 @@ from master.user_db_utils import user_insert_record, user_read_db, user_create_t
     user_delete_record, user_cancel_record, user_update_exist_record
 #
 from sms.naver_alim_talk import alimtalk_send
-from sms.naver_sms import send_mms_data
+from sms.naver_sms import send_mms_data, send_sms
 from sms.purio_sms import purio_sms_send
 #
 from pastapt.past_apt_complete_volume_db_utils import fetch_apt_complete_volume_by_address
@@ -160,14 +164,12 @@ def logout():
     return response
 
 
-# 카카오 로그인 관련
-from kakao.kakao_api_utils import KakaoAPI, TOKENS
+# # 카카오 로그인 관련
+from common.kakao_client import kakao, TOKENS  # 재수출된 TOKENS 사용
+from common.auth import kakao_extool_auth_required
 
 # 필요시 scope를 None으로 두고 최소 동작 확인
 DEFAULT_SCOPE = None  # 예: ["profile_nickname", "profile_image"]
-
-# === KakaoAPI 인스턴스화 ===
-kakao = KakaoAPI()
 
 @app.route("/api/kakao/login")
 def kakao_login():
@@ -328,35 +330,36 @@ def kakao_auth_logout():
     return jsonify({"result": "ok"})
 
 @app.get("/api/kakao/me")
-def api_me():
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return jsonify({"error": "unauthorized"}), 401
-    token = auth.split(" ", 1)[1]
-    payload = kakao.verify_jwt(token)
-    if not payload:
-        return jsonify({"error": "unauthorized"}), 401
-
-    user_id = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
+@kakao_extool_auth_required
+def api_me(user_id):
+    # auth = request.headers.get("Authorization", "")
+    # if not auth.startswith("Bearer "):
+    #     return jsonify({"error": "unauthorized"}), 401
+    # token = auth.split(" ", 1)[1]
+    # payload = kakao.verify_jwt(token)
+    # if not payload:
+    #     return jsonify({"error": "unauthorized"}), 401
+    #
+    # user_id = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
+    print("== api_me() user_id:", user_id)
     # 닉네임/문자건수는 실제론 DB에서 조회
     # 여기서는 간단히 유저아이디 기반으로 예시값 구성
     # 2) DB에서 user_id로 사용자 조회
     rows = user_read_db(user_id=user_id)
     if not rows:
         return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
-    #
-    print(rows)
+    #print(rows)
     #
     nick_name = rows[0].get("nick_name")
     sms_count = rows[0].get("recharge_sms_count", 0) if rows else 0
     #  구독상태 (active, canceled 등) : 차후 관리자 페이지에서 on/off 처리용
-    is_subscribed = "cancelled"
     plan_name = "0개월"
     plan_date = '0일남음'
-    #
+    # 구독상태 체크(request-요청, active-구독, cancelled-구독취소)
     subscription_status = rows[0].get("subscription_status", 'cancelled') if rows else 'cancelled'
-    if subscription_status == 'active':
-        is_subscribed = "active"
+    is_subscribed = subscription_status
+    if subscription_status == 'active' or subscription_status == 'request':
+        #is_subscribed = "active"
         subscription_start_date = rows[0].get("subscription_start_date", "")
         subscription_end_date = rows[0].get("subscription_end_date", "")
         plan_name = f"{rows[0].get('subscription_month', 1)}개월"
@@ -376,6 +379,9 @@ def api_me():
         except Exception as e:
             # 날짜 파싱 실패 시 기본값
             plan_date = "0일남음"
+    else:
+        plan_name = "미구독"
+        plan_date = "0일"
     #
     print(is_subscribed , plan_name, plan_date)
 
@@ -431,34 +437,49 @@ def menu(current_user):
         return render_template("realdata_pop_key.html")
     if menu == 'past_apt':
         return render_template("pastdata_apt.html")
+    # 마이페이지, 구독, 문자충전
+    if menu == 'mypage':
+        return render_template("extool_user_mypage.html")
     if menu == 'subscribe':
-        return render_template("user_subscribe.html")
+        return render_template("extool_user_subscribe.html")
     if menu == 'recharge':
-        return render_template("user_recharge.html")
+        return render_template("extool_user_recharge.html")
 
 #===== 사용자(회원) 데이타 처리 =============
 @app.route('/api/user/register', methods=['GET'])
 def user_register_form():
     return render_template("user_register.html")
 
-@app.route('/api/user/subscribe', methods=['POST'])
-def user_subscribe():
+# 사용자 구독인증
+@app.route('/api/user/subscribe_auth', methods=['POST'])
+@kakao_extool_auth_required
+def user_subscribe_auth(user_id):
+    print(f"user_subscribe_auth user_id: {user_id}")
     data = request.get_json()
-    #print(f"🔍data: {data}")
-    auth = request.headers.get("Authorization", "")
-     # 토큰 정합성 체크
-    if not auth.startswith("Bearer "):
-        return jsonify({"error": "unauthorized"}), 401
-    token = auth.split(" ", 1)[1]
-    payload = kakao.verify_jwt(token)
-    if not payload:
-        return jsonify({"error": "인증이 안된 사용자입니다."}), 401
+    phone_number = data.get("phoneNumber")
+    auth_number = data.get("authNumber")
 
-    # user_id는 kakao_id와 동일하게 설정됨
-    user_id = payload["sub"]
-    print(f"🔍 user_id: {user_id}, token: {token}")
+    # 메니저에게 카톡으로 구독처리여부 SMS 전송요망
+    to = phone_number
+    title = "문자 인증번호"
+    message = "\n문자 인증번호는 " + auth_number + " 입니다."
+    result = send_sms(to, message, title, msg_type='SMS')
+    # 응답 상태 및 결과 출력(202: 성공, 4xx, 5xx: 실패)
+    if result.status_code == 202:
+        return jsonify({"result": "Success", "message": "인증번호가 발송되었습니다."}), 200
+    else:
+        return jsonify({"result": "Fail", "message": "인증번호 발송에 실패하였습니다."}), 500
+
+# 사용자 구독정보 저장(구독시작일, 종료일, 구독상태 등)
+@app.route('/api/user/subscribe', methods=['POST'])
+@kakao_extool_auth_required
+def user_subscribe(user_id):
+    data = request.get_json()
+    # #print(f"🔍data: {data}")
+    print(f"user_subscribe user_id: {user_id}")
     subscription_month = data.get("plan")
-    print("📋 subscription_month:", subscription_month)
+    phone_number = data.get("phoneNumber") or ''
+    print("📋 subscription_month:", subscription_month, "phone_number:", phone_number)
 
     # 오늘 일시 (YYYY-MM-DD HH:MM:SS)
     subscription_start_date = datetime.now()
@@ -477,83 +498,160 @@ def user_subscribe():
     end_str = subscription_end_date.strftime("%Y-%m-%d %H:%M:%S")
 
     print("user found. update user info.")
+    userInfo = user_read_db(user_id)
+    user_name = userInfo[0].get("user_name")
+    if not userInfo:
+        return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
+
+    # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
+    to = "01022709085"
+    title = subscription_month + "개월 구독"
+    message = "\n" + user_name + "님이 " + subscription_month + "개월 구독요청하였습니다. 관리자페이지에서 승인처리바랍니다."
+    data = {
+        "userid": user_id,
+        "userpswd": "0000",
+        "phoneNumbers": "관리자:" + to,
+        "title": title,
+        "message": message
+    }
+    print("user_subscribe() 구독요청 알림톡 발송:", data)
+    mms_result = alimtalk_send(data)
+    #print(f"user_subscribe() Response Code: {mms_result.status_code}, "f"user_subscribe() 구독요청 알림톡 결과: {mms_result.json()}")
+    # 응답 상태 및 결과 출력(202: 성공, 4xx, 5xx: 실패)
+    if mms_result.status_code == 202:
+        #
+        user_update_exist_record({
+            "user_id": user_id,
+            "phone_number": phone_number,
+            "subscription_start_date": start_str,
+            "subscription_end_date": end_str,
+            "subscription_month": months,
+            "subscription_status": "request"  # 관리자 승인 대기 상태(request:구독요청,active:구독,cancelled:구독취소)
+        })
+        print("user_subscribe() 구독요청 알림톡 성공")
+    else:
+        print("user_subscribe() 구독요청 알림톡 실패:")
+    #
+    # 메니저에게 카톡으로 구독처리여부 SMS 전송요망
+    # mms_result = send_sms(to, message, title, msg_type='SMS')
+    #
+    return jsonify(data), 200
+
+# 사용자 구독요청 승인처리(관리자 전용)
+@app.route('/api/user/subscribe_approval', methods=['POST'])
+def user_subscribe_approval():
+    data = request.get_json()
+    print(f"🔍data: {data}")
+    user_id = data.get("user_id")
+    approval_status = data.get("subscribe_status", "cancelled")  # Y/N
+    subscription_month = data.get("subscription_month", 1)
+    print("📋 user_id:", user_id, "approval:", approval_status)
+
+    # if approval != "Y":
+    #     return jsonify({"result": "Fail", "message": "승인여부가 Y가 아닙니다."}), 400
+
     user_update_exist_record({
         "user_id": user_id,
-        "subscription_start_date": start_str,
-        "subscription_end_date": end_str,
-        "subscription_month": months,
-        "subscription_status": "active"
+        "subscription_month": subscription_month,
+        "subscription_status": approval_status   # 관리자 승인 대기 상태(request:구독요청,active:구독,cancelled:구독취소)
+    })
+
+    return jsonify({"success": "구독승인되었습니다."}), 200
+
+
+# 사용자 구독정보 체크(구독기간 만료 등)
+@app.route('/api/user/subscribe_check', methods=['POST'])
+@kakao_extool_auth_required
+def user_subscribe_check(user_id):
+    print(f"user_subscribe_check user_id: {user_id}")
+    # 2) DB에서 user_id로 사용자 조회
+    rows = user_read_db(user_id=user_id)
+    if not rows:
+        return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
+    #
+    #print(rows)
+    #
+    subscription_status = rows[0].get("subscription_status")
+    print("subscription_status:", subscription_status)
+    if subscription_status != "active":
+        rtn_data = {
+            'result': 'Fail',
+            'message': '구독(갱신)후 사용바랍니다.'
+        }
+    else:
+        rtn_data = {
+            'result': 'Success',
+            'message': '구독완료되었습니다.'
+        }
+
+    return jsonify(rtn_data), 200
+
+
+# 사용자 문자및 등기비용 충전처리
+@app.route('/api/user/sms_recharge', methods=['POST'])
+@kakao_extool_auth_required
+def user_sms_recharge(user_id):
+    data = request.get_json()
+    #print(f"🔍data: {data}")
+    recharge_cnt = data.get("recharge")
+    print("recharge_cnt:", recharge_cnt)
+
+    print("user found. update user info.")
+    user_update_exist_record({
+        "user_id": user_id,
+        "recharge_sms_count": recharge_cnt
     })
 
     # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
 
     return jsonify(data), 200
 
-# 사용자 구독정보 체크(구독기간 만료 등)
-@app.route('/api/user/subscribe_check', methods=['POST'])
-def user_subscribe_check():
-    return None
+#============== 확장툴 마이페이지 ====================
+# 마이페이지 회원정보 조회
+@app.route('/api/user/mypage/member', methods=['POST'])
+@kakao_extool_auth_required
+def user_member(user_id):
+    # user_id는 데코레이터에서 추출되어 주입됨
+    print(f"user_member user_id: {user_id}")
 
-# 사용자 문자및 등기비용 충전처리
-@app.route('/api/user/sms_recharge', methods=['POST'])
-def user_sms_recharge():
-    data = request.get_json()
-    #print(f"🔍data: {data}")
-    auth = request.headers.get("Authorization", "")
-     # 토큰 정합성 체크
-    if not auth.startswith("Bearer "):
-        return jsonify({"error": "unauthorized"}), 401
-    token = auth.split(" ", 1)[1]
-    payload = kakao.verify_jwt(token)
-    if not payload:
-        return jsonify({"error": "인증이 안된 사용자입니다."}), 401
-
-    # user_id는 kakao_id와 동일하게 설정됨
-    user_id = payload["sub"]
-    print(f"🔍 user_id: {user_id}, token: {token}")
-    recharge_cnt = data.get("recharge")
-    print("📋 recharge_cnt:", recharge_cnt)
-
-    # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
-
-    return jsonify(data), 200
-
-@app.route('/api/user/mypage', methods=['GET'])
-def user_mypage_form():
-    # 카카오 JWT 토큰
-    access_token = request.args.get('access_token', '')  # 카카오 JWT 토큰
-    #access_token = request.cookies.get('access_token')
-    payload = kakao.verify_jwt(access_token)
-    if not payload:
-        return jsonify({"error": "unauthorized"}), 401
-    #
-    userId = payload["sub"]    # user_id는 kakao_id와 동일하게 설정됨
-    print(f"🔍 userId: {userId}, access_token: {access_token}")
     # 리스트 dictionary로 변환되어 넘어옴
-    userInfo = user_read_db(userId)
-    print(userInfo)
+    userInfo = user_read_db(user_id)
+    #print(userInfo)
+    if not userInfo:
+        return jsonify({"error": "사용자 정보를 찾을 수 없습니다."}), 404
 
-    return render_template("user_mypage.html", userInfo=userInfo[0])
+    data = userInfo[0]  # DB에서 첫 번째 사용자 데이터만 사용
 
-@app.route('/api/user/mypage/member')
-# @login_required
-def user_member():
-  # DB 조회 예시
-  data = {
-    "user_id": "tash001",
-    "user_name": "홍길동",
-    "phone": "010-1234-5678",
-    "nickname": "길동이",
-    "apt_key": "B2BtWbuZV...",
-    "villa_key": "B2BtWbuZV...",
-    "sanga_key": "B2BtWbuZV...",
-    "subscribe_date": "2025-01-15",
-    "unsubscribe_date": None,
-    "sms_quota": 50,
-    "deed_balance": "10,000원"
-  }
-  return jsonify(data)
+    # 1. subscription_month 값 가공 + 구독금액 매핑
+    payment_map = {
+        1: "5만원",
+        6: "7만원",
+        12: "10만원"
+    }
 
+    # 1. subscription_month 값 가공
+    #    DB에 숫자로 들어온다고 가정 (1, 3, 6 등)
+    if "subscription_month" in data:
+        try:
+            month_val = int(data["subscription_month"])
+            # "개월" 표시
+            data["subscription_month"] = f"{month_val}개월"
+            # 구독금액 자동 설정
+            data["subscription_payment"] = payment_map.get(month_val, data.get("subscription_payment", "—"))
+        except (ValueError, TypeError):
+            # 숫자가 아니거나 None인 경우 그대로 둠
+            pass
+
+    # 2. subscription_status 값 가공
+    if data.get("subscription_status") == "active":
+        data["subscription_status"] = "구독"
+    else:
+        data["subscription_status"] = "—"
+
+    return jsonify(data)
+
+#==========================================================
+# 사용자 아이디 중복체크
 @app.route('/api/user/dup_check', methods=['POST'])
 def user_dup_check():
     data = request.get_json()
@@ -581,6 +679,7 @@ def user_dup_check():
 
     return jsonify(rtn_data)
 
+# 사용자 회원가입/수정/삭제/조회처리
 @app.route('/api/user/crud', methods=['POST'])
 def user_register_crud():
     data = request.get_json()
@@ -835,7 +934,9 @@ def get_sanga_land_data():
 
     # 종로구, 읍면동(창신동,숭인동, 종로1가, 인사동 등)
     lawd_cd = request.args.get('lawd_cd', '11110')
-    lawd_nm = request.args.get('lawd_nm', '서울시')
+    res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
+    lawd_nm = res["lawd_name"]  # 서울특별시 종로구
+    #lawd_nm = request.args.get('lawd_nm', '서울시')
     umd_nm = request.args.get('umd_nm', '창신동')
 
     print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
@@ -914,7 +1015,7 @@ def get_auction_data():
     return jsonify(data)
 
 
-#===== realtor 데이타 처리 =============
+#===== realtor(중개사) 데이타 처리 =============
 @app.route('/api/realtor', methods=['GET'])
 def get_realtordata():
     lawdCd = request.args.get('lawdCd', '')
@@ -1143,6 +1244,7 @@ def sms_send():
             result = 'Failed'
             errmsg = '모두 MMS 전송에 실패했습니다.'
     else :
+        # 일반문자 뿌리오 이용한 전송처리(크롬드라이버 이용)
         response_result = purio_sms_send(data)
         print(jsonify(response_result))
         # 예외 응답 처리: Response 객체가 튜플일 수 있으므로 분리
@@ -1158,7 +1260,6 @@ def sms_send():
     # 로그인 성공 시 리다이렉트 URL을 JSON으로 반환
     #return jsonify({"result": result, "data": data, "errmsg": errmsg})
     return jsonify({"result": result, "errmsg": errmsg})
-
 
 # 파일 업로드 설정
 #app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -1182,16 +1283,20 @@ def upload_files():
         return jsonify({'success': False, 'message': 'No selected files'}), 400
 
     saved_files = []
-
     for file in files:
         if file.filename == '':
             continue
 
         if file and allowed_file(file.filename):
+            filename = file.filename
+            # 1) 원본에서 확장자 추출
+            ext = Path(filename).suffix.lower().lstrip('.')  # 예: 'jpg', 'jpeg', ''
             # 안전한 파일 이름 생성
-            filename = secure_filename(file.filename)
+            # safe = secure_filename(file.filename or "")
+            print(f"파일이름: {filename}, 확장자: {ext}")
             # 고유한 파일 이름을 위해 타임스탬프 추가
-            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}.{filename}"
+            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            print("unique_filename: " + unique_filename)
             save_path = os.path.join(UPLOAD_FOLDER_PATH, unique_filename)
 
             try:
@@ -1206,6 +1311,8 @@ def upload_files():
                     'success': False,
                     'message': f'Error saving file {filename}: {str(e)}'
                 }), 500
+        #
+        time.sleep(0.6)
 
     if len(saved_files) == 0:
         return jsonify({'success': False, 'message': 'No valid files uploaded'}), 400

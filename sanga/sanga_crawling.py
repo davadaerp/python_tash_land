@@ -50,20 +50,6 @@ BASE_HEADERS = {
     'referer': 'https://new.land.naver.com/offices?ms=37.497624,127.107268,17&a=SG:SMS&e=RETAIL&articleNo=2464180374',
 }
 
-# 무료 프록시 서버 예시 (유효한 프록시 주소로 교체하세요)
-PROXIES = [
-    'http://152.26.229.52:9443',
-    'http://149.129.255.179:80',
-    'http://117.74.65.207:443'
-]
-
-def get_random_proxy():
-    proxy = random.choice(PROXIES)
-    return {
-        'http': proxy,
-        'https': proxy
-    }
-
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
 BATCH_SIZE = 500     # 레코드 1000개마다 저장
@@ -329,7 +315,6 @@ def main():
             url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'
             headers = get_random_headers()
             response = session.get(url, headers=headers)
-            #response = session.get(url, headers=headers, proxies={"https": get_random_proxy()})
             try:
                 data = response.json()
             except json.JSONDecodeError:

@@ -14,7 +14,7 @@ const nicknameEl   = document.getElementById("nickname");
 const smsCountEl   = document.getElementById("sms-count");
 const subStatusEl  = document.getElementById("sub-status");
 const subscribeWrap= document.getElementById("subscribe-wrap");
-const benCharge    = document.getElementById("btn-charge");
+const btnCharge    = document.getElementById("btn-charge");
 const btnLogin     = document.getElementById("btn-login");
 const btnLogout    = document.getElementById("btn-logout");
 const btnMypage    = document.getElementById("btn-mypage");
@@ -42,21 +42,37 @@ function setLoggedOutUI() {
 }
 
 function applySubUI({ is_subscribed, plan_name, plan_date }) {
-  // 구독 상태 뱃지
-  if (is_subscribed) {
-    subStatusEl.textContent = `${plan_name}(구독중-${plan_date})`;
-    subStatusEl.classList.remove("hidden","tag-nosub");
-    subStatusEl.classList.add("tag-sub");
-  } else {
-    subStatusEl.textContent = "(미구독)";
-    subStatusEl.classList.remove("hidden","tag-sub");
-    subStatusEl.classList.add("tag-nosub");
-  }
+    // 구독 상태 뱃지
+    if (is_subscribed === "active") {
+        //subStatusEl.textContent = `${plan_name}(구독중-${plan_date})`;
+        subStatusEl.innerHTML = `<span style="color:blue; font-weight:bold; font-size:11px;">${plan_name}(구독중-${plan_date})</span>`;
+        subStatusEl.classList.remove("hidden","tag-nosub");
+        subStatusEl.classList.add("tag-sub");
+    } else if (is_subscribed === "request") {
+        subStatusEl.innerHTML = `<span style="color:green; font-weight:bold; font-size:14px;">(${plan_name}-구독요청)</span>`;
+        subStatusEl.classList.remove("hidden","tag-sub");
+        subStatusEl.classList.add("tag-nosub");
+    } else {
+        //subStatusEl.textContent = "(미구독)";
+        subStatusEl.innerHTML = `<span style="color:red; font-weight:bold; font-size:14px;">(미구독)</span>`;
+        subStatusEl.classList.remove("hidden","tag-sub");
+        subStatusEl.classList.add("tag-nosub");
+    }
 
-  // ✅ 마이페이지 버튼을 구독/마이페이지 모드로 전환
-  setMypageButton(is_subscribed);
+    // ✅ 마이페이지 버튼을 구독/마이페이지 모드로 전환 => is_subscribed가 'active'일 때만 true
+    const isSubscribed = (is_subscribed === "active");
+    setMypageButton(isSubscribed);
+
+    // 🔽🔽🔽 [추가] 구독 '요청중(request)' 상태면 구독 버튼 비활성화
+    if (is_subscribed === "request") {
+        // setMypageButton()에서 미구독 상태로 '구독하기' 버튼이 세팅된 뒤, 비활성화만 적용
+        btnMypage.disabled = true;
+        btnMypage.textContent = "구독요청진행중..";
+        btnMypage.classList.add("btn-disabled");   // 선택: 스타일이 있다면 사용
+    }
 }
 
+// 마이페이지 / 구독 버튼 설정
 function setMypageButton(isSubscribed) {
   if (isSubscribed) {
     // 구독중 → 마이페이지 버튼
@@ -64,12 +80,16 @@ function setMypageButton(isSubscribed) {
     btnMypage.classList.remove("btn-subscribe");
     btnMypage.classList.add("btn-secondary");
     btnMypage.dataset.mode = "mypage";
+    // 충전 버튼 표시
+    if (btnCharge) btnCharge.classList.remove("hidden");
   } else {
     // 미구독 → 구독 버튼
     btnMypage.textContent = "💎 구독하기";
     btnMypage.classList.remove("btn-secondary");
     btnMypage.classList.add("btn-subscribe");
     btnMypage.dataset.mode = "subscribe";
+    // 충전 버튼 숨김
+    if (btnCharge) btnCharge.classList.add("hidden");
   }
 }
 
@@ -77,11 +97,9 @@ function setLoggedInUI(profile) {
       nicknameEl.textContent = profile.nickname || "-";
       smsCountEl.textContent = (profile.sms_count ?? 0).toString();
 
-      // is_subscribed가 'active'일 때만 true
-      const isSubscribed = (profile.is_subscribed === "active");
-
+      // 구독 상태 적용
       applySubUI({
-        is_subscribed: isSubscribed,
+        is_subscribed: profile.is_subscribed,
         plan_name: profile.plan_name,
         plan_date: profile.plan_date
       });
@@ -245,8 +263,9 @@ async function openMypageWithToken() {
       }
 
       const base = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : '';
-      const query = access_token ? `?access_token=${encodeURIComponent(access_token)}` : '';
-      const url = `${base}/api/user/mypage${query}`;
+      // const query = access_token ? `?access_token=${encodeURIComponent(access_token)}` : '';
+      // const url = `${base}/api/user/mypage${query}`;
+      const url  = `${base}/api/menu?menu=mypage&access_token=${encodeURIComponent(access_token)}`;
 
       const width = 590, height = 800;
       const screenW = window.screen.availWidth;
@@ -274,7 +293,7 @@ async function openMypageWithToken() {
 
 // ====== 구독 팝업 열기 ======
 function openSubscribePopup(token) {
-  const w = 420, h = 420;
+  const w = 420, h = 490;
   const left = Math.round((screen.width - w) / 2);
   const top  = Math.round((screen.height - h) / 2);
 
@@ -294,8 +313,8 @@ function openSubscribePopup(token) {
   pop.focus?.();
 }
 
-// ====== 구독 충전 버튼 ======
-benCharge.addEventListener("click", async () => {
+// ====== 문자 충전 버튼 ======
+btnCharge.addEventListener("click", async () => {
       const cs = await csGet(["access_token"]);
       let token = cs.access_token;
       if (!token) { showToast("로그인 후 이용해주세요."); return; }

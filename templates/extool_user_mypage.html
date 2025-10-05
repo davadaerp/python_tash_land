@@ -97,69 +97,88 @@
 
   <h2>마이페이지</h2>
   <script>
+    // URL 파라미터에서 access_token 추출
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('access_token') || "";
 
     function activateTab(tabName) {
-        // 탭 활성화/비활성
-        document.querySelectorAll('.tab').forEach(t => {
-          t.classList.toggle('active', t.dataset.tab === tabName);
-        });
-        // 패널 표시 전환
-        document.querySelectorAll('.panel').forEach(p => {
-          p.style.display = (p.id === tabName) ? 'block' : 'none';
-        });
+      // 탭 활성화/비활성
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+      });
+      // 패널 표시 전환
+      document.querySelectorAll('.panel').forEach(p => {
+        p.style.display = (p.id === tabName) ? 'block' : 'none';
+      });
     }
 
-    // ===== 서버 호출 함수들(탭별) =====
+    // ===== member 데이터 로드 =====
     async function loadMember() {
-      const panel = 'member';
-      showLoading(panel);
       try {
-        const res = await fetch('/api/user/mypage/member', { credentials: 'include' });
+        const res = await fetch('/api/user/mypage/member', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          credentials: 'include'
+        });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const j = await res.json();
-        const rows = [
-          ['아이디', j.user_id],
-          ['사용자명', j.user_name],
-          ['폰번호', j.phone],
-          ['별명', j.nickname],
-          ['apt_key', j.apt_key],
-          ['villa_key', j.villa_key],
-          ['sanga_key', j.sanga_key],
-          ['구독일자', j.subscribe_date],
-          ['탈퇴일자', j.unsubscribe_date || '—'],
-          ['문자충전건수', j.sms_quota],
-          ['등기충전금액', j.deed_balance]
-        ];
-        renderKeyValue(panel, '회원정보', rows);
+
+        // 사용자명(별명) 합치기
+        //const userNameWithNick = j.user_name + (j.nick_name ? ` (${j.nick_name})` : "");
+        const userNameWithNick = j.user_name;
+
+        const map = {
+          user_id: j.user_id,
+          user_name_nick: userNameWithNick,
+          phone: j.phone_number,
+          registration_date: j.registration_date,
+          recharge_sms_count: j.recharge_sms_count,
+          recharge_amount: j.recharge_amount,
+          subscription_start_date: j.subscription_start_date,
+          subscription_month: j.subscription_month,
+          subscription_payment: j.subscription_payment,
+          subscription_status: j.subscription_status
+        };
+
+        Object.entries(map).forEach(([field, val]) => {
+          const el = document.querySelector(`#member td[data-field="${field}"]`);
+          if (el) el.textContent = val ?? '—';
+        });
       } catch (e) {
         console.error(e);
-        showError(panel, '회원정보를 불러오지 못했습니다.');
+        // 간단한 오류 표시(필요 시 별도 영역 추가 가능)
+        alert('회원정보를 불러오지 못했습니다.');
       }
     }
 
     // ===== 탭 라우팅 =====
-    //const loaders = { member: loadMember, payment: loadPayment, requests: loadRequests, etc: loadEtc };
+    const loaders = {
+      member: loadMember
+      // payment: loadPayment,
+      // requests: loadRequests,
+      // etc: loadEtc
+    };
 
     function bindTabs() {
       document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', async () => {
           const name = tab.dataset.tab;
           activateTab(name);
-          // const loader = loaders[name];
-          // if (loader) loader();  // 화면은 유지, 해당 패널만 데이터 교체
+          if (typeof loaders[name] === 'function') {
+            loaders[name]();
+          }
         });
       });
     }
 
     window.addEventListener('DOMContentLoaded', function() {
-        // var userInfo = {{ userInfo|tojson }};
-        // alert('userInfo: ' + JSON.stringify(userInfo));
-        // console.log('userInfo:', userInfo);
-        bindTabs();
-        activateTab('member');
-        //loadMember();  // 첫 탭 자동 로드
+      bindTabs();
+      activateTab('member');
+      loadMember(); // 첫 탭 자동 로드
     });
-
   </script>
 
   <div class="tabs">
@@ -169,22 +188,21 @@
     <div class="tab" data-tab="etc">기타</div>
   </div>
 
+  <!-- ▼ 현재 테이블 구조 유지, 값 칸만 data-field 로 바꿈 -->
   <div id="member" class="panel">
     <h3>회원정보</h3>
     <table>
       <tr><th>필드명</th><th>값</th></tr>
-      <tr><td>아이디</td><td>{{ userInfo['user_id'] }}</td></tr>
-      <tr><td>사용자명</td><td>{{ userInfo['user_name'] }}</td></tr>
-      <tr><td>패스워드</td><td>••••••••</td></tr>
-      <tr><td>폰번호</td><td>010-1234-5678</td></tr>
-      <tr><td>별명</td><td>길동이</td></tr>
-      <tr><td>apt_key</td><td>B2BtWbuZV...</td></tr>
-      <tr><td>villa_key</td><td>B2BtWbuZV...</td></tr>
-      <tr><td>sanga_key</td><td>B2BtWbuZV...</td></tr>
-      <tr><td>구독일자</td><td>2025-01-15</td></tr>
-      <tr><td>탈퇴일자</td><td>—</td></tr>
-      <tr><td>문자충전건수</td><td>50</td></tr>
-      <tr><td>등기충전금액</td><td>10,000원</td></tr>
+      <tr><td>아이디</td><td data-field="user_id"></td></tr>
+      <tr><td>사용자명(별명)</td><td data-field="user_name_nick"></td></tr>
+      <tr><td>폰번호</td><td data-field="phone"></td></tr>
+      <tr><td>가입일자</td><td data-field="registration_date"></td></tr>
+      <tr><td>문자충전건수</td><td data-field="recharge_sms_count"></td></tr>
+      <tr><td>등기충전금액</td><td data-field="recharge_amount"></td></tr>
+      <tr><td>구독일자</td><td data-field="subscription_start_date"></td></tr>
+      <tr><td>구독개월</td><td data-field="subscription_month"></td></tr>
+      <tr><td>구독금액</td><td data-field="subscription_payment"></td></tr>
+      <tr><td>구독상태</td><td data-field="subscription_status"></td></tr>
     </table>
   </div>
 

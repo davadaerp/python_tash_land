@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>구독 결제</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
+    h2 { margin: 0 0 12px 0; font-size: 18px; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
+    .bank { background:#f7fbff; border:1px dashed #bfe0ff; padding:10px; border-radius:10px; margin-bottom:12px; }
+    .bank strong { color:#0b68ff; }
+    .copy { font-size:12px; color:#0b68ff; cursor:pointer; margin-left:8px; }
+    .opt { display:flex; gap:8px; align-items:center; margin:8px 0; }
+    .small { color:#666; font-size:12px; }
+
+    .options { margin: 8px 0 16px 0; }
+
+    .selected-wrap { margin: 6px 0 16px 0; }
+    .selected-label { font-size: 12px; color:#666; }
+    .selected-plan {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 900;
+      color: #0b68ff;
+      letter-spacing: 0.2px;
+    }
+
+    .btn { width:100%; padding:10px 12px; border:0; border-radius:10px; cursor:pointer; font-size:14px; }
+    .btn-confirm { background: linear-gradient(135deg, #7b5cff, #4cc3ff); color:#fff; font-weight:700; box-shadow:0 6px 16px rgba(123,92,255,.25); }
+    .btn-cancel { background:#efefef; color:#333; }
+    .btn-row { display:flex; gap:8px; }
+    .btn-row .btn { flex: 1; }
+
+    /* ===== 추가: 휴대폰 인증 UI 스타일 ===== */
+    .section { margin: 12px 0 16px 0; }
+    .consent-label { font-size:13px; font-weight:700; margin-bottom:8px; }
+    .input-group { display:flex; align-items:center; gap:8px; margin:6px 0; }
+    .input-group input { flex:1; padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px; }
+    .button-blue { padding:10px 12px; border:0; border-radius:8px; background:#0b68ff; color:#fff; cursor:pointer; }
+    .button-blue[disabled] { opacity:.6; cursor:not-allowed; }
+    .timer { font-size:12px; color:#666; min-width:42px; text-align:right; }
+
+    /* ===== (2) 개인정보 동의 라벨 스타일(가벼운 보정) ===== */
+    .consent-row { display:flex; align-items:center; gap:8px; margin:10px 0 14px 0; font-size:13px; }
+    .consent-row input { transform: translateY(1px); }
+    .consent-required { color:#e11d48; font-weight:700; }
+  </style>
+</head>
+<body>
+  <h2>구독 신청</h2>
+  <div class="card">
+    <div class="bank">
+      <div><strong>입금 계좌</strong></div>
+      <div>
+        국민은행&nbsp;<b>1110-11-11111</b>&nbsp;
+        <span id="copy" class="copy">복사</span>
+      </div>
+      <div class="small">입금자명은 카카오 닉네임과 동일하게 부탁드립니다.</div>
+    </div>
+
+    <!-- 플랜 선택 -->
+    <div class="options">
+      <label class="opt"><input type="radio" name="plan" value="1" checked> 1개월 (월 5만원)</label>
+      <label class="opt"><input type="radio" name="plan" value="6"> 6개월 (월 7만원)</label>
+      <label class="opt"><input type="radio" name="plan" value="12"> 1년 (월 10만원)</label>
+    </div>
+
+    <!-- ===== (추가) 본인확인 인증 섹션: 플랜 선택 위에 배치 ===== -->
+    <div class="section">
+      <div class="consent-label">* 본인확인 인증</div>
+      <div class="input-group">
+        <input type="text" id="phone-number" placeholder="휴대폰번호">
+        <button id="send-code-btn" class="button-blue">휴대폰 인증</button>
+      </div>
+
+      <!-- 인증 입력부 (초기엔 감춤) -->
+      <div class="input-group" id="verify-group" style="display:none;">
+        <input type="number" id="verify-code-input" placeholder="인증번호 입력" />
+        <button id="verify-btn" class="button-blue">확인</button>
+        <span class="timer" id="timer-display">02:00</span>
+      </div>
+    </div>
+    <!-- ===== (추가 끝) ===== -->
+
+    <!-- ===== (2) 개인정보 수집 및 이용 동의 (필수) - 구독 버튼 위에 추가 ===== -->
+    <div class="consent-row">
+      <input type="checkbox" id="consent-required">
+      <label for="consent-required"><span class="consent-required">*</span> 개인정보 수집 및 이용 동의 (필수)</label>
+    </div>
+
+    <!-- 버튼 한 줄 -->
+    <div class="btn-row">
+      <button id="btnDoSubscribe" class="btn btn-confirm">구독 신청</button>
+      <button id="btnCancel" class="btn btn-cancel">닫기</button>
+    </div>
+
+    <p class="small">※ 신청 후 관리자가 확인하여 구독을 활성화합니다.</p>
+  </div>
+
+  <script>
+    // URL 파라미터에서 access_token 추출 (기존 코드)
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('access_token') || "";
+
+    // 선택 텍스트 매핑 (기존 코드)
+    const planTextMap = {
+      "1m": "1개월(10만원)",
+      "6m": "6개월(7만원)",
+      "12m": "1년(10만원)"
+    };
+
+    // 계좌 복사 (기존 코드)
+    document.getElementById('copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText('국민 1110-11-11111');
+        alert('계좌번호가 복사되었습니다.');
+      } catch(_) {
+        alert('복사 실패. 수동으로 복사해주세요.');
+      }
+    });
+
+    // 닫기 (기존 코드)
+    document.getElementById('btnCancel').addEventListener('click', () => window.close());
+
+    // ===== (추가) 휴대폰 인증 로직 =====
+    let authCode = null;
+    let timerInterval = null;
+    let isPhoneChecked = false;
+    let timeLeft = 120; // seconds
+
+    const $phone      = document.getElementById('phone-number');
+    const $sendBtn    = document.getElementById('send-code-btn');
+    const $verifyWrap = document.getElementById('verify-group');
+    const $codeInput  = document.getElementById('verify-code-input');
+    const $verifyBtn  = document.getElementById('verify-btn');
+    const $timer      = document.getElementById('timer-display');
+    const $consentReq = document.getElementById('consent-required'); // (2) 동의 체크박스
+
+    function formatMMSS(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = 120;
+      $timer.textContent = formatMMSS(timeLeft);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        $timer.textContent = formatMMSS(timeLeft);
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          alert('인증시간이 만료되었습니다. 다시 시도해주세요.');
+          resetSmsFlow();
+        }
+      }, 1000);
+    }
+
+    function resetSmsFlow() {
+      clearInterval(timerInterval);
+      authCode = null;
+      isPhoneChecked = false;
+      $verifyWrap.style.display = 'none';
+      $sendBtn.disabled = false;
+      $sendBtn.textContent = '휴대폰 인증';
+      $phone.disabled = false;
+      $codeInput.value = '';
+      $verifyBtn.disabled = false;
+      $codeInput.disabled = false;
+      $timer.textContent = '02:00';
+    }
+
+    // 1) 인증번호 전송 버튼 클릭 -------------- (1) 서버 호출로 변경 --------------
+    $sendBtn.addEventListener('click', async () => {
+      const phone = ($phone.value || '').trim();
+      if (!/^01[0-9]{8,9}$/.test(phone)) {
+        alert('유효한 휴대폰 번호를 입력해주세요.');
+        return;
+      }
+
+      // 클라이언트에서 6자리 코드 생성(서버로 전달하여 SMS 발송)
+      authCode = String(Math.floor(100000 + Math.random() * 900000));
+
+      try {
+        const resp = await fetch('/api/user/subscribe_auth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token            // 인증 필요 시 포함
+          },
+          body: JSON.stringify({
+            phoneNumber: phone,
+            authNumber: authCode
+          })
+        });
+
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.result !== 'Success') {
+          const msg = (data && data.message) ? data.message : '인증번호 발송에 실패했습니다.';
+          alert(msg);
+          return;
+        }
+
+        // 서버 발송 성공 시에만 UI 전환/타이머 시작
+        $phone.disabled = true;
+        $sendBtn.disabled = true;
+        $sendBtn.textContent = '인증번호 재전송';
+        $verifyWrap.style.display = 'flex';
+        startTimer();
+
+      } catch (err) {
+        alert('네트워크 오류로 인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    });
+
+    // 2) 인증번호 확인 버튼 클릭 (기존 로직 유지: 로컬 비교)
+    $verifyBtn.addEventListener('click', () => {
+      const entered = ($codeInput.value || '').trim();
+      if (entered === authCode) {
+        isPhoneChecked = true;
+        clearInterval(timerInterval);
+        alert('휴대폰 인증이 완료되었습니다.');
+        $verifyBtn.disabled = true;
+        $codeInput.disabled = true;
+      } else {
+        alert('인증번호가 올바르지 않습니다. 다시 시도해주세요.');
+        resetSmsFlow();
+      }
+    });
+
+    // ===== (추가) 구독 신청 선검증: 캡처 단계에서 차단 =====
+    // (기존) 휴대폰 인증 여부 + (2) 개인정보 동의 체크 추가
+    const $subscribeBtn = document.getElementById('btnDoSubscribe');
+    $subscribeBtn.addEventListener('click', function(e) {
+      if (!$consentReq.checked) {                               // (2) 동의 체크 확인
+        alert('개인정보 수집 및 이용 동의(필수)에 체크해 주세요.');
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return false;
+      }
+      if (!isPhoneChecked) {
+        alert('구독 신청 전, 휴대폰 본인확인 인증을 완료해주세요.');
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }, true); // 캡처 단계
+
+    // ===== (기존) 신청 요청 =====
+    document.getElementById('btnDoSubscribe').addEventListener('click', async () => {
+      const val = (document.querySelector('input[name="plan"]:checked') || {}).value;
+      if (!val) { alert('구독 기간을 선택해주세요.'); return; }
+
+      const chosenText = planTextMap[val] || '';
+      if (!confirm(`${chosenText} 선택하신 조건으로 구독하시겠습니까?`)) return;
+
+      // ✅ 전화번호 포함 (기존 반영)
+      const phoneNumber = document.getElementById('phone-number').value.trim();
+
+      try {
+        const r = await fetch('/api/user/subscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ plan: val, phoneNumber: phoneNumber })
+        });
+
+        if (!r.ok) {
+          const t = await r.text();
+          alert('구독 신청 실패: ' + t);
+          return;
+        }
+
+        alert('구독 신청이 접수되었습니다.');
+        if (window.opener) {
+          window.opener.postMessage({ type: 'subscription_updated' }, '*');
+        }
+        window.close();
+      } catch (e) {
+        alert('네트워크 오류로 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    });
+  </script>
+</body>
+</html>

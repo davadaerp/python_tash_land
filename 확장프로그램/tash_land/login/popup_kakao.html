@@ -10,7 +10,7 @@
     h1 { font-size: 18px; margin: 0 0 12px 0; }
     .card { border: 1px solid #eee; border-radius: 12px; padding: 14px; }
     .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; gap: 8px; }
-    .label { font-size: 12px; font-weight: 700; color: #666; white-space: nowrap; }
+    .label { font-size: 12px; font-weight: 800; color: #666; white-space: nowrap; }
     .value { font-weight: 600; }
     .hidden { display: none; }
     .btn { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; font-size: 14px; }
@@ -20,6 +20,19 @@
     .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; background: rgba(0,0,0,0.8); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
     .btn-group { display: flex; gap: 8px; }
     .btn-group .btn { width: auto; flex: 1; }
+
+    .logo-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;          /* 아이콘과 글자 사이 여백 */
+      font-size: 18px;
+      margin: 0 0 12px 0;
+    }
+
+    .logo-icon {
+      width: 21px;       /* 아이콘 크기 */
+      height: 21px;
+    }
 
     /* 문자 건수 행 오른쪽 정렬 */
     .row {
@@ -68,11 +81,14 @@
 </head>
 <body>
   <div class="container">
-    <h1>투자멘토스</h1>
+    <h1 class="logo-title">
+      <img src="/img/nland.png" alt="로고" class="logo-icon">
+      투자멘토스
+    </h1>
 
     <!-- 비로그인 상태 -->
     <div id="login-section" class="card hidden">
-      <p class="center">카카오로 로그인 하세요</p>
+      <p class="center">카카오에 로그인 하세요</p>
       <button id="btn-login" class="btn btn-kakao">카카오 로그인</button>
     </div>
 
@@ -87,7 +103,7 @@
       </div>
 
       <div class="row">
-        <span class="label">문자 건수</span>
+        <span class="label">문자건수</span>
         <div class="sms-wrap">
           <span id="sms-count" class="value">-</span>
           <button id="btn-charge" class="btn btn-charge">충전</button>
