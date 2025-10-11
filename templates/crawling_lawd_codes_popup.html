@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>법정동코드 관리</title>
+<style>
+  :root{
+    --primary:#0b68ff;
+    --danger:#dc3545;
+    --muted:#666;
+    --border:#e8e9ee;
+    --bg:#f7f8fb;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif;background:var(--bg);color:#111}
+  .wrap{max-width:980px;margin:28px auto;padding:0 16px}
+  .title{
+    font-size:22px;font-weight:800;margin:0 0 14px 0;
+    background:linear-gradient(90deg,#111,#3b3b3b);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 14px 10px 14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  select,input[type="text"]{
+    border:1px solid var(--border);border-radius:10px;padding:8px 10px;outline:none;font-size:14px;background:#fff;min-width:160px
+  }
+  .btn{
+    border:0;border-radius:10px;padding:9px 12px;cursor:pointer;font-weight:700;font-size:14px
+  }
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-ghost{background:#fff;border:1px solid var(--border);color:#333}
+  .list-head, .list-row{
+    display:grid;grid-template-columns: 36px 60px 160px 1fr 110px 90px;gap:8px;align-items:center
+  }
+  .list-head{
+    padding:10px;border-bottom:1px solid var(--border);color:#333;font-weight:800;background:#fafbff;border-radius:10px
+  }
+  .list{
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff
+  }
+  /* ▼▼ (1) 6행 정도 보이도록 고정 높이 + 스크롤  ▼▼ */
+  .list-body{
+    height: 329px; /* 약 6행 고정(행 높이 ~44px 기준) */
+    overflow-y:auto
+  }
+  .list-row{
+    padding:10px;border-top:1px solid var(--border);transition:background .15s ease
+  }
+  .list-row:hover{background:#fafcff}
+  .empty{padding:26px;text-align:center;color:var(--muted)}
+
+  /* ▼▼ (2) 하단 폼 구조만 변경: 구분(1줄) → 코드+코드명(1줄) → 저장(다음 줄 중앙) ▼▼ */
+  .form{display:flex;flex-direction:column;gap:10px}
+  .form-row{display:flex;gap:10px;align-items:center}
+  .form-row label{font-size:12px;color:var(--muted);font-weight:800}
+  .form-row.two{display:grid;grid-template-columns: 1fr 1fr;gap:10px;align-items:end}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .form-actions{display:flex;justify-content:center;margin-top:4px}
+  /* === 인라인 라벨 행 (구분:, 법정코드:) === */
+  .form-row.inline { display:flex; gap:10px; align-items:center; }
+  .label-inline { min-width:120px; font-size:12px; color:var(--muted); font-weight:800; }
+  .pill{
+    display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--border)
+  }
+  .pill-apt{color:#0b5; border-color:#bdeed8; background:#f2fff8}
+  .pill-sg{color:#06c; border-color:#cfe2ff; background:#f3f8ff}
+  .right{margin-left:auto}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end}
+  .muted{color:var(--muted);font-size:12px}
+  /* === 구분 select와 법정코드 input 폭 동일 === */
+  #newType, #newCode { width:240px; max-width:100%; }
+  /* === 법정코드명 입력을 1/3 더 크게 === */
+  #newName { width:320px; max-width:100%; }
+  /* === 저장 버튼 크기를 리스트 삭제 버튼과 동일 수준으로 === */
+  .form-actions .btn-primary { padding:9px 12px; width:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="title">법정동코드 관리</h1>
+
+  <div class="card">
+    <div class="toolbar">
+      <select id="filterType" title="구분">
+        <option value="">전체</option>
+        <option value="APT">아파트</option>
+        <option value="SG">상가</option>
+      </select>
+      <input id="searchInput" type="text" placeholder="법정동명 검색(예: 김포시, 운양동)" />
+      <button id="btnSearch" class="btn btn-ghost">검색</button>
+      <div class="right"></div>
+      <!-- <button id="btnDeleteSelected" class="btn btn-danger">선택 삭제</button> -->
+    </div>
+
+    <div class="list">
+      <div class="list-head">
+        <div></div>
+        <div>순서</div>
+        <div>법정코드</div>
+        <div>법정코드명</div>
+        <div>구분</div>
+        <div class="row-actions">삭제</div>
+      </div>
+      <div id="listBody" class="list-body">
+        <div class="empty">목록을 불러오는 중...</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:12px"></div>
+
+  <div class="card">
+    <!-- ▼▼ 폼 구조 (IDs/JS 동일) ▼▼ -->
+    <div class="form">
+      <!-- 1) 구분 (한 줄) -->
+      <div class="form-row inline">
+        <label for="newType" class="label-inline">구분</label>
+        <select id="newType">
+          <option value="APT">아파트</option>
+          <option value="SG">상가</option>
+        </select>
+      </div>
+
+      <!-- 2) 법정코드: [법정코드입력] [법정코드명 입력] -->
+      <div class="form-row inline">
+        <label for="newCode" class="label-inline">법정코드</label>
+        <input id="newCode" type="text" placeholder="예: 4157010300" />
+        <input id="newName" type="text" placeholder="예: 경기도 김포시 운양동" />
+      </div>
+
+      <!-- 3) 저장 버튼 (다음 줄 중앙) -->
+      <div class="form-actions">
+        <button id="btnSave" class="btn btn-primary">저장</button>
+      </div>
+    </div>
+    <!-- ▲▲ 폼 구조 끝 ▲▲ -->
+  </div>
+</div>
+
+<script>
+  // ===== 서버 주소 & 토큰 =====
+  const SERVER = "http://127.0.0.1:5001"; // lawd_codes_api.py 가 도는 곳
+  const API_TOKEN = localStorage.getItem("ADMIN_API_TOKEN") || "dev-token-123";
+
+  // ===== 엘리먼트 =====
+  const filterType   = document.getElementById('filterType');
+  const searchInput  = document.getElementById('searchInput');
+  const btnSearch    = document.getElementById('btnSearch');
+  const listBody     = document.getElementById('listBody');
+  // const btnDeleteSel = document.getElementById('btnDeleteSelected');
+
+  const newType      = document.getElementById('newType');
+  const newCode      = document.getElementById('newCode');
+  const newName      = document.getElementById('newName');
+  const btnSave      = document.getElementById('btnSave');
+
+  // ===== 상태 =====
+  let currentItems = []; // [{id, lawd_cd, lawd_name, trade_type}]
+  let selectedId = null;
+
+  // ===== 공용 fetch =====
+  async function apiGet(url) {
+    const res = await fetch(url, { credentials: 'omit' });
+    if (!res.ok) throw new Error(`GET 실패: ${res.status}`);
+    return await res.json();
+  }
+  async function apiPost(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type':'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || `POST 실패: ${res.status}`);
+    return data;
+  }
+  async function apiDelete(url) {
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || `DELETE 실패: ${res.status}`);
+    return data;
+  }
+
+  // ===== 렌더 =====
+  function renderList(items){
+    currentItems = items;
+    listBody.innerHTML = '';
+
+    if (!items || items.length === 0){
+      listBody.innerHTML = `<div class="empty">검색 결과가 없습니다.</div>`;
+      return;
+    }
+
+    items.forEach((it, idx) => {
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `
+        <div><input type="radio" name="pick" value="${it.id}"></div>
+        <div>${idx+1}</div>
+        <div>${it.lawd_cd}</div>
+        <div title="${it.lawd_name}">${it.lawd_name}</div>
+        <div>
+          <span class="pill ${it.trade_type==='APT'?'pill-apt':'pill-sg'}">
+            ${it.trade_type==='APT'?'아파트':'상가'}
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="btn btn-danger btn-del-row"
+                  data-id="${String(it.id)}"
+                  data-name="${it.lawd_name}"
+                  data-type="${it.trade_type}">
+            삭제
+          </button>
+        </div>
+      `;
+
+      // 라디오 선택 핸들러
+      row.querySelector('input[type="radio"]').addEventListener('change', (e)=>{
+        selectedId = Number(e.target.value);
+      });
+
+      // 행별 삭제 버튼 (보강)
+      row.querySelector('.btn-del-row').addEventListener('click', async (e)=>{
+        const btn   = e.currentTarget;
+        const rowEl = btn.closest('.list-row');
+
+        // 1) id 파싱 (버튼 data-id 우선)
+        let id = Number(btn.dataset.id);
+        if (!Number.isFinite(id)) {
+          // 2) fallback: 같은 행 라디오 value 시도
+          const radio = rowEl?.querySelector('input[type="radio"]');
+          if (radio && radio.value !== undefined) {
+            id = Number(radio.value);
+          }
+        }
+        if (!Number.isFinite(id)) {
+          console.error('삭제 ID 파싱 실패:', btn.dataset.id);
+          alert('삭제 대상 ID를 찾을 수 없습니다.');
+          return;
+        }
+
+        // 3) 라디오가 선택되어 있지 않으면 선택 처리
+        const radio = rowEl?.querySelector('input[type="radio"]');
+        if (radio && !radio.checked) {
+          radio.checked = true;
+          selectedId = id;
+        }
+
+        // 4) trade_type 포함 메시지
+        const name       = btn.dataset.name || '';
+        const item       = currentItems.find(x => Number(x.id) === id);
+        const tradeType  = item?.trade_type || btn.dataset.type || '';
+        const tradeLabel = tradeType === 'APT' ? '아파트'
+                         : tradeType === 'SG'  ? '상가'
+                         : tradeType;
+
+        if (!confirm(`'${name}' (${tradeLabel}) 항목을 삭제하시겠습니까?`)) return;
+
+        try{
+          await apiDelete(`/api/crawl_lawd_codes/${id}`);
+          renderList(currentItems.filter(x => Number(x.id) !== id));
+        }catch(err){
+          alert(err.message || '삭제 중 오류가 발생했습니다.');
+        }
+      });
+
+      listBody.appendChild(row);
+    });
+  }
+
+  // ===== 목록 로드 =====
+  async function loadList(){
+    const params = new URLSearchParams();
+    const t = filterType.value.trim();
+    const q = searchInput.value.trim();
+    if (t) params.set('trade_type', t);
+    if (q) params.set('q', q);
+
+    try{
+      listBody.innerHTML = `<div class="empty">불러오는 중...</div>`;
+      const data = await apiGet(`/api/crawl_lawd_codes/list?${params.toString()}`);
+      renderList(data.items || []);
+    }catch(err){
+      listBody.innerHTML = `<div class="empty">목록을 불러오지 못했습니다.<br>${err.message||''}</div>`;
+    }
+  }
+
+  // ===== 이벤트 =====
+  btnSearch.addEventListener('click', loadList);
+  filterType.addEventListener('change', loadList);
+
+  // 저장(UPSERT)
+  btnSave.addEventListener('click', async ()=>{
+    const trade_type = newType.value.trim();
+    const lawd_cd    = newCode.value.trim();
+    const lawd_name  = newName.value.trim();
+
+    if (!lawd_cd){ alert('법정코드를 입력하세요.'); newCode.focus(); return; }
+    if (!/^\d{10}$/.test(lawd_cd)){ alert('법정코드는 숫자 10자리여야 합니다.'); newCode.focus(); return; }
+    if (!lawd_name){ alert('법정코드명을 입력하세요.'); newName.focus(); return; }
+
+       // 현재 리스트에서 중복 여부 체크
+    const typeLabel = (t) => t === 'APT' ? '아파트' : (t === 'SG' ? '상가' : t);
+    const existingSame   = currentItems.find(x => x.lawd_cd === lawd_cd && x.trade_type === trade_type);
+    const existingOther  = currentItems.find(x => x.lawd_cd === lawd_cd && x.trade_type !== trade_type);
+
+    let confirmMsg = '';
+    // if (existingSame) {
+    //   // 같은 구분에 동일 코드가 이미 존재 → 업데이트(덮어쓰기) 안내
+    //   confirmMsg =
+    //     `[중복 안내] 동일 구분으로 이미 존재합니다.\n` +
+    //     `저장 시 법정코드명이 업데이트(덮어쓰기) 됩니다.\n\n` +
+    //     `[구분] ${typeLabel(trade_type)}\n` +
+    //     `[법정코드] ${lawd_cd}\n` +
+    //     `[기존명] ${existingSame.lawd_name}\n` +
+    //     `[저장명] ${lawd_name}\n\n` +
+    //     `이대로 저장(업데이트) 하시겠습니까?`;
+    // } else if (existingOther) {
+    //   // 다른 구분에 동일 코드가 이미 존재 → 안내 후 진행 여부
+    //   confirmMsg =
+    //     `[안내] 동일 법정코드가 다른 구분으로 이미 존재합니다.\n\n` +
+    //     `[이미 존재] ${typeLabel(existingOther.trade_type)} · ${existingOther.lawd_name}\n` +
+    //     `[추가 저장] ${typeLabel(trade_type)} · ${lawd_name}\n\n` +
+    //     `이대로 저장(추가) 하시겠습니까?`;
+    // } else {
+    //   // 일반 저장 확인
+    //   confirmMsg =
+    //     `다음 내용으로 저장하시겠습니까?\n\n` +
+    //     `[구분] ${typeLabel(trade_type)}\n` +
+    //     `[법정코드] ${lawd_cd}\n` +
+    //     `[법정코드명] ${lawd_name}`;
+    // }
+    confirmMsg =
+        `다음 내용으로 저장하시겠습니까?\n\n` +
+        `[구분] ${typeLabel(trade_type)}\n` +
+        `[법정코드] ${lawd_cd}\n` +
+        `[법정코드명] ${lawd_name}`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try{
+      await apiPost(`/api/crawl_lawd_codes/insert`, { lawd_cd, lawd_name, trade_type });
+      await loadList();
+    }catch(err){
+      alert(err.message || '저장 중 오류가 발생했습니다.');
+    }
+  });
+
+  // 초기 로드
+  loadList();
+</script>
+</body>
+</html>

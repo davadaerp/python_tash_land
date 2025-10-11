@@ -7,7 +7,6 @@ from flask import request, jsonify
 from config import SECRET_KEY
 from master.user_db_utils import verify_user
 
-
 # Auth Header를 이용한 처리
 def token_header_required(f):
     @wraps(f)
@@ -61,7 +60,7 @@ def token_required(f):
         return f(current_user, *args, **kwargs)
     return decorated
 
-# 쿠키를 이용한 토큰처리
+# 쿠키를 이용한 토큰처리(PC 카카오 로그인 전용)
 def kakao_token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -77,6 +76,40 @@ def kakao_token_required(f):
 
         return f(current_user, *args, **kwargs)
     return decorated
+
+
+from kakao.kakao_client import kakao           # KakaoAPI 인스턴스 (단일 지점)
+
+# 확장툴 사용시 공통 인증 에러 클래스
+def kakao_extool_auth_required(fn):
+    """
+    Authorization: Bearer <JWT> 를 검증하고,
+    payload.sub(=user_id)를 view 함수 인자로 주입.
+    """
+    @wraps(fn)
+    def _wrapped(*args, **kwargs):
+        try:
+            auth = request.headers.get("Authorization", "")
+            # 토큰 정합성 체크
+            if not auth.startswith("Bearer "):
+                return jsonify({"error": "unauthorized"}), 401
+            token = auth.split(" ", 1)[1]
+            print("kakao_extool_auth_required token:", token)
+            payload = kakao.verify_jwt(token)
+            if not payload:
+                return jsonify({"error": "인증이 안된 사용자입니다."}), 401
+
+            user_id = payload.get("sub")
+            if not user_id:
+                return jsonify({"error": "인증 페이로드가 유효하지 않습니다."}), 401
+
+        except Exception:
+            # 로그만 남기고 500 통일
+            # current_app.logger.exception("Auth error")
+            return jsonify({"error": "internal_error"}), 500
+
+        return fn(user_id=user_id, *args, **kwargs)
+    return _wrapped
 
 def create_access_token():
     """

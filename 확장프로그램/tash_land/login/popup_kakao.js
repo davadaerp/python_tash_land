@@ -1,6 +1,6 @@
 // ====== 공통 ======
-const SERVER = "http://127.0.0.1:5000";
-//const SERVER = "https://erp-dev.bacchuserp.com";
+//const SERVER = "http://127.0.0.1:5000";
+const SERVER = "https://erp-dev.bacchuserp.com";
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
 const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
 const API_ME_URL = `${SERVER}/api/kakao/me`;
@@ -41,7 +41,7 @@ function setLoggedOutUI() {
     loginSection.classList.remove("hidden");
 }
 
-function applySubUI({ is_subscribed, plan_name, plan_date }) {
+function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
     // 구독 상태 뱃지
     if (is_subscribed === "active") {
         //subStatusEl.textContent = `${plan_name}(구독중-${plan_date})`;
@@ -69,6 +69,19 @@ function applySubUI({ is_subscribed, plan_name, plan_date }) {
         btnMypage.disabled = true;
         btnMypage.textContent = "구독요청진행중..";
         btnMypage.classList.add("btn-disabled");   // 선택: 스타일이 있다면 사용
+    }
+
+    // 🔽🔽🔽 [추가] 문자 충전 상태가 'request'일 경우 버튼 내용 변경
+    if (is_recharged === "request") {
+        btnCharge.textContent = "충전중..";
+        btnCharge.disabled = true;
+        btnCharge.style.color = "white";
+        btnCharge.classList.add("btn-disabled");
+    } else if (btnCharge) {
+        btnCharge.textContent = "문자충전";
+        btnCharge.disabled = false;
+        btnCharge.style.color = "blue";
+        btnCharge.classList.remove("btn-disabled");
     }
 }
 
@@ -101,7 +114,8 @@ function setLoggedInUI(profile) {
       applySubUI({
         is_subscribed: profile.is_subscribed,
         plan_name: profile.plan_name,
-        plan_date: profile.plan_date
+        plan_date: profile.plan_date,
+        is_recharged: profile.is_recharged
       });
       //
       loginSection.classList.add("hidden");
@@ -129,7 +143,7 @@ async function restoreSession() {
         if (!r.ok) throw new Error("세션 만료");
 
         // is_subscribed = null(cancelled), active(true), plan_name = "프리미엄", ...
-        const me = await r.json(); // { nickname, is_subscribed, plan_name, plan_date, sms_count, ... }
+        const me = await r.json(); // { nickname, is_subscribed, is_recharged, plan_name, plan_date, sms_count, ... }
         // 저장 동기화
         await csSet({
           access_token: token,

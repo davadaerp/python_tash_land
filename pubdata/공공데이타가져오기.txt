@@ -1,0 +1,46 @@
+공공데이타포털(https://www.data.go.kr/iim/main/mypageMain.do)
+- 카카오톡(wfight69@gmail.com)으로 접속-mypage이동
+  : 서비스키 => B2BtWbuZVFz%2FEJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP%2BECsW5wB4TEwbgxS2PA%3D%3D
+
+0. 법정동코드 데이타생성
+  : 법정동코드.txt를 읽어서 lawd_code테이블을 생성함
+
+1. 아파트실거래가(2025-02-18 ~ 2027-02-18)
+  : https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade
+  : 인증키 -> B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==
+
+2. 빌라실거래가(2025-02-18 ~ 2027-02-18)
+  : https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade
+  : 인증키 -> B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==
+
+3. 상가실거래가(2025-01-12 ~ 2027-01-12)
+  :	https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade
+  : 인증키 -> B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==
+
+4. 인구수가져오기(2025-08-12 ~ 2027-08-12, 행정안전부_법정동별(행정동 통반단위) 성/연령별 주민등록 인구수)
+   : 시도명, 시군구명, 법정동명, 리명, 행정기관코드, 행정동명, 통, 반, 총인구수, 남자인구수, 여자인구수, 만0~9세남자, …, 만100세이상남자, 만0~9세여자, …, 만100세이상여자수를 조회)
+   - 방식1
+   : https://apis.data.go.kr/1741000/stdgSexdAgePpltn/selectStdgSexdAgePpltn
+   : 인증키 -> B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==
+
+    - 요청URL 예시 => 개고생(SSL에러시 http로 변경하여 테스트, 차후 서버에서 테스트시는 https로 변경)
+      : stdgCd: 법정동코드, srchFrYm: 조회시작년월, srchToYm: 조회종료년월, lv: 1(시도), 2(시군구), 3(읍면동), 4(리), regSeCd: 1(행정동), type: JSON, numOfRows: 페이지당 데이터 건수, pageNo: 페이지 번호
+      : https://apis.data.go.kr/1741000/stdgSexdAgePpltn/selectStdgSexdAgePpltn?serviceKey=B2BtWbuZVFz%2FEJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP%2BECsW5wB4TEwbgxS2PA%3D%3D&stdgCd=1111014000&srchFrYm=202507&srchToYm=202507&lv=1&regSeCd=1&type=JSON&numOfRows=10&pageNo=1
+
+   - 방식2: https://www.data.go.kr/data/15108074/openapi.do
+     :
+
+   - 방식3: 행자부접속 - https://jumin.mois.go.kr/index.jsp#
+    : 엑셀자료다운후 처리
+
+5. 국토부 지도(지오코더이용)
+   - 국토교통부 디지털트윈국토 사이트에서 인증키를 발급받아야 함
+     : https://www.vworld.kr/dev/v4dv_geocoderguide2_s001.do
+   - 간편인증, 개발키 받음.(MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F")
+     : https://api.vworld.kr/req/address
+   - 요청URL을 전송하면 지오코딩 서비스를 사용하실 수 있으며 일일 지오코딩 요청건수는 최대 40,000건 입니다.
+
+
+ 6. 위 데이타를 가져오기위한 공공라이브러리 존재함 => 작동안됨 ㅠ.ㅠ
+   - https://github.com/WooilJeong/PublicDataReader
+    : pip install PublicDataReader --upgrade

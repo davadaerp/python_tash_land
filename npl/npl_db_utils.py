@@ -343,7 +343,7 @@ def npl_select_single(case_number):
     finally:
         conn.close()
 
-def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, opposabilityStatus="", persionalStatus="", auctionApplicant=""):
+def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, opposabilityStatus="", persionalStatus="", auctionApplicant="", buildingPy=""):
     """
     SQLite DB(DB_FILENAME)에서 데이터를 읽어오며, 필터링 조건에 따라 반환합니다.
     year_range: "1"이면 현재년도 1월 1일부터 오늘까지, "2"이면 전년도 1월 1일부터 오늘까지
@@ -382,6 +382,25 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, oppos
     if auctionApplicant:
         query += " AND auction_applicant LIKE ?"
         params.append(f"%{auctionApplicant}%")
+
+    # 건축면적 필터링
+    if buildingPy:
+        buildingPy = float(buildingPy)
+        if buildingPy < 10:
+            min_py = 0
+            max_py = 9
+            query += " AND building_py BETWEEN ? AND ?"
+            params.extend([min_py, max_py])
+        elif buildingPy < 100:
+            # 예: 10~19, 20~29, 30~39 ...
+            min_py = (int(buildingPy) // 10) * 10
+            max_py = min_py + 9
+            query += " AND building_py BETWEEN ? AND ?"
+            params.extend([min_py, max_py])
+        else:
+            # 100 이상
+            query += " AND building_py >= ?"
+            params.append(100)
 
     # 정렬 (예: 최신 판매일자 내림차순)
     query += " ORDER BY sales_date DESC, category LIMIT 500"

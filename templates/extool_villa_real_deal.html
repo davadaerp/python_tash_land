@@ -203,14 +203,14 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             font-size: 18px;
             font-weight: bold;
-            color: #333;
+            color: red;
             z-index: 1000;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="/static/js/address_autocomplete.js"></script>
     <script src="/static/js/common.js"></script>
-    <script src="/static/js/indexed_db_utils.js"></script>
+<!--    <script src="/static/js/indexed_db_utils.js"></script>-->
     <script>
         //
         let sortDealDateAscending = false;
@@ -591,103 +591,57 @@
             // 실거래 데이타 팝업목록 함수
             async function applyDealPricePopupList(selectedItem) {
 
-                // 상가,아파트,빌라 국토부 키체크
-                if (existingKey == '' || existingKey == null) {
-                    alert('빌라키가 존재하지 않습니다.')
-                    return;
-                }
                 const lawdCd = selectedLawdCd.slice(0,5);
                 const umdNm = selectedUmdNm;
                 let allItems = [];
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
-                // indexedDB kland_sanga(국토부실거래-상가)에 조회및 저장
-                let storeName = 'kland_villa';
-                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
-                if (exists) {
-                    allItems = await  getAllItems(lawdCd, umdNm, storeName);
-                    console.log("데이터가 존재합니다.", allItems);
-                    //
-                } else {
-                    const url = "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade";
-                    //const serviceKey = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==";
-                    const serviceKey = existingKey;
-                    try {
-                        // 검색할년범위선택함(년월별로 검색을 때림)
-                        const selectedYearRange = 2;  // 2년치 기준
-                        const yearsToFetch = Array.from({length: selectedYearRange}, (_, i) => currentYear - i);
-                        for (const year of yearsToFetch) {
-                            const monthsToFetch = Array.from({length: currentMonth + 1}, (_, i) => (i + 1).toString().padStart(2, "0"));
-                            for (const month of monthsToFetch) {
-                                const params = {
-                                    serviceKey: serviceKey,
-                                    LAWD_CD: lawdCd,
-                                    DEAL_YMD: `${year}${month}`,
-                                    pageNo: 1,
-                                    numOfRows: 500
-                                };
-                                const response = await fetch(`${url}?${new URLSearchParams(params)}`);
-                                if (!response.ok) {
-                                    throw new Error(`API 요청 실패: ${response.status}`);
-                                }
-                                const text = await response.text();
-                                const parser = new DOMParser();
-                                const xmlDoc = parser.parseFromString(text, "text/xml");
-                                const items = xmlDoc.querySelectorAll("item");
-                                if (items.length === 0) {
-                                    console.log(`${year}년 ${month}월: 검색된 데이터가 없습니다.`);
-                                    continue;
-                                }
-                                items.forEach(item => {
-                                    const itemData = {};
-                                    item.childNodes.forEach(node => {
-                                        if (node.nodeType === 1) {
-                                            itemData[node.nodeName] = node.textContent;
-                                        }
-                                    });
-                                    if (!umdNm || itemData.umdNm === umdNm) {
-                                        itemData.dealDate = `${itemData.dealYear}-${itemData.dealMonth.padStart(2, "0")}-${itemData.dealDay.padStart(2, "0")}`;
-                                        itemData.excluUseArPyeong = calcPyeong(itemData.excluUseAr);
-                                        itemData.convertedDealAmount = convertToKoreanAmount(itemData.dealAmount);
-                                        //
-                                        // select설정위함(층및 전용면적)
-                                        itemData.cfloor = itemData.floor;
-                                        itemData.exclusive_area_pyeong = itemData.excluUseArPyeong;
-                                        // 평단가 계산
-                                        let tradeAmountNum = parseFloat((itemData.dealAmount || "0").replace(/,/g, ""));
-                                        let areaNum = parseFloat((itemData.excluUseArPyeong || "0").replace(/,/g, ""));
-                                        let unitPrice = tradeAmountNum / areaNum;
-                                        itemData.sortPyeongPrice = unitPrice.toFixed(1).toString();
-
-                                        // 주소를통한 위경도 가져오기
-                                        itemData.latitude = 0;
-                                        itemData.longitude = 0;
-                                        //
-                                        itemData.lawdCD = lawdCd;
-                                        itemData.ymd = getCurrentDate();
-                                        //
-                                        allItems.push(itemData);
-                                    }
-                                });
-                            }
-                        }
-                        console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
-                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
-                        //
-                    } catch (error) {
-                        console.error("오류 발생:", error);
-                        dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
-                    }
-                } // end if
-                window.currentDealFilteredItems = allItems;
-
-                // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
-                set_rent_deal_auction_floor(allItems, 'deal');
-                // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
-                set_rent_deal_auction_area(allItems, 'deal');
                 //
-                renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
+                $.ajax({
+                    url: "/api/villa/land_data",
+                    method: "GET",
+                    data: { lawd_cd: lawdCd, umd_nm: umdNm },
+                    dataType: "json"
+                  })
+                  .done(function(data) {
+                    data.forEach(itemData => {
+                        // 날짜, 평수, 금액변환
+                        itemData.dealDate = `${itemData.dealYear}-${itemData.dealMonth.padStart(2, "0")}-${itemData.dealDay.padStart(2, "0")}`;
+                        itemData.excluUseArPyeong = calcPyeong(itemData.excluUseAr);
+                        itemData.convertedDealAmount = convertToKoreanAmount(itemData.dealAmount);
+                        //
+                        // select설정위함(층및 전용면적)
+                        itemData.cfloor = itemData.floor;
+                        itemData.exclusive_area_pyeong = itemData.excluUseArPyeong;
+                        // 평단가 계산
+                        let tradeAmountNum = parseFloat((itemData.dealAmount || "0").replace(/,/g, ""));
+                        let areaNum = parseFloat((itemData.excluUseArPyeong || "0").replace(/,/g, ""));
+                        let unitPrice = tradeAmountNum / areaNum;
+                        itemData.sortPyeongPrice = unitPrice.toFixed(1).toString();
 
+                        // 위경도 (서버값 있으면 그대로, 없으면 0)
+                        itemData.latitude = itemData.lat || 0;
+                        itemData.longitude = itemData.lon || 0;
+                        //
+                        itemData.lawdCD = lawdCd;
+                        itemData.ymd = getCurrentDate();
+                        //
+                        allItems.push(itemData);
+                    });
+                    console.log("가공된 결과:", allItems);
+                    window.currentDealFilteredItems = allItems;
+
+                    // 실거래,경매 층수를 설정함(pgm_type: deal, auction)
+                    set_rent_deal_auction_floor(allItems, 'deal');
+                    // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
+                    set_rent_deal_auction_area(allItems, 'deal');
+                    //
+                    renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
+                  })
+                  .fail(function(xhr, status, error) {
+                    console.error("호출 실패:", status, error);
+                    dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
+                });
                 //
                 // 10. "평형분석" button click event
                 $("#real-pyeng-btn").on("click", function () {
@@ -861,10 +815,11 @@
                 // indexedDB auction_sanga(경매데이타-상가)에 조회및 저장
                 let allItems = [];
                 let storeName = 'auction_sanga';
-                const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                //const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
+                const exists = false;
                 if (exists) {
-                    allItems = await getAllItems(lawdCd, umdNm, storeName);
-                    console.log("데이터가 존재합니다.", allItems);
+                    // allItems = await getAllItems(lawdCd, umdNm, storeName);
+                    // console.log("데이터가 존재합니다.", allItems);
                 } else {
                      const data = await $.ajax({
                         url: BASE_URL + '/api/auction',
@@ -901,7 +856,7 @@
                             allItems.push(item);
                         });
                         console.log("데이터가 존재하지 않습니다(IndexedDB입력).=> " + storeName);
-                        await addItems(allItems, storeName); // ✅ IndexedDB에 저장
+                        // await addItems(allItems, storeName); // ✅ IndexedDB에 저장
                     }
                 }
                 window.currentAuctionFetchedItems = allItems;
@@ -1120,39 +1075,53 @@
                 // 1) 실거래 JSON 생성
                 const dealItems = window.currentDealFilteredItems || [];
                 const realAddrs = dealItems.map(item => {
-                  const amount = parseInt((item.dealAmount||"0").replace(/,/g,""), 10);
-                  const area    = parseFloat(item.buildingArPyeong) || 0;
-                  const unitPrice = area > 0 ? Math.round(amount / area) : 0;
+                    const amount = parseInt((item.dealAmount || "0").replace(/,/g, ""), 10);
+                    const area = parseFloat(item.excluUseArPyeong) || 0;
+                    const unitPrice = area > 0 ? Math.round(amount / area) : 0;
+                    const address = [lawName, item.jibun].filter(Boolean).join(" ");
 
-                  return {
-                    type:    "real",
-                    address: [lawName, item.jibun].filter(Boolean).join(" "),
-                    date:    item.dealDate,
-                    year:    Number(item.buildYear) || '',
-                    floor:   `${item.floor}층`,
-                    area:    area ? `${area}평` : "",
-                    unitPrice: formatNumber(unitPrice),
-                    price:   `${convertToKoreanAmount(amount)}@${unitPrice}`
-                  };
+                    // 국토부 지오코딩 API를 사용하여 위/경도 가져오기(서버에서 처리함)
+                    const latitude = item.latitude || 0;
+                    const longitude = item.longitude || 0;
+                    return {
+                        type: "real",
+                        address: [lawName, item.jibun].filter(Boolean).join(" "),
+                        date: item.dealDate,
+                        year: Number(item.buildYear) || '',
+                        floor: `${item.floor}층`,
+                        area: area ? `${area}평` : "",
+                        unitPrice: formatNumber(unitPrice),
+                        price: `${convertToKoreanAmount(amount)}`,
+                        latitude: latitude,
+                        longitude: longitude
+                    };
                 });
 
                 // 2) 경매 JSON 생성
                 const aucItems = window.currentAuctionFetchedItems || [];
                 const aucAddrs = aucItems.map(item => {
-                  const amount = parseInt(item.sale_price||"0", 10);
-                  const area   = parseFloat(item.building_py) || 0;
-                  const unitPrice = area > 0 ? Math.round(amount / area) : 0;
+                    const sale_price = item.sale_price/10000;   // 단위 변경
+                    const amount = parseInt(String(sale_price || "0").replace(/,/g, ""), 10);
+                    const area = parseFloat(item.building_py) || 0;
+                    const unitPrice = item.pydanga_sale;
 
-                  return {
-                    type:    "auction",
-                    address: item.address1,
-                    date:    item.sales_date,
-                    year:    '',
-                    floor:   `${item.floor}층`,
-                    area:    area ? `${area}평` : "",
-                    unitPrice: formatNumber(unitPrice),
-                    price:   `${convertToKoreanAmount(amount)}@${unitPrice}`
-                  };
+                    // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
+                    // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
+                    const latitude = item.latitude || 0;
+                    const longitude = item.longitude || 0;
+
+                    return {
+                        type: "auction",
+                        address: item.address1,
+                        date: item.sales_date,
+                        year: '',
+                        floor: `${item.floor}층`,
+                        area: area ? `${area}평` : "",
+                        unitPrice: formatNumber(unitPrice),
+                        price: `${convertToKoreanAmount(amount)}`,
+                        latitude: latitude,
+                        longitude: longitude
+                    };
                 });
 
                 // const addresses = [...realAddrs, ...aucAddrs];
@@ -1160,43 +1129,45 @@
                 const selectedFloor = $("#deal_sel_floor option:selected").text();
                 const selectedArea = $("#deal_sel_area option:selected").text();
                 const payload = {
-                  options: [
-                    {
-                      region: lawName,
-                      floor: selectedFloor,
-                      area:  selectedArea
-                    }
-                  ],
-                  addresses: [...realAddrs, ...aucAddrs]
+                    options: [
+                        {
+                            region: lawName,
+                            floor: selectedFloor,
+                            area: selectedArea
+                        }
+                    ],
+                    addresses: [...realAddrs, ...aucAddrs]
                 };
                 console.log("▶ combined addresses JSON:", payload.addresses);
 
                 const popupWidth = 1200;
-                const popupHeight= 1100;
+                const popupHeight = 1100;
 
                 // 현재 화면의 크기 기준으로 중앙 계산
                 const left = window.screenX + (window.outerWidth - popupWidth) / 2;
-                const top  = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
+                const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
 
                 const popup = window.open(
-                  '/api/ext_tool/map?menu=map_popup',
-                  'mapPopup',
-                  `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+                    '/api/ext_tool/map?menu=map_popup',
+                    'mapPopup',
+                    `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
                 );
 
                 // 팝업이 열린 후 메시지 전송
                 popup.onload = () => {
-                  // 보안을 위해 실제 origin 으로 제한하세요.
-                  popup.postMessage(payload, window.location.origin);
+                    // 보안을 위해 실제 origin 으로 제한하세요.
+                    popup.postMessage(payload, window.location.origin);
                 };
             });
         });
     </script>
 </head>
 <body>
-<div id="detailPopup" data-link="0" style="display:block; width:99%; max-width:999px; height:99%; max-height:899px; background:#fff; border:2px solid #007bff; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.2); margin-top:10px;">
-  <!-- 헤더: 제목과 닫기 버튼 -->
-  <div class="popup-header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd;">
+<div id="detailPopup" data-link="0"
+     style="display:block; width:99%; max-width:999px; height:99%; max-height:899px; background:#fff; border:2px solid #007bff; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.2); margin-top:10px;">
+    <!-- 헤더: 제목과 닫기 버튼 -->
+    <div class="popup-header"
+         style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd;">
     <h2 style="margin: 0; font-size: 20px;">
         [빌라]실거래/경매 데이터 검색(<span id="popup-lawName" style="color:blue;"></span>)
     </h2>

@@ -266,7 +266,7 @@ def main():
         for page in range(1, totPage):  # 페이지 1~99
             # APT:SG:SMS:GM : 상가,사무실,건물
             #url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page={page}'
-            url = f'https://new.land.naver.com/api/articles?cortarNo={cortarNo}&order=rank&realEstateType=APT:PRE&priceType=RETAIL&page={page}'
+            url = f'https://m.land.naver.com/api/articles?cortarNo={cortarNo}&order=rank&realEstateType=APT:PRE&priceType=RETAIL&page={page}'
             # 아래코드는 block안걸림.
             #url = f'http://land.naver.com/article/articleList.nhn?rletTypeCd=A01&tradeTypeCd=A1&hscpTypeCd=A01%3AA03%3AA04&cortarNo=1168010600&page={page}'
             headers = get_random_headers()

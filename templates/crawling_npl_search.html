@@ -276,7 +276,9 @@
         $(document).ready(function() {
             let sortSalesDateAscending = false;
             let sortHouseAscending = false;
+            let sortPyeongAscending = false;
             let sortPriceAscending = false;
+
 
             // 매각일자 정렬
             $('#sortSalesDate').click(function () {
@@ -305,6 +307,18 @@
                 renderTable(window.currentFilteredItems);
             });
 
+            // 평수 정렬
+            $('#sortPyeong').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let pyeongA = parseFloat(a.building_py) || 0;
+                    let pyeongB = parseFloat(b.building_py) || 0;
+                    return sortPyeongAscending ? pyeongA - pyeongB : pyeongB - pyeongA;
+                });
+                sortPyeongAscending = !sortPyeongAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
+            });
+
             // 매각금액 정렬
             $('#sortPrice').click(function () {
                 window.currentFilteredItems.sort((a, b) => {
@@ -320,6 +334,7 @@
             function updateSortIcons() {
                 $('#sortSalesDate').text(sortSalesDateAscending ? '매각일자 ▲' : '매각일자 ▼');
                 $('#sortHouse').text(sortHouseAscending ? '구분 ▲' : '구분 ▼');
+                $('#sortPyeong').text(sortPyeongAscending ? '평수 ▲' : '평수 ▼');
                 $('#sortPrice').text(sortPriceAscending ? '행사원리금액 ▲' : '행사원리금액 ▼');
             }
 
@@ -431,7 +446,16 @@
             function setRegionSubcategory(category, data) {
               let selElem = category === 'region' ? document.getElementById("sggNm") : document.getElementById("umdNm");
               selElem.innerHTML = '<option value="all">전체</option>';
-              data.sort((a, b) => Number(a.code) - Number(b.code))
+              // data.sort((a, b) => Number(a.code) - Number(b.code))
+              //     .forEach(item => {
+              //       const opt = document.createElement("option");
+              //       opt.value = item.code;
+              //       opt.textContent = item.name;
+              //       selElem.appendChild(opt);
+              //     });
+              //
+                // ✅ 이름 기준(가나다순) 정렬
+                data.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
                   .forEach(item => {
                     const opt = document.createElement("option");
                     opt.value = item.code;
@@ -451,6 +475,7 @@
                 let opposabilityStatus = $('#sel_opposability_status').val();    // 임차권포함여부(Y/N)
                 let persionalStatus = $('#sel_personal_status').val();    // 개인(Y/N)
                 let auctionApplicant = $('#auction_applicant').val();
+                let buildingPy = $('#building_py').val();
 
                 // 초기화처리
                 //resetFilters();
@@ -471,7 +496,8 @@
                         subCategory: subCategory,
                         opposabilityStatus: opposabilityStatus,
                         persionalStatus: persionalStatus,
-                        auctionApplicant: auctionApplicant
+                        auctionApplicant: auctionApplicant,
+                        buildingPy: buildingPy
                     },
                     dataType: 'json',
                     timeout: 5000,  // 5초 타임아웃 설정
@@ -642,37 +668,38 @@
                           </a>
                         </td>
                         <!-- category 셀 안에 category와 location을 두 줄로 표시 -->
-                        <td class="center-align">
-                            <div style="color: blue;">${item.category}</div>
-                            <div style="
+                    <td class="center-align">
+                    <div style="color: blue;">${item.category}</div>
+                    <div style="
                                 padding: 2px 6px;
                                 background: rgba(255,255,255,0.9);
                                 font-size: 14px;
                                 border-bottom-left-radius: 4px;
                                 z-index: 10;
                               ">
-                                ${location}
-                            </div>
-                        </td>
-                        <!--
-                        <td>${fullAddress}</td>
-                        --->
-                        <td class="right-align">${formatNumber(item.appraisal_price)}</td>
-                        <td class="right-align" style="color: red;">${formatNumber(item.min_price)}<span class="center-align">(${item.min_percent})</span></td>
-                        <td class="right-align">${formatNumber(item.bond_max_amount)}</td>
-                        <td class="right-align">${formatNumber(item.bond_src_amount)}</td>
-                        <td class="highlight right-align">${formatNumber(item.bond_claim_amount)}</span></td>
-                        <td class="right-align" style="color: blue;">${formatNumber(item.bond_eval_amount)}</td>
-                        <td class="center-align">${item.bond_eval_day}일</td>
-                        <!--
-                        <td class="center-align">
-                          ${item.dangi_name.length > 10 ? item.dangi_name.substring(0, 10) + '...' : item.dangi_name}
-                        </td>
-                        -->
-                        <td class="center-align"><button class="map-btn" data-address="${item.address1}">지도</button></td>
-                        <td><button class="detail-btn" data-index="${index}">상세</button></td>
+                    ${location}
+                    </div>
+                    </td>
+                    <!--
+                    <td>${fullAddress}</td>
+                    --->
+                    <td class="right-align">${item.building_py}</td>
+                    <td class="right-align">${formatNumber(item.appraisal_price)}</td>
+                    <td class="right-align" style="color: red;">${formatNumber(item.min_price)}<span class="center-align">(${item.min_percent})</span></td>
+                    <td class="right-align">${formatNumber(item.bond_max_amount)}</td>
+                    <td class="right-align">${formatNumber(item.bond_src_amount)}</td>
+                    <td class="highlight right-align">${formatNumber(item.bond_claim_amount)}</span></td>
+                    <td class="right-align" style="color: blue;">${formatNumber(item.bond_eval_amount)}</td>
+                    <td class="center-align">${item.bond_eval_day}일</td>
+                    <!--
+                    <td class="center-align">
+                    ${item.dangi_name.length > 10 ? item.dangi_name.substring(0, 10) + '...' : item.dangi_name}
+                    </td>
+                    -->
+                    <td class="center-align"><button class="map-btn" data-address="${item.address1}">지도</button></td>
+                    <td><button class="detail-btn" data-index="${index}">상세</button></td>
                     </tr>`);
-                });
+                    });
 
                 // 전체 거래금액과 전체 건물면적(평) 계산
                 let totalDealAmount = 0;
@@ -946,6 +973,21 @@
             <select id="sub-category">
                 <option value="">전체</option>
             </select>
+            <label for="building_py">평수:</label>
+            <select id="building_py">
+                <option value="">전체</option>
+                <option value="09">9평</option>
+                <option value="10">10평</option>
+                <option value="20">20평</option>
+                <option value="30">30평</option>
+                <option value="40">40평</option>
+                <option value="50">50평</option>
+                <option value="60">60평</option>
+                <option value="70">70평</option>
+                <option value="80">80평</option>
+                <option value="90">90평</option>
+                <option value="100">100이상</option>
+            </select>
             <label for="sel_opposability_status">임차권여부:</label>
             <select id="sel_opposability_status">
                 <option value="all">전체</option>
@@ -971,6 +1013,7 @@
                     <th id="sortSalesDate">매각일자 ▼</th>
                     <th>사건번호</th>
                     <th id="sortHouse" style="cursor: pointer;">구분 ▼</th>
+                    <th id="sortPyeong" style="cursor: pointer;">평수 ▼</th>
                     <th>감정금액</th>
                     <th>최저금액</th>
                     <th>채권최고액</th>

@@ -33,6 +33,9 @@ def user_create_table():
             cancellation_date TEXT,   -- 탈퇴일자
             recharge_sms_count INTEGER DEFAULT 0,   -- 충전문자건수(건당 100원)
             recharge_amount INTEGER DEFAULT 0,      -- 충전금액(등기부발급-건당 1000원)
+            recharge_request_date TEXT,  -- 충전요청일자
+            recharge_request_sms_count INTEGER DEFAULT 0, -- 충전요청문자건수(건당 100원)
+            recharge_status TEXT DEFAULT 'canceled',     -- 충전상태 (active, canceled 등) : 차후 관리자 페이지에서 on/off 처리용
             subscription_start_date TEXT, -- 구독시작일자
             subscription_end_date TEXT,   -- 구독종료일자
             subscription_month INTEGER DEFAULT 1,    -- 구독월수(1, 3, 6, 12개월)
@@ -80,14 +83,14 @@ def user_insert_record(record):
                 user_id, user_name, user_passwd, phone_number,
                 apt_key, villa_key, sanga_key,
                 registration_date, cancellation_date,
-                recharge_sms_count, recharge_amount, etc,
+                recharge_sms_count, recharge_amount,recharge_request_date, recharge_request_sms_count, recharge_status, etc,
                 kakao_id, email, nick_name, profile_image,
                 created_at, updated_at,
                 access_token, refresh_token, token_expires_at
             ) VALUES (?,?,?,?, 
                       ?,?,?,
                       ?,?,
-                      ?,?,
+                      ?,?,?,?,?,
                       ?,
                       ?,?,?,?,
                       ?,?,
@@ -108,6 +111,9 @@ def user_insert_record(record):
 
             record.get("recharge_sms_count") if record.get("recharge_sms_count") is not None else 0,
             record.get("recharge_amount") if record.get("recharge_amount") is not None else 0,
+            record.get("recharge_request_date"),
+            record.get("recharge_request_sms_count") if record.get("recharge_request_sms_count") is not None else 0,
+            record.get("recharge_status") or "",
 
             record.get("etc"),
 
@@ -159,6 +165,9 @@ def user_update_record(record):
                    cancellation_date  = ?,
                    recharge_sms_count = ?,
                    recharge_amount    = ?,
+                   recharge_request_date = ?,
+                   recharge_request_sms_count = ?,
+                   recharge_status    = ?,
                    etc                = ?,
                    kakao_id           = ?,
                    email              = ?,
@@ -182,6 +191,9 @@ def user_update_record(record):
             record.get("cancellation_date"),
             record.get("recharge_sms_count"),
             record.get("recharge_amount"),
+            record.get("recharge_request_date") or _now_iso(),
+            record.get("recharge_request_sms_count"),
+            record.get("recharge_status"),
             record.get("etc"),
             record.get("kakao_id"),
             record.get("email"),
@@ -235,6 +247,9 @@ def user_update_exist_record(record):
         "cancellation_date",
         "recharge_sms_count",
         "recharge_amount",
+        "recharge_request_date",
+        "recharge_request_sms_count",
+        "recharge_status",
         "subscription_start_date",
         "subscription_end_date",
         "subscription_month",

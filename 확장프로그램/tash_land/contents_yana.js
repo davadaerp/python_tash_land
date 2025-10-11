@@ -1073,6 +1073,8 @@ function villaSummaryList() {
 
     // 전역 변수: 평당가 정렬 순서 (true: 오름차순, false: 내림차순)
     let pdangaSortAsc = true;
+    let areaSortAsc = true;
+    let sortBy = "평당가";  // 정렬 기준: "평당가" 또는 "면적"
 
     // 4. 테이블 업데이트 함수 (필터 조건에 따라 통계표와 상세 리스트 재생성)
     function updateTables() {
@@ -1149,17 +1151,25 @@ function villaSummaryList() {
         // 4.3 두 번째 테이블 - 상세 리스트 생성
         // 평당가 헤더에 id="sortPdanga"와 현재 정렬 순서 화살표 표시
         const arrowSymbol = pdangaSortAsc ? "▲" : "▼";
-        // 형태별 정렬: 월세, 전세, 매매 순서대로 정렬하고, 같은 그룹 내에서 평당가 순 정렬
-        const orderMap = { "월세": 1, "전세": 2, "매매": 3 };
+        const areaSymbol = areaSortAsc ? "▲" : "▼";
+        // 형태별 그룹 정렬: 월세가 먼저 나오고, 같은 그룹 내에서 평당가를 정렬
         let sortedUniqueData = filteredData.slice().sort((a, b) => {
-          if (a["형태"] !== b["형태"]) {
-            return orderMap[a["형태"]] - orderMap[b["형태"]];
-          } else {
-            const pdA = parseFloat(a["평당가"]) || 0;
-            const pdB = parseFloat(b["평당가"]) || 0;
-            return pdangaSortAsc ? pdA - pdB : pdB - pdA;
-          }
+            if (a["형태"] !== b["형태"]) {
+                return a["형태"] === "월세" ? -1 : 1;
+            }
+
+            if (sortBy === "평당가") {
+                const pdA = parseFloat(a["평당가"]) || 0;
+                const pdB = parseFloat(b["평당가"]) || 0;
+                return pdangaSortAsc ? pdA - pdB : pdB - pdA;
+            } else if (sortBy === "면적") {
+                const arA = parseFloat(a["전용면적"]) || 0;
+                const arB = parseFloat(b["전용면적"]) || 0;
+                return areaSortAsc ? arA - arB : arB - arA;
+            }
+            return 0;
         });
+
         let detailTableHTML = `
           <table border="1" style="width:100%; border-collapse:collapse; text-align:center; margin-bottom:10px;">
             <thead style="background-color:#e0f7ff;">
@@ -1168,7 +1178,7 @@ function villaSummaryList() {
                 <th>층</th>
                 <th>향</th>
                 <th id="sortPdanga" style="cursor:pointer;">평당가 ${arrowSymbol}</th>
-                <th>면적</th>
+                <th id="sortArea" style="cursor:pointer;">면적 ${areaSymbol}</th>
                 <th>가격</th>
               </tr>
             </thead>
@@ -1199,12 +1209,22 @@ function villaSummaryList() {
         tableContainer.innerHTML = summaryStatsHTML + detailTableHTML;
 
         // 4.5 평당가 헤더 클릭 시 정렬 순서 토글 및 테이블 재갱신
-        const sortHeader = document.getElementById('sortPdanga');
-        if (sortHeader) {
-          sortHeader.onclick = () => {
-            pdangaSortAsc = !pdangaSortAsc;
-            updateTables();
-          };
+        const sortPdangHeader = document.getElementById('sortPdanga');
+        const sortAreaHeader = document.getElementById('sortArea');
+        if (sortPdangHeader) {
+            sortPdangHeader.onclick = () => {
+                pdangaSortAsc = !pdangaSortAsc;
+                 sortBy = "평당가";
+                updateTables();
+            };
+        }
+        //
+        if (sortAreaHeader) {
+            sortAreaHeader.onclick = () => {
+                areaSortAsc = !areaSortAsc;
+                sortBy = "면적";
+                updateTables();
+            };
         }
     } // end updateTables
 
@@ -1614,69 +1634,142 @@ function analyzeCatchmentDemand() {
       `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
 }
 
-// 네이버 매물검색 처리
-function searchNaverListings() {
-  // 기본 컨트롤 박스 가져오기
-  const onoffPanel = document.querySelector('.filter_area');
-  onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
+// 국토부 실거래데이타 분석
+function searchLandRealData() {
 
-  // 네이버매물검색 버튼 생성
-  const naverSearch = document.createElement('span');
-  naverSearch.id = 'naverSearch'; // id 지정
-  naverSearch.textContent = tabGubun === 'sanga' ? '매물검색' : '실거래검색';
-  naverSearch.style.marginTop = '15px';
-  naverSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
-  naverSearch.style.backgroundColor = '#007bff'; // 엷은 파란색 배경
-  naverSearch.style.color = '#fff'; // 검정색 텍스트
-  naverSearch.style.padding = '5px 6px'; // 내부 여백
-  naverSearch.style.fontSize = '12px'; // 글씨 크기
-  naverSearch.style.borderRadius = '8px'; // 둥근 모서리
-  naverSearch.style.cursor = 'pointer'; // 커서
-  naverSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
-  naverSearch.style.verticalAlign = 'middle'; // 정렬 보정
-  naverSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+    // 기본 컨트롤 박스 가져오기
+    const onoffPanel = document.querySelector('.filter_area');
+    onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
 
-  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
-  naverSearch.addEventListener('click', function() {
-    // 로그인여부 체크
-    loginValid().then(valid => {
-        if (!valid) return;   // 로그인 실패 시 여기서 중단
-        //
-        // 지역선택 가져오기
-        const {region, sigungu, umdNm} = getSelectedRegions();
-        //alert(region + ',' + sigungu + ',' + umdNm);
-        // '경기도,김포시,구래동'
-        const regions = region + ',' + sigungu + ',' + umdNm;
+    // 네이버매물검색 버튼 생성
+    const landSearch = document.createElement('span');
+    landSearch.id = 'landSearch'; // id 지정
+    landSearch.textContent = '실거래분석';
+    landSearch.style.marginTop = '15px';
+    landSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    landSearch.style.backgroundColor = '#09d624'; // 엷은 파란색 배경
+    landSearch.style.color = '#fff'; // 검정색 텍스트
+    landSearch.style.padding = '5px 6px'; // 내부 여백
+    landSearch.style.fontSize = '12px'; // 글씨 크기
+    landSearch.style.borderRadius = '8px'; // 둥근 모서리
+    landSearch.style.cursor = 'pointer'; // 커서
+    landSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    landSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    landSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
 
-        let search_menu = "";
-        if (tabGubun === 'sanga') {
-            search_menu = "menu=sanga_search&regions=" + regions + '&api_key=' + sanga_key;
-        } else if (tabGubun === 'villa') {
-            search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
-        }  if (tabGubun === 'apt') {
-            //search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
-            search_menu = "menu=apt_search&regions=" + regions + '&api_key=' + sanga_key;
-        }
-        // 확장툴url
-        let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-        //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    landSearch.addEventListener('click', function() {
+        //alert('준비중입니다.');
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            //
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+            const aptNm = "구래역한강리슈빌";
+            // '경기도,김포시,구래동, 아파트명'
+            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
+            //alert(regions);
 
-        const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
-        const popupHeight = 1200;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        // window.open(ext_url, "realDataPopup",
-        //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-        window.open(
-              ext_url,
-              "realDataPopup",
-              `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-            );
-    });
+            let search_menu = "";
+            if (tabGubun === 'apt') {
+                search_menu = "menu=apt_real_deal&regions=" + regions;
+            }
+            // 확장툴url
+            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+            //let ext_url = "http://127.0.0.1:5000/api/ext_tool?" + search_menu;
+
+            const popupWidth = 950;  // 원하는 팝업 너비
+            const popupHeight= 840;  // 원하는 팝업 높이
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            // window.open(ext_url, "realDataPopup",
+            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+            window.open(
+                  ext_url,
+                  "realDataPopup",
+                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+                );
+        });
   });
 
   // onoffPanel에 실거래검색 버튼 추가
-  onoffPanel.appendChild(naverSearch);
+  onoffPanel.appendChild(landSearch);
+}
+
+// 네이버 매물검색 처리
+function searchNaverListings() {
+
+    // 기본 컨트롤 박스 가져오기
+    const onoffPanel = document.querySelector('.filter_area');
+    onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
+
+    // 네이버매물검색 버튼 생성
+    const naverSearch = document.createElement('span');
+    naverSearch.id = 'naverSearch'; // id 지정
+    //naverSearch.textContent = tabGubun === 'sanga' || tabGubun === 'apt' ? '매물검색' : '실거래분석';
+    naverSearch.textContent = '매물검색';
+    naverSearch.style.marginTop = '15px';
+    naverSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    naverSearch.style.backgroundColor = '#007bff'; // 엷은 파란색 배경
+    naverSearch.style.color = '#fff'; // 검정색 텍스트
+    naverSearch.style.padding = '5px 6px'; // 내부 여백
+    naverSearch.style.fontSize = '12px'; // 글씨 크기
+    naverSearch.style.borderRadius = '8px'; // 둥근 모서리
+    naverSearch.style.cursor = 'pointer'; // 커서
+    naverSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    naverSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    naverSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    naverSearch.addEventListener('click', function() {
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            //
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+            //alert(region + ',' + sigungu + ',' + umdNm);
+            // '경기도,김포시,구래동'
+            const regions = region + ',' + sigungu + ',' + umdNm;
+
+            let search_menu = "";
+            if (tabGubun === 'sanga') {
+                search_menu = "menu=sanga_search&regions=" + regions + '&api_key=' + sanga_key;
+            } else if (tabGubun === 'villa') {
+                search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
+                alert('빌라 매물검색은 준비중입니다.');
+                return;
+            }  if (tabGubun === 'apt') {
+                //search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
+                search_menu = "menu=apt_search&regions=" + regions + '&api_key=' + sanga_key;
+            }
+            // 확장툴url
+            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+            //let ext_url = "http://127.0.0.1:5000/api/ext_tool?" + search_menu;
+
+            const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
+            const popupHeight = 1200;  // 원하는 팝업 높이
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            // window.open(ext_url, "realDataPopup",
+            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+            window.open(
+                  ext_url,
+                  "realDataPopup",
+                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+                );
+        });
+  });
+    // tabGubun에 따라 버튼 위치 결정
+    if (tabGubun === 'apt') {
+        // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
+        const landSearch = document.getElementById("landSearch");
+        landSearch.parentNode.insertBefore(naverSearch, landSearch.nextSibling);
+    } else {
+        // onoffPanel에 실거래검색 버튼 추가
+        onoffPanel.appendChild(naverSearch);
+    }
 }
 
 // NPL 매물검색 처리
@@ -1691,7 +1784,7 @@ function nplSearchListings() {
   nplSearch.textContent = 'NPL검색';
   nplSearch.style.marginTop = '15px';
   nplSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
-  nplSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
+  nplSearch.style.backgroundColor = '#e40909'; // 엷은 파란색 배경
   nplSearch.style.color = '#fff'; // 검정색 텍스트
   nplSearch.style.padding = '5px 6px'; // 내부 여백
   nplSearch.style.fontSize = '12px'; // 글씨 크기
@@ -2052,6 +2145,10 @@ function extractPropertyInfo() {
 function topButtonCreate() {
     // 로그인처리(사용안함-비동기문제발생)
     //login();
+    // 실거래분석 처리(아파트 실거래및 경매내역)
+    if (tabGubun === 'apt') {
+        searchLandRealData();
+    }
     // 네이버매물 팝업
     searchNaverListings();
     // NPL 매물검색 처리
@@ -2068,7 +2165,7 @@ function loginValid() {
     //
     return login().then(isOk => {
         if (!isOk) {
-          alert('로그인(회원가입) 후 사용바랍니다.');
+          //alert('로그인(회원가입) 후 사용바랍니다.');
           return false;
         }
         return true;
@@ -2085,58 +2182,42 @@ function login() {
             apt_key = items.apt_key;
             villa_key = items.villa_key;
             sanga_key = items.sanga_key;
-            //alert('access_token: ' + access_token;
+            //alert('access_token: ' + access_token);
             if (!access_token) {
-                isLoggedInStatus = false;
-                return resolve(false);  // reject 대신 resolve
-            }
-            isLoggedInStatus = true;
-            return resolve(true);  // reject 대신 resolve
-        });
-    });
-}
-
-
-function login_old() {
-    return new Promise((resolve, reject) => {
-        chrome.storage.local.get(['access_token', 'apt_key', 'villa_key', 'sanga_key'], function(data) {
-            const accessToken = data.access_token;
-            apt_key = data.apt_key;
-            villa_key = data.villa_key;
-            sanga_key = data.sanga_key;
-
-            console.log('accessToken: ' + accessToken);
-            if (accessToken === '' || accessToken === null || accessToken === 'undefined') {
-                //alert('로그인 후 사용바랍니다.');
+                alert('로그인(회원가입) 후 사용바랍니다.');
                 isLoggedInStatus = false;
                 return resolve(false);  // reject 대신 resolve
             }
 
-            // 토큰 유효성 검사 API 호출-이부문은 user_id/password 방식에서 토큰방식으로 변경됨
+            //==========================
+            // 회원가입자(토큰이용) 구독여부 체크
             $.ajax({
-                url: BASE_URL + '/api/login_token',
-                method: 'GET',
+                url: BASE_URL + '/api/user/subscribe_check',
+                method: 'POST',
                 headers: {
-                    "Authorization": "Bearer " + accessToken
+                    "Authorization": "Bearer " + access_token
                 },
                 success: function(response) {
                     if (response.result === "Success") {
                         isLoggedInStatus = true;
-                        resolve(true);
+                        return resolve(true);
                     } else {
-                        // alert('로그인 후 사용바랍니다.');
+                        const message = response.message || '구독(갱신)후 사용바랍니다.';
+                        alert(message);
                         isLoggedInStatus = false;
-                        resolve(false);
+                        return resolve(false);
                     }
                 },
                 error: function() {
                     isLoggedInStatus = false;
-                    resolve(false);
+                    return resolve(false);
                 }
             });
-        }); // chrome.storage.local.get
+            //==========================
+        });
     });
 }
+
 
 // **MutationObserver를 활용한 자동 감시**
 function observeMutations_old버전() {

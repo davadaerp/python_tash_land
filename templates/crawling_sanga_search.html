@@ -363,7 +363,9 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="/static/js/address_autocomplete.js"></script>
     <script src="/static/js/common.js"></script>
+    <!--
     <script src="/static/js/indexed_db_utils.js"></script>
+    -->
     <script>
         //
         window.currentDealFilteredItems = [];
@@ -375,7 +377,7 @@
             var umdNm = "{{ umdNm }}";
             var lawCd = "{{ law_cd }}";
             var apiKey = "{{ api_key }}";
-            alert(lawName + ',' + umdNm + ',' + lawCd);
+            //alert(lawName + ',' + umdNm + ',' + lawCd);
             // 확장툴실행여부
             if (lawCd && lawCd.trim() !== '') {
                 // selectedLawdCd = '4157010900';
@@ -383,10 +385,6 @@
                 selectedLawdCd = lawCd;
                 selectedUmdNm = umdNm;
                 document.getElementById("locatadd_nm").value = lawName;
-                //
-                if (apiKey !== '') {
-                  localStorage.setItem("sanga_key", apiKey);
-                }
                 // 0.5초 후 버튼 클릭 이벤트 강제 실행
                 setTimeout(() => {
                     document.getElementById("search-btn").click();
@@ -398,9 +396,9 @@
         $(document).ready(function() {
 
             // DB생성처리
-            openDb(['kland_sanga', 'kland_villa', 'auction_sanga', 'crawl_sanga'])
-                .then(db => console.log("모든 스토어 생성 성공"))
-                .catch(error => console.error("에러 발생:", error));
+            // openDb(['kland_sanga', 'kland_villa', 'auction_sanga', 'crawl_sanga'])
+            //     .then(db => console.log("모든 스토어 생성 성공"))
+            //     .catch(error => console.error("에러 발생:", error));
 
             // Attach mouseenter and mouseleave events to rows in #data-container
             $(document).on('mouseenter', '#data-container tr', function () {
@@ -436,6 +434,8 @@
             $("#profit-link").on("click", openProfitPopup);
             // 프린트 버튼 클릭 이벤트 추가
             $("#print-btn").on("click", printPreview);
+            // 법정코드관리 버튼 클릭 이벤트 추가
+            $("#admin-btn").on("click", adminLawdCdsPop);
             //
             // 체크박스 => 0 제외처리: rent_checkbox, 동일묶은제외: same_price_group_checkbox
             document.querySelectorAll("#same_price_group_checkbox, #rent_checkbox").forEach(function (checkbox) {
@@ -702,6 +702,8 @@
                 const lawdCd = selectedLawdCd.slice(0,5);
                 const umdNm = selectedUmdNm;
                 // 크로링되어진 상가데이타 가져오기.
+                // const lawdCd = "41570";
+                // const umdNm = "운양동";
                 let storeName = 'crawl_sanga';
                 //const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
                 const exists = false;
@@ -743,7 +745,7 @@
                                 umdNm: umdNm
                             }));
                             console.log("데이터가 존재하지 않습니다(IndexedDB입력).=>", storeName);
-                            await addItems(window.allFetchedItems, storeName);
+                            //await addItems(window.allFetchedItems, storeName);
                         }
                     } catch (error) {
                         $('#loading').hide();
@@ -761,6 +763,7 @@
                 // 맨처음 매매선택및 상층조회 default
                 document.getElementById('trade_type').selectedIndex = 1;
                 document.getElementById('trade_type').dispatchEvent(new Event('change'));
+
                 // 필터후 맴처음 레코드 셀렉트 월세평균금액 처리: 로우선택시 주변월세 최소/평균/최대 구하기
                 // let selectedItem = window.currentFilteredItems[0];
                 // applySelectedRentPrice(selectedItem);
@@ -909,8 +912,8 @@
 
                     //console.log(pyeongAmt, pyeongArea, pyeongPrice)
 
-                    // 평형조회(m2,전용)
-                    let pyeongDisplay = `${item.area2} / <span style="color: blue;">${item.exclusive_area_pyeong || ""}</span>`;
+                    // 계약면적/전용면적 평형조회(m2,전용)
+                    let pyeongDisplay = `${item.area1} / <span style="color: blue;">${item.exclusive_area_pyeong || ""}</span>`;
 
                     tableBody.append(`<tr data-link="${item.originalIndex}">
                         <td class="center-align">
@@ -1131,7 +1134,8 @@
                 window.selectedRentItem = item;
 
                 // 현재 선택로우 위경도를 기준으로 근처에 주변월세목록 가져오기
-                let filteredItems = getRentDistanceFilterItems(item);
+                //let filteredItems = getRentDistanceFilterItems(item);
+                let filteredItems = window.allFetchedItems;
 
                 // 필터링 데이타 월세조회 팝업목록 함수
                 applyRentPricePopupList(filteredItems, item);
@@ -1327,7 +1331,7 @@
                 });
             });
 
-
+            // print 미리보기
             function printPreview() {
                 // 인쇄할 영역의 HTML 가져오기
                 const searchHTML = document.querySelector(".search-container").outerHTML;
@@ -1373,6 +1377,50 @@
                     printWindow.print();
                 }, 500);
             }
+
+             // 법정코드관리 버튼 클릭 이벤트 추가
+            function adminLawdCdsPop() {
+                // 기본 옵션
+                const width = 800;
+                const height = 700;
+                const scrollbars = 'no';
+                const resizable  = 'no';
+
+                // 현재 창의 좌표(멀티모니터 대응)
+                const dualLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
+                const dualTop  = window.screenTop  !== undefined ? window.screenTop  : window.screenY;
+
+                // 현재 창의 크기
+                const curWidth  = window.innerWidth  || document.documentElement.clientWidth  || screen.width;
+                const curHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
+
+                // 중앙 좌표 계산
+                const left = dualLeft + (curWidth  - width)  / 2;
+                const top  = dualTop  + (curHeight - height) / 2;
+
+                // 피처 문자열
+                const features = [
+                    `width=${Math.round(width)}`,
+                    `height=${Math.round(height)}`,
+                    `left=${Math.max(0, Math.round(left))}`,
+                    `top=${Math.max(0, Math.round(top))}`,
+                    `scrollbars=${scrollbars}`,
+                    `resizable=${resizable}`,
+                    `toolbar=no`,
+                    `location=no`,
+                    `status=no`,
+                    `menubar=no`
+                ].join(',');
+
+                // 같은 이름이면 기존 팝업 재사용 (중복창 방지)
+                const win = window.open('/api/crawl_lawd_codes/admin', '법정코드관리', features);
+                if (win) {
+                try { win.focus(); } catch(e) {}
+                } else {
+                alert('팝업이 차단되었습니다. 브라우저 팝업 허용을 확인하세요.');
+                }
+            }
+
 
             // 현재 메인에서 필터되어진 화면에 평수별 그룹을 보여줌..
             function pyengPopupView() {
@@ -1719,8 +1767,9 @@
             // 지도보기함수(설거래및 경매)
             async function realAuctionMapPopupView() {
                 //
-                const lawName = document.getElementById("popup-lawName").textContent;
                 //const lawName = '경기도 김포시 구래동';
+                //const lawName = document.getElementById("popup-lawName").textContent;
+                const lawName = document.getElementById("locatadd_nm").value;
                 const dealItems = window.currentDealFilteredItems || [];
                 const aucItems  = window.currentAuctionFetchedItems || [];
 
@@ -2294,9 +2343,6 @@
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">실거래 데이터를 불러오는 중입니다...</div>`;
                 //
-                lawdCd = "41570";  // 종로구 예시(차후 찾을때는 지번으로 찾음됨
-                lawdNm = "경기도";
-                umdNm = "풍무동";  // 읍면동(창신동,숭인동, 종로1가, 인사동 등)
                 alert(lawdCd + ',' +  lawdNm + ',' +  umdNm);
                 $.ajax({
                     url: "/api/sanga/land_data",
@@ -2738,7 +2784,10 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     </head>
 <body>
-<h2>상가매물 데이터 검색(<span id="profit-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">수익율표)</span>
+<h2>상가매물 데이터 검색
+    <!--
+    (<span id="profit-link" style="color: blue; font-size: 25px; text-decoration: underline; cursor: pointer;">수익율표)</span>
+    -->
     <input type="hidden" id="api-link">
     </h2>
     <div class="search-container">
@@ -2759,9 +2808,11 @@
             </select>
             <button class="search-btn" id="search-btn">검색</button>
             <!-- 프린트 버튼 추가 -->
-            <button id="print-btn">프린트</button>
+<!--            <button id="print-btn">프린트</button>-->
             <!-- 평형분석 추가 -->
             <button id="pyeon-btn">평형분석</button>
+            <!-- 법정코드관리 버튼 추가 -->
+            <button id="admin-btn">법정코드관리</button>
         </div>
         <div class="filter-group">
             <label for="trade_type">거래유형:</label>

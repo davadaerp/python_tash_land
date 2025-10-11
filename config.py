@@ -18,6 +18,8 @@ JUMPO_BASE_PATH = os.environ.get("JUMPO_BASE_PATH", BASE_PATH + "/jumpo")
 PAST_APT_BASE_PATH = os.environ.get("PAST_APT_BASE_PATH", BASE_PATH + "/pastapt")
 #
 UPLOAD_FOLDER_PATH = os.environ.get("UPLOAD_FOLDER", BASE_PATH + "/uploads")
+# 크롤링
+CRAWLING_BASE_PATH = os.environ.get("CRAWLING_DB_PATH", BASE_PATH + "/crawling")
 
 # SANGA_BASE_PATH 디렉토리 경로라면 마지막에 os.sep (예: '/')를 추가하여 안전하게 사용
 if not MASTER_DB_PATH.endswith(os.sep):

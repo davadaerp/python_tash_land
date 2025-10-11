@@ -354,7 +354,7 @@
                       <th>구분</th>
                       <th>거래일자</th>
                       <th>층</th>
-                      <th>평수</th>
+                      <th class="area-col">평수</th>
                       <th class="price-per">평당가</th>
                       <th style="text-align:right;">금액</th>
                     </tr>
@@ -370,6 +370,16 @@
         itemsSorted,
         defaultFilter
       };
+    }
+
+    // === [ADD] 평수 숫자 파싱 헬퍼 ===
+    function parseAreaNumber(v) {
+      if (v == null) return NaN;
+      const s = String(v).trim();
+      if (s === '' || s === '-') return NaN;
+      // 소수 포함 숫자만 추출 (예: '33.7평' → 33.7)
+      const m = s.match(/-?\d+(?:\.\d+)?/);
+      return m ? parseFloat(m[0]) : NaN;
     }
 
     // "36,000,000" / "36만" / "36만 원" / "-" 등에서 숫자만 뽑아 정렬용으로 사용
@@ -398,6 +408,22 @@
         this._el.innerHTML = payload.html;
         this._container = this._el.firstElementChild;
 
+        // 추가: 자동 스크롤 헬퍼
+        const tableWrap = this._container.querySelector('.table-wrap');
+        const tbody = this._container.querySelector('[data-tbody]');
+        const applyAutoScroll = () => {
+          const rows = tbody ? tbody.querySelectorAll('tr').length : 0;
+          if (rows > 10) {
+            tableWrap.style.maxHeight = '420px';    // 10행 정도 높이
+            tableWrap.style.overflowY = 'auto';
+          } else {
+            tableWrap.style.maxHeight = '';
+            tableWrap.style.overflowY = '';
+          }
+        };
+        // 초기 적용
+        applyAutoScroll();
+
         // 닫기
         this._container.querySelector('[data-close]')?.addEventListener('click', () => {
           this.setMap(null);
@@ -406,7 +432,7 @@
 
         // 필터 클릭 (이벤트 위임)
         const filterBar = this._container.querySelector('[data-filterbar]');
-        const tbody = this._container.querySelector('[data-tbody]');
+        // const tbody = this._container.querySelector('[data-tbody]');
         if (filterBar && tbody) {
           filterBar.addEventListener('click', (e) => {
             const btn = e.target.closest('.filter-btn');
@@ -423,6 +449,8 @@
             tbody.innerHTML = buildRowsHTML(this._itemsSorted, this._currentFilter);
             // 정렬 상태 초기화 (필터 바꾸면 헤더 정렬도 초기화)
             this._pricePerSortDir = null;
+
+            applyAutoScroll(); // ▼▼▼ 추가: 필터로 행 수 변동 시 적용
           });
         }
         // 정렬(거래일자)
@@ -475,6 +503,8 @@
 
             // 화살표 업데이트: asc=▲, desc=▼
             dateArrow.textContent = (this._dateSortDir === 'asc') ? '▲' : '▼';
+
+            applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
           });
         }
         // 평당가 헤더 클릭 정렬
@@ -525,8 +555,80 @@
             // buildRowsHTML의 필터는 이미 filtered에서 적용했으므로 'all'로 출력
             // 2) 화살표 업데이트
             arrow.textContent = (this._pricePerSortDir === 'asc') ? '▲' : '▼';
+
+            applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
           });
         }
+        // === [ADD] "평수" 헤더 클릭 정렬 ===
+        // 요구사항: 평수 기준 정렬(asc/desc 토글) + 2차 정렬은 '날짜 최신순(desc)'
+        // (실거래/경매 구분 없이: 타입별 선정렬 없이 숫자→날짜로만 정렬)
+        this._areaSortDir = null;
+        const areaTh = this._container.querySelector('th.area-col');
+        if (areaTh && tbody) {
+          areaTh.style.cursor = 'pointer';
+          areaTh.title = '평수로 정렬 (클릭 시 오름/내림차순 토글)';
+
+          // 헤더에 라벨/화살표 주입
+          let areaArrow = areaTh.querySelector('[data-area-arrow]');
+          if (!areaArrow) {
+              const label = document.createElement('span');
+              label.textContent = '평수';
+              const arrowSpan = document.createElement('span');
+              arrowSpan.setAttribute('data-area-arrow', '');
+              arrowSpan.className = 'sort-arrow';
+              areaTh.textContent = '';          // 기존 텍스트 제거
+              areaTh.appendChild(label);        // 라벨
+              areaTh.appendChild(arrowSpan);    // 화살표
+              areaArrow = arrowSpan;
+          }
+          // 초기 표시는 기본(정렬 전)이므로 화살표 공백 유지 또는 필요 시 '▼'로 표시 가능
+          areaArrow.textContent = '▼';
+
+          areaTh.addEventListener('click', () => {
+            // 토글: null -> asc -> desc -> asc ...
+            this._areaSortDir = (this._areaSortDir === 'asc') ? 'desc' : 'asc';
+
+            // 현재 필터 상태 반영 (all/real/auction)
+            const filtered = this._itemsSorted.filter(it => {
+              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
+            });
+
+            // 1차: 평수 숫자 정렬(오름/내림) — NaN은 항상 뒤
+            // 2차: 날짜 최신순(desc)
+            filtered.sort((a, b) => {
+              const av = parseAreaNumber(a.area);
+              const bv = parseAreaNumber(b.area);
+              const aNaN = Number.isNaN(av), bNaN = Number.isNaN(bv);
+              if (aNaN && bNaN) {
+                // 둘 다 NaN이면 날짜 최신순(desc)만 비교
+                const ad = parseDateKey(a.date);
+                const bd = parseDateKey(b.date);
+                return (bd - ad);
+              }
+              if (aNaN) return 1;
+              if (bNaN) return -1;
+
+              if (this._areaSortDir === 'asc') {
+                if (av !== bv) return av - bv;
+              } else {
+                if (av !== bv) return bv - av;
+              }
+              // 평수가 같다면 날짜 최신순(desc)
+              const ad = parseDateKey(a.date);
+              const bd = parseDateKey(b.date);
+              return (bd - ad);
+            });
+
+            // 렌더 (필터로 이미 거른 배열이므로 'all'로 출력)
+            tbody.innerHTML = buildRowsHTML(filtered, 'all');
+
+            // 화살표 업데이트
+            areaArrow.textContent = (this._areaSortDir === 'asc') ? '▲' : '▼';
+
+            applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
+          });
+        }
+        // === 여기까지 "평수" 정렬 추가 ===
       }
 
       onAdd() { this.getPanes().floatPane.appendChild(this._container); }

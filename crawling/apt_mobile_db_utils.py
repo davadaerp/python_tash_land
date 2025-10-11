@@ -3,17 +3,16 @@ import os
 import sqlite3
 import pandas as pd
 #
-from config import SANGA_BASE_PATH
+from config import CRAWLING_BASE_PATH
 
 # 공통 변수 설정
-CSV_FILENAME = "sanga_data.csv"
-#DB_FILENAME = "/Users/wfight/IdeaProjects/PythonProject/Auction/sanga/apt_data.db"
-DB_FILENAME = os.path.join(SANGA_BASE_PATH, "sanga_data.db")
-TABLE_NAME = "sanga_data"
+#DB_FILENAME = "/Users/wfight/IdeaProjects/PythonProject/Auction/apt/apt_data.db"
+DB_FILENAME = os.path.join(CRAWLING_BASE_PATH, "crawling_data.db")
+TABLE_NAME = "apt_data"
 
-def sanga_create_table():
+def apt_create_table():
     """
-    sanga_data 테이블을 생성합니다.
+    apt_data 테이블을 생성합니다.
     article_no를 PRIMARY KEY로 지정하고, umdNm 컬럼에 인덱스를 생성합니다.
     테이블이 이미 존재하면 아무런 메시지도 출력하지 않습니다.
     """
@@ -32,11 +31,13 @@ def sanga_create_table():
             trade_type TEXT,
             trade_name TEXT,
             price TEXT,
+            hanPrc TEXT,
             rentPrc TEXT,
             area1 TEXT,
             area2 TEXT,
             exclusive_area_pyeong REAL,
             direction TEXT,
+            building_name TEXT,
             cfloor TEXT,
             tfloor TEXT,
             realtor_name TEXT,
@@ -57,10 +58,10 @@ def sanga_create_table():
     conn.close()
     # 테이블이 이미 존재하면 메시지를 출력하지 않음
 
-def sanga_save_to_sqlite(data):
+def apt_save_to_sqlite(data):
     """
     주어진 data (리스트 내의 dict들)를 SQLite 데이터베이스에 저장합니다.
-    멀티 입력의 경우 각 레코드를 sanga_insert_single 함수를 이용하여 처리합니다.
+    멀티 입력의 경우 각 레코드를 apt_insert_single 함수를 이용하여 처리합니다.
     full_save가 True이면 기존 테이블을 삭제하고 재생성합니다.
     """
     if not data:
@@ -68,22 +69,22 @@ def sanga_save_to_sqlite(data):
         return
 
     # 테이블이 없는 경우 생성 (단, 메시지는 출력하지 않음)
-    sanga_create_table()
+    apt_create_table()
 
     for entry in data:
         """
           삽입 전에 article_no(고유키)가 이미 존재하는지 확인하여, 존재하지 않을 때만 삽입합니다.
           """
         # 이미 존재하는지 체크
-        existing = sanga_select_single(entry.get("article_no"))
+        existing = apt_select_single(entry.get("article_no"))
         if existing is None:
-            sanga_insert_single(entry)
+            apt_insert_single(entry)
         else:
             print(f"레코드 {entry.get('article_no')}는 이미 존재합니다. 삽입 건너뜀.")
 
     print(f"SQLite DB({DB_FILENAME})에 {len(data)} 건의 레코드 처리 완료.")
 
-def sanga_drop_table():
+def apt_drop_table():
     """
     DB_FILENAME에 정의된 SQLite 데이터베이스에서 TABLE_NAME에 해당하는 테이블을 삭제합니다.
     테이블이 존재하지 않으면 아무런 오류 없이 넘어갑니다.
@@ -96,7 +97,7 @@ def sanga_drop_table():
     print(f"테이블 '{TABLE_NAME}' 삭제 완료.")
 
 # ────────── 단일 레코드 처리 함수들 ──────────
-def sanga_insert_single(entry):
+def apt_insert_single(entry):
     """
     단일 레코드를 삽입합니다.
     """
@@ -105,12 +106,12 @@ def sanga_insert_single(entry):
     insert_query = f"""
         INSERT INTO {TABLE_NAME} (
             article_no, page, lawdCd, umdNm, confirm_date_str, article_name, real_estate_type, real_estate_name,
-            trade_type, trade_name, price, rentPrc, area1, area2,
-            exclusive_area_pyeong, direction, cfloor, tfloor, realtor_name, company_name,
+            trade_type, trade_name, price, hanPrc, rentPrc, area1, area2,
+            exclusive_area_pyeong, direction, building_name, cfloor, tfloor, realtor_name, company_name,
             article_url, latitude, longitude, tag_list, feature_desc, sale_deposit_price, sale_rent_price
         ) VALUES (?,?,?,?,?,?,?,?,
-                  ?,?,?,?,?,?,
-                  ?,?,?,?,?,?,
+                  ?,?,?,?,?,?,?,
+                  ?,?,?,?,?,?,?,
                   ?,?,?,?,?,?,?)
     """
     try:
@@ -126,11 +127,13 @@ def sanga_insert_single(entry):
             entry.get("trade_name"),            # trade_type을 내용(월세/전세/매매)으로 채웜 => 'A1' → "매매", 'B1' → "전세", 'B2' → "월세"
             entry.get("trade_name"),
             entry.get("price"),
+            entry.get("hanPrc"),
             entry.get("rentPrc"),
             entry.get("area1"),
             entry.get("area2"),
             entry.get("exclusive_area_pyeong"),
             entry.get("direction"),
+            entry.get("building_name"),
             entry.get("cfloor"),
             entry.get("tfloor"),
             entry.get("realtor_name"),
@@ -150,7 +153,7 @@ def sanga_insert_single(entry):
     finally:
         conn.close()
 
-def sanga_update_single(entry):
+def apt_update_single(entry):
     """
     article_no를 기준으로 단일 레코드를 수정합니다.
     entry에는 수정할 값들과 article_no가 포함되어야 합니다.
@@ -169,11 +172,13 @@ def sanga_update_single(entry):
             trade_type = ?,
             trade_name = ?,
             price = ?,
+            hanPrc = ?,
             rentPrc = ?,
             area1 = ?,
             area2 = ?,
             exclusive_area_pyeong = ?,
             direction = ?,
+            building_Name = ?,
             cfloor = ?,
             tfloor = ?,
             realtor_name = ?,
@@ -199,11 +204,13 @@ def sanga_update_single(entry):
             entry.get("trade_type"),
             entry.get("trade_name"),
             entry.get("price"),
+            entry.get("hanPrc"),
             entry.get("rentPrc"),
             entry.get("area1"),
             entry.get("area2"),
             entry.get("exclusive_area_pyeong"),
             entry.get("direction"),
+            entry.get("building_name"),
             entry.get("cfloor"),
             entry.get("tfloor"),
             entry.get("realtor_name"),
@@ -225,7 +232,7 @@ def sanga_update_single(entry):
         conn.close()
 
 # 즐겨찾기 저장
-def sanga_update_fav(article_no, fav):
+def apt_update_fav(article_no, fav):
     """
     article_no를 기준으로 단일 레코드를 수정합니다.
     entry에는 수정할 값들과 article_no가 포함되어야 합니다.
@@ -245,7 +252,7 @@ def sanga_update_fav(article_no, fav):
         conn.close()
 
 
-def sanga_delete_single(article_no):
+def apt_delete_single(article_no):
     """
     주어진 article_no에 해당하는 단일 레코드를 삭제합니다.
     """
@@ -262,7 +269,7 @@ def sanga_delete_single(article_no):
         conn.close()
 
 
-def sanga_select_single(article_no):
+def apt_select_single(article_no):
     """
     주어진 article_no에 해당하는 단일 레코드를 조회하여 dict 형태로 반환합니다.
     """
@@ -286,7 +293,7 @@ def sanga_select_single(article_no):
     finally:
         conn.close()
 
-def sanga_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", dangiName=""):
+def apt_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="", dangiName=""):
     """
     SQLite DB에서 데이터를 읽어와 필터 조건에 따라 반환합니다.
     """
@@ -318,42 +325,80 @@ def sanga_read_db(lawdCd="", umdNm="", trade_type="", sale_year="", category="",
     return data
 
 
-def sanga_save_to_csv(data):
+# 전세값을 구해줘
+# 위 매매레코드에 lawdCd, umdNm, artical_name, area2값으로  apt_data에 trade_type이 전세인 최대값과 최소값을 구해줘
+def get_jeonse_min_max(lawdCd="", umdNm="", article_name="", area1=""):
     """
-    주어진 data (리스트 내의 dict들)를 CSV 파일로 저장합니다.
+    trade_type='전세'인 레코드 중에서,
+    lawdCd, umdNm, area2는 정확히 일치(=) 조건으로,
+    article_name은 부분일치(LIKE) 조건으로 필터링하여
+    price 문자열을 쿼리 내에서 파싱 후
+    max_price, min_price를 계산해서 반환합니다.
     """
-    if not data:
-        print("저장할 데이터가 없습니다.")
-        return
-    keys = list(data[0].keys())
-    with open(CSV_FILENAME, mode="w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=keys)
-        writer.writeheader()
-        writer.writerows(data)
-    print(f"CSV 파일({CSV_FILENAME}) 저장 완료.")
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-
-def sanga_read_csv(lawdCd="", umdNm="", trade_type="", sale_year="", category="", dangiName=""):
+    # '억' 단위 + 쉼표 숫자 모두 처리하는 CASE 문을 SQL에 직접 삽입
+    query = f"""
+        SELECT
+            MAX(
+                CASE
+                    WHEN price LIKE '%억%' THEN
+                        CAST(substr(price, 1, instr(price, '억') - 1) AS INTEGER) * 100000000
+                        + CAST(
+                            REPLACE(
+                                substr(price, instr(price, '억') + 1),
+                                ',', ''
+                            ) AS INTEGER
+                          ) * 10000
+                    ELSE
+                        CAST(REPLACE(price, ',', '') AS INTEGER)
+                END
+            ) AS max_price,
+            MIN(
+                CASE
+                    WHEN price LIKE '%억%' THEN
+                        CAST(substr(price, 1, instr(price, '억') - 1) AS INTEGER) * 100000000
+                        + CAST(
+                            REPLACE(
+                                substr(price, instr(price, '억') + 1),
+                                ',', ''
+                            ) AS INTEGER
+                          ) * 10000
+                    ELSE
+                        CAST(REPLACE(price, ',', '') AS INTEGER)
+                END
+            ) AS min_price
+        FROM {TABLE_NAME}
+        WHERE trade_type = '전세'
     """
-    CSV 파일을 읽어와 필터 조건에 따라 데이터를 반환합니다.
-    """
-    df = pd.read_csv(CSV_FILENAME, dtype=str)
-    df.fillna("", inplace=True)
+    params = []
+    # 필터 조건 추가
+    if lawdCd:
+        query += " AND lawdCd = ?"
+        params.append(lawdCd)
     if umdNm:
-        df = df[df['umdNm'].str.contains(umdNm, na=False)]
-    if trade_type:
-        df = df[df['trade_type'].str.contains(trade_type, na=False)]
-    if category:
-        df = df[df['article_name'].str.contains(category, na=False)]
-    if sale_year:
-        df = df[df['confirm_date_str'].str.startswith(sale_year)]
-    if dangiName:
-        df = df[df['dangi_name'].str.contains(dangiName, na=False)]
-    return df.to_dict(orient='records')
+        query += " AND umdNm = ?"
+        params.append(umdNm)
+    if area1:
+        query += " AND area1 = ?"
+        params.append(area1)
+    if article_name:
+        query += " AND article_name LIKE ?"
+        params.append(f"%{article_name}%")
 
+    cur.execute(query, params)
+    row = cur.fetchone()
+    conn.close()
+
+    return {
+        "max_price": row["max_price"] if row and row["max_price"] is not None else 0,
+        "min_price": row["min_price"] if row and row["min_price"] is not None else 0
+    }
 
 # 볍정동코드 가져오기
-LAW_FILENAME = os.path.join(SANGA_BASE_PATH, "법정동코드.txt")
+LAW_FILENAME = os.path.join(CRAWLING_BASE_PATH, "법정동코드.txt")
 def extract_law_codes(region, sigungu, umdNm):
     law_code = ''
     with open(LAW_FILENAME, 'r', encoding='utf-8') as f:

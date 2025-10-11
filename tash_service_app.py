@@ -16,22 +16,31 @@ import time
 
 import requests
 import secrets
-from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, session
+from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory
 from flask_cors import CORS
-from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
+# 상가및 아파트 크롤링데이타(예전PC)
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
+from sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
+#
+# 상가및 아파트 크롤링데이타(신규서버)
+from crawling.apt_mobile_db_utils import apt_read_db as apt_mobile_read_db, get_jeonse_min_max as get_jeonse_min_max_mobile
+from crawling.sanga_mobile_db_utils import sanga_read_db as sanga_mobile_read_db
+from crawling.crawl_lawd_codes_db_utils import search_crawl_lawd_codes, insert_crawl_lawd_code, \
+    delete_crawl_lawd_code_by_id, get_crawl_lawd_code_by_cd_type
+from crawling.lawd_code_db_utils import search_lawd_by_name
+#
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
 from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
-from pubdata.public_land_db_search import run_sanga, sanga_items_to_json
+from pubdata.public_land_db_search import run_sanga, sanga_items_to_json, run_villa, villa_items_to_json, run_apt, \
+    apt_items_to_json
 from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
 #from naver.naver_login import naver_authorization, naver_callback
 #
-from sanga.sanga_db_utils import sanga_read_db, sanga_read_csv, sanga_update_fav, extract_law_codes
-from auction.auction_db_utils import auction_read_db, auction_read_csv
+from auction.auction_db_utils import auction_read_db
 from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
     user_delete_record, user_cancel_record, user_update_exist_record
@@ -50,13 +59,12 @@ from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_
 from pubdata.public_population_stats import get_population_rows, prev_month_yyyymm
 
 # auth.py에서 토큰 관련 함수 가져오기
-from common.auth import token_required, create_access_token, extract_user_info_from_token, kakao_token_required
+from common.auth import create_access_token, extract_user_info_from_token, kakao_token_required
 #
-from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, SAVE_MODE, UPLOAD_FOLDER_PATH
+from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, UPLOAD_FOLDER_PATH
 
 # common/commonResponse.py에 정의된 CommonResponse와 Result를 import
-from common.commonResponse import CommonResponse
-from legal_docs.legal_docs_down import getIros1, requestIros1
+from legal_docs.legal_docs_down import getIros1
 
 app = Flask(__name__, template_folder=TEMPLATES_NAME)
 
@@ -165,7 +173,7 @@ def logout():
 
 
 # # 카카오 로그인 관련
-from common.kakao_client import kakao, TOKENS  # 재수출된 TOKENS 사용
+from kakao.kakao_client import kakao, TOKENS  # 재수출된 TOKENS 사용
 from common.auth import kakao_extool_auth_required
 
 # 필요시 scope를 None으로 두고 최소 동작 확인
@@ -383,11 +391,17 @@ def api_me(user_id):
         plan_name = "미구독"
         plan_date = "0일"
     #
-    print(is_subscribed , plan_name, plan_date)
+    # 문자충전상태 체크
+    is_recharged = rows[0].get("recharge_status", 'active') if rows else 'active'
+    # if is_recharged != 'active':
+    #     sms_count = 0
+
+    print(is_subscribed , plan_name, plan_date, is_recharged, sms_count)
 
     return jsonify({
         "nickname": nick_name,
         "is_subscribed": is_subscribed,
+        "is_recharged": is_recharged,
         "plan_name": plan_name,
         "plan_date": plan_date,
         "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
@@ -596,15 +610,65 @@ def user_sms_recharge(user_id):
     recharge_cnt = data.get("recharge")
     print("recharge_cnt:", recharge_cnt)
 
-    print("user found. update user info.")
-    user_update_exist_record({
-        "user_id": user_id,
-        "recharge_sms_count": recharge_cnt
-    })
+    # 메니저에게 카톡으로 문자충전요청 알림톡/SMS 전송요망
+    userInfo = user_read_db(user_id)
+    user_name = userInfo[0].get("user_name")
+    if not userInfo:
+        return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
 
     # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
-
+    to = "01022709085"
+    title = recharge_cnt + "건 충전"
+    message = "\n" + user_name + "님이 문자 " + recharge_cnt + "건 충전요청하였습니다. 관리자페이지에서 승인처리바랍니다."
+    data = {
+        "userid": user_id,
+        "userpswd": "0000",
+        "phoneNumbers": "관리자:" + to,
+        "title": title,
+        "message": message
+    }
+    print("user_subscribe() 문자충전요청 알림톡 발송:", data)
+    mms_result = alimtalk_send(data)
+    #print(f"user_subscribe() Response Code: {mms_result.status_code}, "f"user_subscribe() 구독요청 알림톡 결과: {mms_result.json()}")
+    # 응답 상태 및 결과 출력(202: 성공, 4xx, 5xx: 실패)
+    if mms_result.status_code == 202:
+        #
+        user_update_exist_record({
+            "user_id": user_id,
+            "recharge_request_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "recharge_request_sms_count": recharge_cnt,
+            "recharge_status": "request"  # 관리자 승인 대기 상태(request:충전요청,active:충전)
+        })
+        print("user_sms_recharge() 충전요청 알림톡 성공")
+    else:
+        print("user_sms_recharge() 충전요청 알림톡 실패:")
+    #
     return jsonify(data), 200
+
+# 사용자 문자충전 승인처리(관리자 전용)
+@app.route('/api/user/recharge_approval', methods=['POST'])
+def user_recharge_approval():
+    data = request.get_json()
+    print(f"🔍data: {data}")
+    user_id = data.get("user_id")
+    approval_status = data.get("recharge_status", "cancelled")  # Y/N
+    approval_sms_count = data.get("approval_sms_count", 1)      # 기존충전건수 + 요청충전건수
+    print("📋 user_id:", user_id, "approval:", approval_status, "approval_sms_count:", approval_sms_count)
+
+    # if approval != "Y":
+    #     return jsonify({"result": "Fail", "message": "승인여부가 Y가 아닙니다."}), 400
+
+    user_update_exist_record({
+        "user_id": user_id,
+        "recharge_sms_count": approval_sms_count,
+        "recharge_request_sms_count": 0,    # 충전요청건수 초기화
+        "recharge_status": approval_status   # 관리자 승인 대기 상태(request:구독요청,active:구독,cancelled:구독취소)
+    })
+
+    # 차후 충전요청자에게 충전완료 알림톡/SMS 전송요망
+    ##
+
+    return jsonify({"success": "충전승인되었습니다."}), 200
 
 #============== 확장툴 마이페이지 ====================
 # 마이페이지 회원정보 조회
@@ -765,6 +829,41 @@ def get_users_data():
 
     return jsonify(data)
 
+#==== 크롤링db에 법정동코드 테이를 목록가져오기 autocomplete용(국토부대체) ========
+@app.route('/api/lawdcd/autocomplete')
+def get_lawdcds_data():
+    # 질의 파라미터
+    q = request.args.get('locatadd_nm', '').strip()
+    limit = request.args.get('limit', '').strip()
+    try:
+        limit = int(limit) if limit else 30   # 기본 30
+    except ValueError:
+        limit = 30
+
+    # 로그
+    print(f"🔍 법정동코드 검색어: {q}, limit={limit}")
+
+    # 빈 검색어는 빈 리스트 반환
+    if not q:
+        return jsonify({"items": [], "count": 0})
+
+    # DB 조회 (이미 구현해 두신 함수)
+    results = search_lawd_by_name(q, limit=limit)  # List[{"lawd_cd","lawd_name"}]
+    print(results)
+
+    # JS에서 쓰던 키로 매핑하여 반환
+    payload = {
+        "items": [
+            {
+                "region_cd":  r["lawd_cd"],   # 기존 JS의 region_cd
+                "locatadd_nm": r["lawd_name"] # 기존 JS의 locatadd_nm
+            }
+            for r in results
+        ],
+        "count": len(results)
+    }
+    return jsonify(payload)
+
 
 #===== 네이버 아파트 매물 데이타 처리 =============
 @app.route('/api/apt', methods=['GET'])
@@ -778,12 +877,13 @@ def get_apt_data():
 
     print(f"🔍 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 📅 매물 연도: {sale_year}, 🏠 카테고리: {category},")
 
-    data = apt_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    # data = apt_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    data = apt_mobile_read_db(lawdCd, umdNm, sale_year, category, dangiName)
     # 2) 매매 항목마다 전세 max/min 호출해서 필드 추가
     for item in data:
         if item.get("trade_type") == "매매":
             # 3) 전세 max/min 가격을 가져옴
-            jm = get_jeonse_min_max(
+            jm = get_jeonse_min_max_mobile(
                 lawdCd       = item.get("lawdCd", ""),
                 umdNm        = item.get("umdNm", ""),
                 article_name = item.get("article_name", ""),
@@ -803,6 +903,34 @@ def get_apt_data():
 
     return jsonify(data)
 
+#===== 아파트 데이타 처리(국토부실거래 검색) =============
+@app.route('/api/apt/land_data', methods=['GET'])
+def get_apt_land_data():
+
+    # 종로구, 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+    lawd_cd = request.args.get('lawd_cd', '11110')
+    # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
+    res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
+    lawd_nm = res["lawd_name"]  # 서울특별시 종로구
+    #lawd_nm = request.args.get('lawd_nm', '서울시')
+    umd_nm = request.args.get('umd_nm', '창신동')
+    #
+    apt_nm = request.args.get('apt_nm', '')  # 단지명(선택)
+
+    print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
+
+    print("\n########## 아파트 ##########")
+    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm, verify=False)
+    #
+    # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
+    json_records = apt_items_to_json(all_items, lawd_cd)
+    #print(json.dumps(json_records, ensure_ascii=False, indent=2))
+    #
+    print(f"\n[총 누적 건수: {len(all_items)}\n")
+
+    return json_records
+
+#===== 과거 아파트 실거래가 데이타 처리(부동산원데이타) =============
 @app.route('/api/apt/pir_apt', methods=['GET'])
 def get_apt_pir_data():
     apt_name = request.args.get('apt_name', '')
@@ -909,6 +1037,31 @@ def get_public_population():
     }), 200
 
 
+#===== 빌라 데이타 처리(국토부실거래 검색) =============
+@app.route('/api/villa/land_data', methods=['GET'])
+def get_villa_land_data():
+
+    # 종로구, 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+    lawd_cd = request.args.get('lawd_cd', '11110')
+    # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
+    res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
+    lawd_nm = res["lawd_name"]  # 서울특별시 종로구
+    #lawd_nm = request.args.get('lawd_nm', '서울시')
+    umd_nm = request.args.get('umd_nm', '창신동')
+
+    print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
+
+    print("\n########## 빌라(연립/다세대) ##########")
+    all_items = run_villa(lawd_cd, lawd_nm, umd_nm, verify=False)
+    #
+    # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
+    json_records = villa_items_to_json(all_items, lawd_cd)
+    print(json.dumps(json_records, ensure_ascii=False, indent=2))
+    #
+    print(f"\n[총 누적 건수: {len(all_items)}\n")
+
+    return json_records
+
 #===== 상가 데이타 처리 =============
 @app.route('/api/sanga', methods=['GET'])
 def get_sanga_data():
@@ -921,10 +1074,11 @@ def get_sanga_data():
 
     print(f"🔍 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 📅 매물 연도: {sale_year}, 🏠 카테고리: {category},")
 
-    if SAVE_MODE == "sqlite":
-        data = sanga_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
-    else:
-        data = sanga_read_csv(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    # 기존 PC크롤링 데이타 가져오기
+    #data = sanga_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    # 신규 모바일크롤링 데이타 가져오기
+    data = sanga_mobile_read_db(lawdCd, umdNm, trade_type, sale_year, category, dangiName)
+    #print(json.dumps(data, ensure_ascii=False, indent=2))
 
     return jsonify(data)
 
@@ -934,6 +1088,7 @@ def get_sanga_land_data():
 
     # 종로구, 읍면동(창신동,숭인동, 종로1가, 인사동 등)
     lawd_cd = request.args.get('lawd_cd', '11110')
+    # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
     res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
     lawd_nm = res["lawd_name"]  # 서울특별시 종로구
     #lawd_nm = request.args.get('lawd_nm', '서울시')
@@ -949,7 +1104,7 @@ def get_sanga_land_data():
     #
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = sanga_items_to_json(all_items, lawd_cd)
-    print(json.dumps(json_records, ensure_ascii=False, indent=2))
+    #print(json.dumps(json_records, ensure_ascii=False, indent=2))
     #
     print(f"\n[총 누적 건수: {len(all_items)}\n")
 
@@ -1011,6 +1166,7 @@ def get_auction_data():
 
     # 데이타 가져오기
     data = auction_read_db(lawdCd, umdNm, year_range, categories, dangiName)
+    print(data)
 
     return jsonify(data)
 
@@ -1082,6 +1238,7 @@ def get_npl_data():
     opposabilityStatus = request.args.get('opposabilityStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
     persionalStatus = request.args.get('persionalStatus')           # 임차권포함여부: 전체(all), 포함(Y), 안함(N)
     auctionApplicant = request.args.get('auctionApplicant', '')           # 경매신청자
+    buildingPy = request.args.get('buildingPy', '')           # 건물평수
 
     if region == '전체':
         region = ''
@@ -1105,7 +1262,7 @@ def get_npl_data():
         categories = [subCategory]
 
     # 데이타 읽기
-    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, persionalStatus, auctionApplicant)
+    data = npl_read_db(lawdCd, region, sggNm, umdNm, categories, opposabilityStatus, persionalStatus, auctionApplicant, buildingPy)
 
     return jsonify(data)
 
@@ -1174,6 +1331,9 @@ def ext_tool():
     print('api_key: ' + api_key)
 
     #===== 확장툴 접근
+    # 아파트 국토부 실거래(내부 확장툴 접근)
+    if menu == 'apt_real_deal':
+        return render_template("extool_apt_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 빌라 국토부 실거래(내부 확장툴 접근)
     if menu == 'villa_real_deal':
         return render_template("extool_villa_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
@@ -1579,6 +1739,92 @@ def get_pastapt_property_download():
     # 파일이 존재하면 첨부파일로 전송
     return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
 
+#===================================================
+# 크롤링할 법정동코드 CRUD처리
+# -----------------------
+# 1) 목록 조회
+# -----------------------
+@app.get("/api/crawl_lawd_codes/admin")
+def admin_lawd_codes():
+    return render_template("crawling_lawd_codes_popup.html")
+
+@app.get("/api/crawl_lawd_codes/list")
+def list_lawd_codes():
+    """
+    쿼리파라미터:
+      - trade_type: 'APT' | 'SG' (없으면 전체)
+      - q: 검색어(법정동명 like)
+    """
+    trade_type = request.args.get("trade_type")  # 'APT', 'SG' or None
+    q = request.args.get("q")
+    print(f"검색어: {q}, trade_type: {trade_type}")
+
+    json_rows = search_crawl_lawd_codes(
+        lawd_cd=None,
+        lawd_name=q,
+        trade_type=trade_type if trade_type else None
+    ) or []
+
+    return jsonify({"items": json_rows})
+
+# -----------------------
+# 2) 저장(UPSERT)
+# -----------------------
+@app.post("/api/crawl_lawd_codes/insert")
+def insert_lawd_code():
+    """
+    JSON Body:
+      - lawd_cd: str (필수)
+      - lawd_name: str (필수)
+      - trade_type: 'APT' | 'SG' (기본 'SG')
+    Header:
+      - Authorization: Bearer <token>
+    """
+    # if not require_token():
+    #     return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    lawd_cd = (data.get("lawd_cd") or "").strip()
+    lawd_name = (data.get("lawd_name") or "").strip()
+    trade_type = (data.get("trade_type") or "SG").strip().upper()
+    print("법정동코드:", lawd_cd, "법정동명:", lawd_name, "trade_type:", trade_type)
+
+    # if not lawd_cd or not lawd_name:
+    #     return jsonify({"error": "법정동코드와 법정동명은 필수입니다."}), 400
+    # if trade_type not in ("SG", "APT"):
+    #     return jsonify({"error": "trade_type은 'SG' 또는 'APT'만 허용됩니다."}), 400
+
+    try:
+        # ✅ 저장 전에 (lawd_cd, trade_type)로 존재 여부 체크
+        existing = get_crawl_lawd_code_by_cd_type(lawd_cd, trade_type)
+        if existing:
+            return jsonify({"error": f"법정동코드({lawd_cd})가 중복되어집니다. 확인해주세요."}), 400
+
+        insert_crawl_lawd_code(lawd_cd, lawd_name, trade_type)
+        return jsonify({"ok": True, "message": "저장(업서트) 되었습니다."})
+    except Exception as e:
+        return jsonify({"error": f"저장 실패: {e}"}), 500
+
+# -----------------------
+# 3) 삭제
+# -----------------------
+@app.delete("/api/crawl_lawd_codes/<int:record_id>")
+def remove_lawd_code(record_id: int):
+    """
+    Header:
+      - Authorization: Bearer <token>
+    Path:
+      - record_id: int (id로 단건 삭제)
+    """
+    print(f"삭제할 ID: {record_id}")
+    try:
+        deleted = delete_crawl_lawd_code_by_id(record_id)
+        if deleted > 0:
+            return jsonify({"ok": True, "deleted": deleted})
+        else:
+            return jsonify({"error": "대상 레코드를 찾을 수 없습니다."}), 404
+    except Exception as e:
+        return jsonify({"error": f"삭제 실패: {e}"}), 500
 
 
 if __name__ == '__main__':

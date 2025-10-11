@@ -349,14 +349,16 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             font-size: 18px;
             font-weight: bold;
-            color: #333;
+            color: red;
             z-index: 1000;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="/static/js/address_autocomplete.js"></script>
     <script src="/static/js/common.js"></script>
+    <!--
     <script src="/static/js/indexed_db_utils.js"></script>
+    -->
     <script>
         //
         // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
@@ -388,9 +390,9 @@
         $(document).ready(function() {
 
             // DB생성처리
-            openDb(['kland_sanga', 'kland_villa', 'auction_sanga', 'crawl_sanga'])
-                .then(db => console.log("모든 스토어 생성 성공"))
-                .catch(error => console.error("에러 발생:", error));
+            // openDb(['kland_sanga', 'kland_villa', 'auction_sanga', 'crawl_sanga'])
+            //     .then(db => console.log("모든 스토어 생성 성공"))
+            //     .catch(error => console.error("에러 발생:", error));
 
             // Attach mouseenter and mouseleave events to rows in #data-container
             $(document).on('mouseenter', '#data-container tr', function () {
@@ -678,11 +680,14 @@
                 const lawdCd = selectedLawdCd.slice(0,5);
                 const umdNm = selectedUmdNm;
                 // 크로링되어진 상가데이타 가져오기.
+                // const lawdCd = "41570";
+                // const umdNm = "운양동";
+                // 크로링되어진 상가데이타 가져오기.
                 let storeName = 'crawl_sanga';
                 //const exists = await checkDataExists(lawdCd, umdNm, getCurrentDate(), storeName);
                 const exists = false;
                 if (exists) {
-                    window.allFetchedItems = await getAllItems(lawdCd, umdNm, storeName);
+                    //window.allFetchedItems = await getAllItems(lawdCd, umdNm, storeName);
                     console.log("데이터가 존재합니다.", window.allFetchedItems);
                 } else {
                     $('#errorMessage').hide();
@@ -791,7 +796,7 @@
                 data.forEach(item => {
 
                     trade_type = item.trade_type.replace(/\s/g, "");
-                    let salePrice = convertKoreanToNumber(item.price);      // 1억 5,000 => 150000000
+                    let salePrice = convertKoreanToNumber(item.hanPrc);      // 1억 5,000 => 150000000
                     let jeonseMaxPrice = item.jeonseMaxPrice;                  //  전세Max: 140000000 => 1억 4,000
                     let jeonseMinPrice = item.jeonseMinPrice;                  //  전세Max: 140000000 => 1억 4,000
                     //let jeonseAvgPrice = item.jeonseAvgPrice;                 //  전세평균: 140000000 => 1억 4,000
@@ -811,9 +816,9 @@
 
                     //console.log('' + item.article_name + ' : ' + item.area2 + ' : ' + item.price + ' : salePrice => ' + salePrice + ' : ' + jeonsePriceValue);
 
-                    // 평형조회(m2,전용)
+                    // 계약(area1),전용(area2)평형조회(m2,전용)
                     const contractPyeong = item.area1 ? (parseFloat(item.area1) / 3.3).toFixed(2) : '';
-                    let contractPyeongDisplay = `${item.area1} / <span style="color: red;">${contractPyeong}평</span>`;
+                    let contractPyeongDisplay = `${item.area1} / <span style="color: red;">${contractPyeong}</span>`;
                     let pyeongDisplay = `${item.area2} / <span style="color: blue;">${item.exclusive_area_pyeong || ""}</span>`;
 
                     // 전세율 계산
@@ -845,7 +850,7 @@
                         -->
                         <td class="center-align">${trade_type}</td>
                         <td class="center-align">${item.article_name}</td>
-                        <td class="center-align">${item.buildingName}</td>
+                        <td class="center-align">${item.building_name}</td>
                         <td class="center-align">${item.cfloor}</td>
                         <td class="center-align">${item.tfloor}</td>
                         <td class="right-align">${item.direction}</td>

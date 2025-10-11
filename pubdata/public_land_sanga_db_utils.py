@@ -86,7 +86,7 @@ def insert_sanga_items(items: List[Dict], lawd_cd: str, db_path: str = DB_PATH) 
     각 item에서 필요한 키가 없으면 빈 문자열로 저장.
     반환: 실제로 insert(또는 ignore)된 행 수
     """
-    init_sanga_db(db_path)
+    #init_sanga_db(db_path)
 
     #
     if not items:

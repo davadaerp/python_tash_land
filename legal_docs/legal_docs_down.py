@@ -1,3 +1,4 @@
+# 등기부등본 발급 API 연동
 # 연동사이트: https://apick.app/my_page
 # 회원id: wfightgm69@gmail.com
 # 패스워드: 몽셍이ap_0
