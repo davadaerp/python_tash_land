@@ -279,20 +279,41 @@ def query_region_hierarchy(category, sel_code, parent_sel_code):
 def fetch_apt_by_name_and_size(apt_name, size):
     """
     아파트 이름과 크기로 아파트 정보를 가져옵니다.
+    DB에 size는 '75.12'와 같이 소수점이 포함되어 있을 수 있습니다.
+    입력 size (예: '75.0')의 소수점 이하를 제거하고, DB size도 소수점 이하를 제거하여 비교합니다.
+
     매개변수:
       - apt_name: 아파트 이름
-      - size: 아파트 크기 (예: '84㎡')
+      - size: 아파트 크기 (예: '84㎡' 또는 '75.0')
     """
+    # 1. 입력 size 처리: 소수점 이하 제거 (정수 부분만 추출)
+    try:
+        # 입력 size에서 '㎡' 등의 단위를 제거하고 숫자만 추출
+        numeric_size = float(''.join(filter(lambda x: x.isdigit() or x == '.', size)))
+        # 정수 부분만 추출
+        target_size_int = int(numeric_size)
+    except ValueError:
+        print(f"경고: 유효하지 않은 크기 입력입니다: {size}")
+        return None
+
     conn = sqlite3.connect(DB_FILENAME)
     conn.row_factory = sqlite3.Row  # 컬럼명을 키로 사용하기 위함
     cur = conn.cursor()
 
+    # 2. SQL 쿼리 수정:
+    #   - CAST(size AS REAL)로 실수로 변환 후, CAST(... AS INTEGER)로 소수점 이하를 버리고 정수로 변환하여 비교합니다.
+    #   - SQLite의 size 컬럼에 '㎡' 같은 문자가 포함되어 있다면 INTEGER/REAL 캐스팅 전에 제거하는 전처리 필요.
+    #     만약 size 컬럼이 숫자만 포함한다면 아래 쿼리를 사용합니다.
+    #     만약 size 컬럼에 '84㎡'와 같은 문자가 포함되어 있다면, 해당 컬럼의 데이터 정규화가 필요하며,
+    #     여기서는 **DB의 size 컬럼에 '75.12'와 같은 숫자 문자열만 들어 있다고 가정**하고 쿼리를 작성합니다.
     query = f"""
         SELECT * FROM {PAST_APT_TABLE}
-        WHERE apt_name LIKE ? AND size LIKE ?;
+        WHERE apt_name LIKE ? 
+          AND CAST(CAST(size AS REAL) AS INTEGER) = ?;
         """
 
-    cur.execute(query, (f"%{apt_name}%", f"%{size}%"))
+    # target_size_int는 정수형이므로, 튜플에 그대로 전달합니다.
+    cur.execute(query, (f"%{apt_name}%", target_size_int))
     row = cur.fetchone()
     conn.close()
 

@@ -28,7 +28,7 @@
       box-shadow: 0 10px 30px rgba(0,0,0,0.12);
       overflow:hidden;
       min-width: 320px;
-      max-width: 460px;
+      max-width: 480px;
       z-index: 1000;
       animation: popIn 120ms ease-out;
     }
@@ -298,8 +298,28 @@
       });
 
       const meta = typeMeta(itemsSorted);
-      const first = itemsSorted[0] || {};
-      const building = first.building || first.apt_name || '';
+      // ─ 경매(type==='auction') 항목에서 이름을 우선 사용
+      let building = '';
+      const hasReal = (itemsSorted || []).some(it => it.type === 'real');
+      const auctionOnly = (itemsSorted || []).every(it => it.type === 'auction');
+
+      if (auctionOnly && !hasReal) {
+        // 같은 번지 묶음이 '경매만' 존재하는 경우: building 비우기
+        building = '';
+      } else {
+        // 경매에 이름이 있으면 우선 사용
+        const auctionWithName = (itemsSorted || []).find(
+          it => it.type === 'auction' && it.buildingName
+        );
+        if (auctionWithName) {
+          building = auctionWithName.buildingName;
+        } else {
+          // 경매에 없으면 아무 항목이나 이름이 있는 걸로 대체
+          const anyWithName = (itemsSorted || []).find(it => it.buildingName);
+          building = anyWithName ? anyWithName.buildingName : '';
+        }
+      }
+      //alert(building);
 
       const headerAddr = (meta.label === '경매')
         ? cleanAuctionAddress(group.address || '주소 미상')
@@ -340,8 +360,9 @@
           <div class="custom-popup ${meta.header}">
             <div class="custom-popup__header ${meta.header}">
               <div class="header-title">
-                <div class="addr">${headerAddr}</div>
-                ${building ? `<div class="bname">${building}</div>` : ``}
+                <div class="addr">
+                    ${headerAddr}${building ? ` <span class="bname" style="font-weight:600; font-size:13px; opacity:.9;">(${building})</span>` : ``}
+                </div>
                 ${filterButtonsHTML}
               </div>
               <div class="close-x" data-close>×</div>
@@ -475,7 +496,7 @@
             dateArrow = arrowSpan;
           }
           // ✅ 팝업 초기 표시 시 기본 화살표 표시
-          dateArrow.textContent = '▼';  // 최신순(default)
+          dateArrow.textContent = '▲';  // 최신순(default)
 
           dateTh.addEventListener('click', () => {
             // 토글: null -> asc(오래된↑) -> desc(최신↓) -> asc ...
@@ -502,7 +523,8 @@
             tbody.innerHTML = buildRowsHTML(filtered, 'all');
 
             // 화살표 업데이트: asc=▲, desc=▼
-            dateArrow.textContent = (this._dateSortDir === 'asc') ? '▲' : '▼';
+            //dateArrow.textContent = (this._dateSortDir === 'asc') ? '▲' : '▼';
+            dateArrow.textContent = (this._dateSortDir === 'asc') ? '▼' : '▲';
 
             applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
           });
@@ -528,7 +550,7 @@
             arrow = arrowSpan;
           }
           // ✅ 팝업 초기 표시 시 기본 화살표 표시
-          arrow.textContent = '▼';  // 최신순(default)
+          arrow.textContent = '▲';  // 최신순(default)
 
           pricePerTh.addEventListener('click', () => {
             // 토글: null -> asc -> desc -> asc ...
@@ -554,7 +576,7 @@
             tbody.innerHTML = buildRowsHTML(filtered, 'all');
             // buildRowsHTML의 필터는 이미 filtered에서 적용했으므로 'all'로 출력
             // 2) 화살표 업데이트
-            arrow.textContent = (this._pricePerSortDir === 'asc') ? '▲' : '▼';
+            arrow.textContent = (this._pricePerSortDir === 'asc') ? '▼' : '▲';
 
             applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
           });
@@ -582,7 +604,7 @@
               areaArrow = arrowSpan;
           }
           // 초기 표시는 기본(정렬 전)이므로 화살표 공백 유지 또는 필요 시 '▼'로 표시 가능
-          areaArrow.textContent = '▼';
+          areaArrow.textContent = '▲';
 
           areaTh.addEventListener('click', () => {
             // 토글: null -> asc -> desc -> asc ...
@@ -623,7 +645,7 @@
             tbody.innerHTML = buildRowsHTML(filtered, 'all');
 
             // 화살표 업데이트
-            areaArrow.textContent = (this._areaSortDir === 'asc') ? '▲' : '▼';
+            areaArrow.textContent = (this._areaSortDir === 'asc') ? '▼' : '▲';
 
             applyAutoScroll(); // ▼▼▼ 추가: 정렬로 행 수/높이 변화 시 적용
           });

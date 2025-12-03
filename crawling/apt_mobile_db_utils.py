@@ -58,6 +58,7 @@ def apt_create_table():
     conn.close()
     # 테이블이 이미 존재하면 메시지를 출력하지 않음
 
+
 def apt_save_to_sqlite(data):
     """
     주어진 data (리스트 내의 dict들)를 SQLite 데이터베이스에 저장합니다.
@@ -251,6 +252,26 @@ def apt_update_fav(article_no, fav):
     finally:
         conn.close()
 
+# 법정동코드로 삭제
+def apt_delete_by_lawdCd_umdNm(lawdCd: str, umdNm: str):
+    """
+    주어진 법정동코드(lawdCd)와 읍면동명(umdNm)에 해당하는 모든 레코드를 삭제합니다.
+    삭제된 행 수를 반환합니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    delete_query = f"DELETE FROM {TABLE_NAME} WHERE lawdCd = ? AND umdNm = ?"
+    try:
+        cursor.execute(delete_query, (lawdCd, umdNm))
+        conn.commit()
+        deleted = cursor.rowcount
+        print(f"법정동코드 {lawdCd}, 읍면동명 '{umdNm}' 에 해당하는 레코드 {deleted}건 삭제 완료.")
+        return deleted
+    except Exception as e:
+        print(f"법정동코드 {lawdCd}, 읍면동명 '{umdNm}' 삭제 오류: {e}")
+        return 0
+    finally:
+        conn.close()
 
 def apt_delete_single(article_no):
     """

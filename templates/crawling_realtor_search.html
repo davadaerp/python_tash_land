@@ -611,7 +611,6 @@
           }
       });
 
-
       // 조건선택 목록 처리
       function applyFilters() {
         // 중개사/상담사 일때 읍면동은 주소와 비교
@@ -657,7 +656,7 @@
      });
 
      // #sms_type변경 이벤트
-      document.getElementById('sms_type').addEventListener('change', function () {
+     document.getElementById('sms_type').addEventListener('change', function () {
          //
          document.getElementById('message-content').value = "";
          //
@@ -694,7 +693,7 @@
            document.getElementById('message-title').value = "상가임대(매매)의뢰";
            document.getElementById('message-content').value = send_message;
          }
-      });
+     });
 
       // 알림톡,문자 선택처리
       // document.getElementById('send_tool_type').addEventListener('change', function () {
@@ -746,7 +745,88 @@
         var top = (window.screen.height - height) / 2;
         window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
       });
-    });
+
+      // #excel-btn 클릭 시 CSV 생성 및 다운로드
+      document.getElementById('download-btn').addEventListener('click', function() {
+
+          // 선택된 행이 없으면 알림 후 종료
+          const checkedRows = $('input.row-checkbox:checked');
+          if (checkedRows.length === 0) {
+            alert("체크된 데이터가 없습니다.");
+            return;
+          }
+
+          // ===== [추가] 파일명 구성: dangiName + 구분(중개사/상담사/세무사) =====
+          const dangiName = ($('#dangiName').val() || '').trim();
+          const selType = $('#sel_type').val();
+          const selTypeName =
+            selType === 'realtor' ? '중개사' :
+            selType === 'loaner'  ? '상담사' :
+            selType === 'lawer'   ? '세무사' : '기타';
+
+          const excelFileName = (dangiName ? dangiName : '미지정') + '_' + selTypeName + '.xls';
+
+          // ===== [추가] 저장 여부 확인 =====
+          const totalSelected = checkedRows.length;
+          const confirmMsg = `선택한 데이터(${totalSelected}건)를\n"${excelFileName}" 파일로 저장하시겠습니까?`;
+          if (!confirm(confirmMsg)) return;
+
+          // 헤더 행 생성
+          var tableHTML = "<table>";
+          tableHTML += "<tr>" +
+                          "<th>순번</th>" +
+                          "<th>제목</th>" +
+                          "<th>대표자</th>" +
+                          "<th>주소지</th>" +
+                          "<th>일반전화</th>" +
+                          "<th>휴대전화</th>" +
+                       "</tr>";
+
+          // 선택된 각 행에 대해 데이터를 추출하여 테이블 행 생성
+          $('input.row-checkbox:checked').each(function(){
+              var row = $(this).closest('tr');
+              var tds = row.find('td');
+              var seq = $(tds[1]).text();
+              var title = $(tds[2]).text();
+              var rep = $(tds[3]).text();
+              var addr = $(tds[4]).text();
+              var phone = $(tds[5]).text();
+              var mobile = $(tds[6]).text();
+              tableHTML += "<tr>" +
+                              "<td>" + seq + "</td>" +
+                              "<td>" + title + "</td>" +
+                              "<td>" + rep + "</td>" +
+                              "<td>" + addr + "</td>" +
+                              "<td>" + phone + "</td>" +
+                              "<td>" + mobile + "</td>" +
+                           "</tr>";
+          });
+          tableHTML += "</table>";
+
+          // 첫번째 h1 요소의 outerHTML 추출 (엑셀 문서 상단 제목)
+          var titleHTML = $("h1").first().prop("outerHTML");
+
+          // 엑셀에서 인식할 수 있도록 HTML 문서 형태로 감싸기
+          var excelHTML = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+                          'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+                          'xmlns="http://www.w3.org/TR/REC-html40">' +
+                          '<head><meta charset="UTF-8"></head><body>' +
+                          titleHTML + tableHTML +
+                          '</body></html>';
+
+          // Blob 객체 생성
+          var blob = new Blob([excelHTML], { type: "application/vnd.ms-excel" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = excelFileName;          // ← [변경] 동적 파일명 적용
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      });
+
+    }); // end DOMContentLoaded
 
   </script>
 </head>

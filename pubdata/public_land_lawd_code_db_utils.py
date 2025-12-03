@@ -3,7 +3,7 @@
 import os
 import sqlite3
 import csv
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from config import PUBLIC_BASE_PATH
 
@@ -30,7 +30,10 @@ def init_lawd_db(db_path: str = DB_PATH) -> None:
     ddl = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         lawd_cd   TEXT PRIMARY KEY,
-        lawd_name TEXT NOT NULL
+        lawd_name TEXT NOT NULL,
+        batch_apt_yn  TEXT DEFAULT 'N',  -- 국토부 실거래처리(아파트,빌라,상가) 배치처리 여부 (Y/N
+        batch_villa_yn  TEXT DEFAULT 'N',
+        batch_sanga_yn  TEXT DEFAULT 'N' 
     );
     """
     conn = get_conn(db_path)
@@ -120,6 +123,33 @@ def get_lawd_by_code(lawd_cd: str, db_path: str = DB_PATH) -> Optional[Dict[str,
         conn.close()
 
 # ==========================
+# 3-2) lawd_code 테이블 전체 조회
+def get_lawd_by_codes(db_path: str = DB_PATH) -> List[Dict[str, str]]:
+    """
+    lawd_code 테이블에서 법정동 코드와 이름을 전체 조회하여 리턴합니다.
+    입력 조건 없이 모든 레코드를 가져옵니다.
+    반환: [{"lawd_cd": "...", "lawd_name": "..."}, ...]
+    """
+
+    conn = get_conn(db_path)
+    try:
+        # WHERE 절 없이 전체 레코드를 조회합니다.
+        sql = f"SELECT lawd_cd, lawd_name, batch_apt_yn, batch_villa_yn, batch_sanga_yn FROM {TABLE_NAME}"
+        cur = conn.execute(sql)
+
+        rows = cur.fetchall()
+
+        # 결과를 [{"lawd_cd": "...", "lawd_name": "..."}] 형태로 변환
+        result_list = [{"lawd_cd": row[0], "lawd_name": row[1], "batch_apt_yn": row[2], "batch_villa_yn": row[3], "batch_sanga_yn": row[4]} for row in rows]
+
+        return result_list
+    except Exception as e:
+        print(f"DB 전체 조회 중 오류 발생: {e}")
+        return []
+    finally:
+        conn.close()
+
+# ==========================
 # 4) 삭제 / 초기화 기능 추가
 # ==========================
 def drop_lawd_table(db_path: str = DB_PATH) -> None:
@@ -129,6 +159,69 @@ def drop_lawd_table(db_path: str = DB_PATH) -> None:
         conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
         conn.commit()
         print(f"[DROP] {TABLE_NAME} 테이블이 삭제되었습니다.")
+    finally:
+        conn.close()
+
+
+# ==========================
+# 5) land_batch_yn 업데이트 (단일 lawd_cd)
+# ==========================
+def update_land_batch_yn_single(lawd_cd: str, trade_type: str, yn: str, db_path: str = DB_PATH) -> int:
+    """
+    주어진 단일 lawd_cd에 해당하는 레코드의 특정 거래 유형(APT/VILLA/SANGA) 배치 처리 여부 필드(batch_..._yn)를 업데이트합니다.
+
+    Args:
+        lawd_cd: 업데이트할 단일 법정동 코드(lawd_cd).
+        trade_type: 업데이트할 거래 유형 ('APT', 'VILLA', 'SANGA'). 대소문자 구분 없음.
+        yn: 설정할 배치 처리 여부 값 ('Y' 또는 'N').
+        db_path: SQLite DB 파일 경로.
+
+    Returns:
+        업데이트된 행 수 (0 또는 1).
+    """
+    if not lawd_cd:
+        return 0
+
+    # yn 값 유효성 검사
+    upper_yn = yn.upper()
+    if upper_yn not in ('Y', 'N'):
+        print(f"경고: 유효하지 않은 yn 값 '{yn}'이 입력되었습니다. ('Y' 또는 'N' 필요)")
+        return 0
+
+    # trade_type에 따라 업데이트할 필드 결정
+    upper_type = trade_type.upper()
+    if upper_type == 'APT':
+        target_field = 'batch_apt_yn'
+    elif upper_type == 'VILLA':
+        target_field = 'batch_villa_yn'
+    elif upper_type == 'SANGA':
+        target_field = 'batch_sanga_yn'
+    else:
+        print(f"경고: 유효하지 않은 거래 유형 '{trade_type}'이 입력되었습니다. ('APT', 'VILLA', 'SANGA' 필요)")
+        return 0
+
+
+    conn = get_conn(db_path)
+    try:
+        # 동적으로 필드 이름을 사용하여 UPDATE 쿼리 생성
+        sql = f"""
+        UPDATE {TABLE_NAME}
+        SET {target_field} = ?
+        WHERE lawd_cd = ?;
+        """
+
+        # 쿼리 실행: 첫 번째 매개변수는 yn 값, 두 번째는 lawd_cd
+        cur = conn.execute(sql, (upper_yn, str(lawd_cd).strip()))
+
+        # 업데이트된 행 수 확인
+        updated_rows = cur.rowcount
+        conn.commit()
+
+        return updated_rows
+    except Exception as e:
+        conn.rollback()
+        print(f"단일 lawd_cd 업데이트 중 오류 발생: {e}")
+        return 0
     finally:
         conn.close()
 

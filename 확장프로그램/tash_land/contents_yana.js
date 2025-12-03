@@ -5,8 +5,9 @@ let isScheduled = false; // 함수 호출이 예약되었는지 여부를 나타
 //
 let tableData = []; // 테이블 만들 데이터 { key: data, key2: data2} 형식으로 저장
 let tabGubun = '';
-let BASE_URL = "https://erp-dev.bacchuserp.com";
-//let BASE_URL = 'http://127.0.0.1:5000';
+//let BASE_URL = "https://erp-dev.bacchuserp.com";
+let BASE_URL = 'http://127.0.0.1:5000';
+let LOCAL_BASE_URL = 'http://127.0.0.1:5000';
 let currSelectedType = 'all';
 let isLoggedInStatus = false;
 let apt_key = "";
@@ -282,6 +283,7 @@ function aptItemRowModify(item) {
         priceElement.appendChild(span);
         priceElement.dataset.highlighted = 'true';
         //
+        /*
         // add PIR button
         const btn = document.createElement('button');
         btn.classList.add('pir-btn');
@@ -315,6 +317,7 @@ function aptItemRowModify(item) {
           });
         };
         priceElement.appendChild(btn);
+        */
     }
 
     // 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)-아파트에서는 중개소(3) 이런식에 물건은 하위를 눌러야 상세가 나옴 ㅠ.ㅠ
@@ -1677,7 +1680,6 @@ function searchLandRealData() {
             }
             // 확장툴url
             let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-            //let ext_url = "http://127.0.0.1:5000/api/ext_tool?" + search_menu;
 
             const popupWidth = 950;  // 원하는 팝업 너비
             const popupHeight= 840;  // 원하는 팝업 높이
@@ -1695,6 +1697,73 @@ function searchLandRealData() {
 
   // onoffPanel에 실거래검색 버튼 추가
   onoffPanel.appendChild(landSearch);
+}
+
+// 부동산원 PIR데이타 분석
+function searchPirAnalyzeData() {
+
+    // 기본 컨트롤 박스 가져오기
+    const onoffPanel = document.querySelector('.filter_area');
+    onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
+
+    // 아파트 PIR분석 버튼 생성
+    const pirSearch = document.createElement('span');
+    pirSearch.id = 'pirSearch'; // id 지정
+    pirSearch.textContent = 'PIR분석';
+    pirSearch.style.marginTop = '15px';
+    pirSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    pirSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
+    pirSearch.style.color = '#0e0c0c'; // 검정색 텍스트
+    pirSearch.style.padding = '5px 6px'; // 내부 여백
+    pirSearch.style.fontSize = '12px'; // 글씨 크기
+    pirSearch.style.borderRadius = '8px'; // 둥근 모서리
+    pirSearch.style.cursor = 'pointer'; // 커서
+    pirSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    pirSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    pirSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    pirSearch.addEventListener('click', function() {
+        //alert('준비중입니다.');
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            //
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+            const aptNm = "구래역한강리슈빌";
+            // '경기도,김포시,구래동, 아파트명'
+            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
+            //alert(regions);
+
+            let search_menu = "menu=pir_apt&regions=" + regions;
+
+            // 확장툴url
+            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+
+            const popupWidth =  1390;   // 원하는 팝업 너비
+            const popupHeight = 1180;  // 원하는 팝업 높이
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            // window.open(ext_url, "realDataPopup",
+            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+            window.open(
+                  ext_url,
+                  "realDataPopup",
+                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+                );
+        });
+  });
+
+    // tabGubun에 따라 버튼 위치 결정
+    if (tabGubun === 'apt') {
+        // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
+        const landSearch = document.getElementById("landSearch");
+        landSearch.parentNode.insertBefore(pirSearch, landSearch.nextSibling);
+    } else {
+        // onoffPanel에 실거래검색 버튼 추가
+        onoffPanel.appendChild(pirSearch);
+    }
 }
 
 // 네이버 매물검색 처리
@@ -1745,8 +1814,8 @@ function searchNaverListings() {
                 search_menu = "menu=apt_search&regions=" + regions + '&api_key=' + sanga_key;
             }
             // 확장툴url
-            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-            //let ext_url = "http://127.0.0.1:5000/api/ext_tool?" + search_menu;
+            //let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+            let ext_url = LOCAL_BASE_URL + "/api/ext_tool?" + search_menu;
 
             const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
             const popupHeight = 1200;  // 원하는 팝업 높이
@@ -1764,8 +1833,8 @@ function searchNaverListings() {
     // tabGubun에 따라 버튼 위치 결정
     if (tabGubun === 'apt') {
         // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
-        const landSearch = document.getElementById("landSearch");
-        landSearch.parentNode.insertBefore(naverSearch, landSearch.nextSibling);
+        const pirSearch = document.getElementById("pirSearch");
+        pirSearch.parentNode.insertBefore(naverSearch, pirSearch.nextSibling);
     } else {
         // onoffPanel에 실거래검색 버튼 추가
         onoffPanel.appendChild(naverSearch);
@@ -1807,7 +1876,7 @@ function nplSearchListings() {
         // '경기도,김포시,구래동'
         const regions = region + ',' + sigungu + ',' + umdNm;
 
-        let search_menu = "menu=npl_search&regions=" + regions + '&api_key=' + sanga_key;
+        let search_menu = "menu=npl_search&regions=" + regions;
 
         // 확장툴url
         let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
@@ -1935,12 +2004,62 @@ function smsSend() {
   analyzeProfit.parentNode.insertBefore(smsSendSearch, analyzeProfit.nextSibling);
 }
 
-// 양식다운로드 처리
-function formDownload() {
-  // 문자검색 버튼 요소 가져오기
+// 상가경우 등기부출력 처리
+function printLegalDoc() {
+  // 수익율분석 버튼 요소 가져오기
   const smsSendSearch = document.getElementById("smsSendSearch");
 
-  // 수익율분석 버튼 생성
+  // 등기부 버튼 생성
+  const printLegalDoc = document.createElement('span');
+  printLegalDoc.id = 'printLegalDoc'; // id 지정
+  printLegalDoc.textContent = '등기부신청';
+  printLegalDoc.style.marginLeft = '10px'; // 실거래검색 버튼과 간격
+  printLegalDoc.style.backgroundColor = '#ffb700'; // 엷은 노란색 배경
+  printLegalDoc.style.color = '#000'; // 검정색 텍스트
+  printLegalDoc.style.padding = '5px 6px'; // 내부 여백
+  printLegalDoc.style.fontSize = '12px'; // 글씨 크기
+  printLegalDoc.style.borderRadius = '8px'; // 둥근 모서리
+  printLegalDoc.style.cursor = 'pointer'; // 커서
+  printLegalDoc.style.transition = 'all 0.3s ease'; // 부드러운 효과
+  printLegalDoc.style.display = 'inline-block'; // 옆으로 배치되도록 설정
+  printLegalDoc.style.verticalAlign = 'middle'; // 정렬 보정
+  printLegalDoc.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+  printLegalDoc.addEventListener('click', function() {
+    // 로그인여부 체크
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
+
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        const regions = region + ',' + sigungu + ',' + umdNm;
+        //
+        // 확장툴url
+       //let ext_url = BASE_URL + "/api/ext_tool?menu=realtor&regions=" + regions;
+        let ext_url = BASE_URL + "/api/pastapt/juso_popup";
+        //
+        const popupWidth = 570;
+        const popupHeight = 420;
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        window.open(ext_url, "등기부출력",
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    });
+  });
+
+  // 수익율분석 버튼 바로 뒤에 추가
+  smsSendSearch.parentNode.insertBefore(printLegalDoc, smsSendSearch.nextSibling);
+}
+
+
+// 양식다운로드 처리
+function formDownload() {
+
+   // 문자검색 버튼 요소 가져오기
+   const smsSendSearch = document.getElementById("smsSendSearch");
+
+  // 양식다운 버튼 생성
   const formDownload = document.createElement('span');
   formDownload.id = 'formDownload'; // id 지정
   formDownload.textContent = '양식다운';
@@ -1981,10 +2100,23 @@ function formDownload() {
         });
   });
 
-  // 문자검색 버튼 바로 뒤에 수익율분석 버튼 추가
-  smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
+  // 상가경우만 등기부출력
+  if (tabGubun === 'sanga') {
+      // 상가에서는 등기부 버튼 바로 뒤에 붙이기
+      const printLegalDoc = document.getElementById("printLegalDoc");
+      if (printLegalDoc && printLegalDoc.parentNode) {
+        printLegalDoc.parentNode.insertBefore(formDownload, printLegalDoc.nextSibling);
+      } else if (smsSendSearch && smsSendSearch.parentNode) {
+        // 혹시 등기부 버튼이 아직 없다면, 문자버튼 뒤에 임시로 붙임
+        smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
+      }
+  } else {
+      // 그 외 탭은 문자 버튼 뒤
+      if (smsSendSearch && smsSendSearch.parentNode) {
+        smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
+      }
+  }
 }
-
 
 function loadSangaItems() {
     //
@@ -2145,9 +2277,11 @@ function extractPropertyInfo() {
 function topButtonCreate() {
     // 로그인처리(사용안함-비동기문제발생)
     //login();
-    // 실거래분석 처리(아파트 실거래및 경매내역)
+    // 실거래분석 처리(아파트 실거래및 경매내역) 및 PIR분석 데이타
     if (tabGubun === 'apt') {
         searchLandRealData();
+        //
+        searchPirAnalyzeData();
     }
     // 네이버매물 팝업
     searchNaverListings();
@@ -2157,6 +2291,11 @@ function topButtonCreate() {
     analyzeProfitDemand();
     // 문자보내기(중개사및 대출상담사) 처리
     smsSend();
+    //
+    // 등기부출력
+    if (tabGubun === 'sanga') {
+        printLegalDoc();
+    }
     // 양식다운로드 처리
     formDownload();
 }

@@ -1079,13 +1079,15 @@
                     const area = parseFloat(item.excluUseArPyeong) || 0;
                     const unitPrice = area > 0 ? Math.round(amount / area) : 0;
                     const address = [lawName, item.jibun].filter(Boolean).join(" ");
+                    const buildingName = item.mhouseNm || "";  // 빌라실거래는 실제 건물명
 
                     // 국토부 지오코딩 API를 사용하여 위/경도 가져오기(서버에서 처리함)
                     const latitude = item.latitude || 0;
                     const longitude = item.longitude || 0;
                     return {
                         type: "real",
-                        address: [lawName, item.jibun].filter(Boolean).join(" "),
+                        address: address,
+                        buildingName: buildingName,
                         date: item.dealDate,
                         year: Number(item.buildYear) || '',
                         floor: `${item.floor}층`,
@@ -1104,6 +1106,8 @@
                     const amount = parseInt(String(sale_price || "0").replace(/,/g, ""), 10);
                     const area = parseFloat(item.building_py) || 0;
                     const unitPrice = item.pydanga_sale;
+                    const address = item.address1;
+                    const buildingName = "";  // 상가실거래는 빌딩명(용도-1종,2종근린등)
 
                     // 만약 크롤링 시 이미 받아온 위/경도가 없다면 아래로 대체:
                     // const { lat: latitude, lng: longitude } = await geocodeVWorld(address);
@@ -1112,7 +1116,8 @@
 
                     return {
                         type: "auction",
-                        address: item.address1,
+                        address: address,
+                        buildingName: buildingName,
                         date: item.sales_date,
                         year: '',
                         floor: `${item.floor}층`,

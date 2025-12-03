@@ -4,6 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>법정동코드 관리</title>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <style>
   :root{
     --primary:#0b68ff;
@@ -71,11 +75,22 @@
   .row-actions{display:flex;gap:6px;justify-content:flex-end}
   .muted{color:var(--muted);font-size:12px}
   /* === 구분 select와 법정코드 input 폭 동일 === */
-  #newType, #newCode { width:240px; max-width:100%; }
+  #newType, #newCode { width:140px; max-width:100%; }
   /* === 법정코드명 입력을 1/3 더 크게 === */
-  #newName { width:320px; max-width:100%; }
+  #locatadd_nm { width:320px; max-width:100%; }
   /* === 저장 버튼 크기를 리스트 삭제 버튼과 동일 수준으로 === */
   .form-actions .btn-primary { padding:9px 12px; width:auto; }
+
+  /* === select 폭 조정 === */
+  #filterType, #batchCycle {
+    width: 120px;           /* ✅ 원하는 폭 (필요 시 100~160px 조절 가능) */
+    min-width: 100px;
+    max-width: 160px;
+    padding-right: 28px;    /* ▼ 드롭다운 화살표 공간 확보 */
+    appearance: none;       /* 브라우저 기본 스타일 제거 */
+    background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path fill="%23666" d="M0 0l5 6 5-6z"/></svg>') no-repeat right 10px center;
+    background-size: 10px 6px;
+  }
 </style>
 </head>
 <body>
@@ -90,9 +105,17 @@
         <option value="SG">상가</option>
       </select>
       <input id="searchInput" type="text" placeholder="법정동명 검색(예: 김포시, 운양동)" />
+      <!--
       <button id="btnSearch" class="btn btn-ghost">검색</button>
+      -->
+      <label>*배치주기</label>
+      <select id="batchCycle" title="배치주기">
+        <option value="1">1일</option>
+        <option value="3">3일</option>
+        <option value="5">5일</option>
+      </select>
+      <button id="btnBatchCycle" class="btn btn-ghost">주기저장</button>
       <div class="right"></div>
-      <!-- <button id="btnDeleteSelected" class="btn btn-danger">선택 삭제</button> -->
     </div>
 
     <div class="list">
@@ -126,9 +149,16 @@
 
       <!-- 2) 법정코드: [법정코드입력] [법정코드명 입력] -->
       <div class="form-row inline">
-        <label for="newCode" class="label-inline">법정코드</label>
+        <label for="newCode" class="label-inline">법정코드명</label>
+        <!--
         <input id="newCode" type="text" placeholder="예: 4157010300" />
         <input id="newName" type="text" placeholder="예: 경기도 김포시 운양동" />
+        -->
+        <!-- ▼ 자동완성용 입력/목록 래퍼로 교체(newName → locatadd_nm) -->
+        <div class="input-wrapper" style="position:relative; width:520px; max-width:100%;">
+          <input id="locatadd_nm" type="text" placeholder="예: 경기도 김포시 운양동" />
+          <ul id="suggestions" style="position:absolute; top:100%; left:0; right:0; z-index:1000; display:none; margin:0; padding:0; list-style:none;"></ul>
+        </div>
       </div>
 
       <!-- 3) 저장 버튼 (다음 줄 중앙) -->
@@ -139,25 +169,33 @@
     <!-- ▲▲ 폼 구조 끝 ▲▲ -->
   </div>
 </div>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/address_autocomplete.js"></script>
 
 <script>
   // ===== 서버 주소 & 토큰 =====
-  const SERVER = "http://127.0.0.1:5001"; // lawd_codes_api.py 가 도는 곳
+  //const SERVER = "http://127.0.0.1:5001"; // lawd_codes_api.py 가 도는 곳
+  const SERVER = BASE_URL;
   const API_TOKEN = localStorage.getItem("ADMIN_API_TOKEN") || "dev-token-123";
 
   // ===== 엘리먼트 =====
   const filterType   = document.getElementById('filterType');
   const searchInput  = document.getElementById('searchInput');
-  const btnSearch    = document.getElementById('btnSearch');
+  // const btnSearch    = document.getElementById('btnSearch');
   const listBody     = document.getElementById('listBody');
   // const btnDeleteSel = document.getElementById('btnDeleteSelected');
+  // 주기저장관련
+  const batchCycleEl    = document.getElementById('batchCycle');
+  const btnBatchCycleEl = document.getElementById('btnBatchCycle');
 
   const newType      = document.getElementById('newType');
-  const newCode      = document.getElementById('newCode');
-  const newName      = document.getElementById('newName');
+  //const newCode      = document.getElementById('newCode');
+  //const newName      = document.getElementById('newName');
+  const locatadd_nm  = document.getElementById('locatadd_nm'); // 추가
   const btnSave      = document.getElementById('btnSave');
 
   // ===== 상태 =====
+  let allItems = [];    // 전체 목록 보관(클라이언트 필터용)
   let currentItems = []; // [{id, lawd_cd, lawd_name, trade_type}]
   let selectedId = null;
 
@@ -167,6 +205,7 @@
     if (!res.ok) throw new Error(`GET 실패: ${res.status}`);
     return await res.json();
   }
+
   async function apiPost(url, body) {
     const res = await fetch(url, {
       method: 'POST',
@@ -180,6 +219,7 @@
     if (!res.ok) throw new Error(data.error || `POST 실패: ${res.status}`);
     return data;
   }
+
   async function apiDelete(url) {
     const res = await fetch(url, {
       method: 'DELETE',
@@ -277,36 +317,86 @@
     });
   }
 
+  // ===== 이벤트 =====
+  // btnSearch.addEventListener('click', loadList);
+  filterType.addEventListener('change', loadList);
+
+  // [추가] keydown 시 현재 입력값 기준으로 즉시 필터링 렌더
+  searchInput.addEventListener('keydown', () => {
+    // keydown은 값이 입력되기 전이므로 마이크로태스크로 지연
+    setTimeout(() => {
+      filterAndRenderByQuery(searchInput.value);
+    }, 0);
+  });
+
   // ===== 목록 로드 =====
   async function loadList(){
+
+    //검색입력값 초기화
+    searchInput.value = "";
+
     const params = new URLSearchParams();
     const t = filterType.value.trim();
-    const q = searchInput.value.trim();
+    //const q = searchInput.value.trim();
+    const q = "";
     if (t) params.set('trade_type', t);
     if (q) params.set('q', q);
 
     try{
       listBody.innerHTML = `<div class="empty">불러오는 중...</div>`;
       const data = await apiGet(`/api/crawl_lawd_codes/list?${params.toString()}`);
-      renderList(data.items || []);
+      allItems = data.items || [];
+      renderList(allItems);
     }catch(err){
       listBody.innerHTML = `<div class="empty">목록을 불러오지 못했습니다.<br>${err.message||''}</div>`;
     }
   }
 
-  // ===== 이벤트 =====
-  btnSearch.addEventListener('click', loadList);
-  filterType.addEventListener('change', loadList);
+  // [추가] 검색어로 클라이언트 사이드 필터링 후 렌더
+  function filterAndRenderByQuery(q) {
+    const query = (q || '').trim();
+    if (!query) { renderList(allItems); return; }
+
+    const filtered = allItems.filter(it => {
+      const name = String(it.lawd_name || '').toLowerCase();
+      const code = String(it.lawd_cd || '').toLowerCase();
+      const qq   = query.toLowerCase();
+      return name.includes(qq) || code.includes(qq);
+    });
+    renderList(filtered);
+  }
+
+
+  // 배치주기 저장
+  btnBatchCycleEl.addEventListener('click', async () => {
+      const cycle = Number(batchCycleEl.value);
+      // if (!Number.isFinite(cycle) || cycle <= 0){
+      //   alert('올바른 배치주기를 선택하세요.');
+      //   return;
+      // }
+
+      if (!confirm(`배치주기를 ${cycle}일로 저장하시겠습니까?`)) return;
+
+      try{
+       const result = await apiPost(`/api/crawl_lawd_codes/batch_cycle`, { cycle });
+        alert('배치주기가 저장되었습니다.' + result.message);
+      }catch(err){
+        alert(err.message || '배치주기 저장 중 오류가 발생했습니다.');
+      }
+  });
 
   // 저장(UPSERT)
   btnSave.addEventListener('click', async ()=>{
     const trade_type = newType.value.trim();
-    const lawd_cd    = newCode.value.trim();
-    const lawd_name  = newName.value.trim();
+    const lawd_cd    = selectedLawdCd;
+    //const lawd_name  = selectedUmdNm;
+    const lawd_name  = locatadd_nm.value.trim();
+
+    //alert(lawd_cd + ',' + lawd_name);
 
     if (!lawd_cd){ alert('법정코드를 입력하세요.'); newCode.focus(); return; }
     if (!/^\d{10}$/.test(lawd_cd)){ alert('법정코드는 숫자 10자리여야 합니다.'); newCode.focus(); return; }
-    if (!lawd_name){ alert('법정코드명을 입력하세요.'); newName.focus(); return; }
+    if (!lawd_name){ alert('법정코드명을 입력하세요.'); lawd_name.focus(); return; }
 
        // 현재 리스트에서 중복 여부 체크
     const typeLabel = (t) => t === 'APT' ? '아파트' : (t === 'SG' ? '상가' : t);

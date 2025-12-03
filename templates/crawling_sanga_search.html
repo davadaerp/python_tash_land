@@ -620,7 +620,7 @@
                 $('#sortPrice').text(sortPriceAscending ? '금액 ▲' : '금액 ▼');
                 $('#sortPyeongPrice').text(sortPriceAscending ? '평단가 ▲' : '평단가 ▼');
                 $('#sortRentPyeongPrice').text(sortRentPyeongPriceAscending ? '매매월세 ▲' : '매매월세 ▼');
-                $('#sortProfitPrice').text(sortPriceAscending ? '월세매매가 ▲' : '월세매매가 ▼');
+                $('#sortProfitPrice').text(sortPriceAscending ? '매매가 ▲' : '매매가 ▼');
             }
 
             // 월세팝업 버튼 종료 이벤트 리스너 추가
@@ -936,7 +936,9 @@
                         <td class="center-align">${pyeongDisplay}</td>
                         <td class="right-align" style="color: black;">${priceValue}</td>
                         <td class="right-align" style="color: red;">@${trade_type == '매매' ? formatNumber(pyeongPrice.toFixed(0)) + '만' : formatNumber(pyeongPrice.toFixed(1)) + '만'}</td>
+                        <!--
                         <td class="center-align" style="color: green;">${trade_type == '매매' ? item.sale_deposit_price + '/' + item.sale_rent_price + '<span style="color: red;"> @' + salesRentPyeongPrice.toFixed(1) + '</span>' : 0} </td>
+                        -->
                         <td class="center-align" style="color: blue;">${profitSaleAmt}</td>
                         <!--
                         <td class="center-align">
@@ -1378,7 +1380,7 @@
                 }, 500);
             }
 
-             // 법정코드관리 버튼 클릭 이벤트 추가
+            // 법정코드관리 버튼 클릭 이벤트 추가
             function adminLawdCdsPop() {
                 // 기본 옵션
                 const width = 800;
@@ -1420,7 +1422,6 @@
                 alert('팝업이 차단되었습니다. 브라우저 팝업 허용을 확인하세요.');
                 }
             }
-
 
             // 현재 메인에서 필터되어진 화면에 평수별 그룹을 보여줌..
             function pyengPopupView() {
@@ -2881,8 +2882,10 @@
                     <th id="sortBuildingArea" style="flex:1;">전용면적(평) ▼</th>
                     <th id="sortPrice" style="flex:1;">가격 ▼</th>
                     <th id="sortPyeongPrice" style="flex:1;">평단가 ▼</th>
+                    <!--
                     <th id="sortRentPyeongPrice" style="flex:1;">매매월세 ▼</th>
-                    <th id="sortProfitPrice" style="flex:1;">월세매매가 ▼</th>
+                    -->
+                    <th id="sortProfitPrice" style="flex:1;">매매가 ▼</th>
                     <!--
                     <th>중개사명</th>
                     <th style="flex:1;">상세</th>

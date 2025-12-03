@@ -22,7 +22,7 @@ from bs4 import BeautifulSoup
 from dataclasses import dataclass
 
 from crawling.crawl_lawd_codes_db_utils import search_crawl_lawd_codes
-from crawling.apt_mobile_db_utils import apt_save_to_sqlite
+from crawling.apt_mobile_db_utils import apt_save_to_sqlite, apt_delete_by_lawdCd
 
 # -----------------------------
 # 설정값
@@ -352,8 +352,12 @@ def parse_articles(session: requests.Session, payload: Dict[str, Any], keyword: 
         hanPrc  = str(v.get("hanPrc", "") if v.get("hanPrc", "") is not None else "")   # 한글가격
         rentPrc = str(v.get("rentPrc", "") if v.get("rentPrc", "") is not None else "") # 월세 (만원)
 
-        spc1 = safe_float(v.get("spc1"))    # 계약면적 m2
-        spc2 = safe_float(v.get("spc2"))    # 전용면적 m2
+        spc1 = safe_float(v.get("spc1"))    # 계약면적 m2 (97 이렇게 숫자만 있는 경우도 있고, "97.5" 이렇게 소수점 있는 경우도 있음)
+        spc2 = safe_float(v.get("spc2"))    # 전용면적 m2 (84.5 이렇게 소수점 있는 경우도 있음)
+
+        # print('=== before value : spc1 => ' + v.get("spc1") + ', spc2 => ' + v.get("spc2"))
+        # print('=== after  value : spc1 => ' + str(spc1) + ', spc2 => ' + str(spc2))
+
         area1 = spc1                        # 계약면적 m2
         area2 = spc2                        # 전용면적 m2
         exclusive_area_pyeong = m2_to_py(area2)     # 전용면적 평
@@ -693,6 +697,12 @@ def scrape_keywords(keywords: Dict[str, str],
     for kw, lawdCd in keywords.items():
         print(f"\n▶ 키워드 처리 시작: {kw}")
         try:
+            # 1) 해당 법정동(DB에는 5자리로 저장) 기존 데이터 삭제 후 0.5초 대기
+            deleted = apt_delete_by_lawdCd(lawdCd[:5])
+            if verify:
+                dprint(f"[정리] lawdCd={lawdCd[:5]} 기존 {deleted}건 삭제")
+            time.sleep(3)
+            # 2) 크롤링 시작
             items = scrape_one_keyword(session, kw, lawdCd, rletTpCds, tradTpCds, lat_margin, lon_margin, verify=verify)
             print(f"▶ 키워드 처리 완료: {kw} (수집 {len(items)}건)")
             if not items and verify:
@@ -735,6 +745,16 @@ def make_keywords_from_search(name_like: str = "", trade_type: str="APT") -> Dic
 
 # -----------------------------
 # 실행 예시
+# 주요 투자 법정동 코드 추출
+# 충주(대소원면-지오웰),
+# 청주(개신동,분평동,사직동,가경동,복대동,산남동,용담동), 부산, 진주, 원주,
+# 춘천(퇴계동, 효자동, 후평동)
+# 군산(수송동, 대명동)
+# 울산(우정동,신정동, 옥동)
+# 창원(반림동)
+# 전주(중화산동,인후동)
+# 제천(천정동)
+# 충북(오창-산업단지근처임, 오송), 순천
 # -----------------------------
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -751,8 +771,8 @@ if __name__ == "__main__":
         keywords,
         rletTpCds="APT",
         tradTpCds="A1:B1:B2",
-        lat_margin=0.118,
-        lon_margin=0.111,
+        # lat_margin=0.118,
+        # lon_margin=0.111,
         verify=True
     )
 

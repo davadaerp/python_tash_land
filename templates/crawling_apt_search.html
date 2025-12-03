@@ -430,6 +430,8 @@
             $("#profit-link").on("click", openProfitPopup);
             // 프린트 버튼 클릭 이벤트 추가
             $("#print-btn").on("click", printPreview);
+            // 법정코드관리 버튼 클릭 이벤트 추가
+            $("#admin-btn").on("click", adminLawdCdsPop);
             //
             // 체크박스 => 0 제외처리: rent_checkbox, 동일묶은제외: same_price_group_checkbox
             document.querySelectorAll("#same_price_group_checkbox, #rent_checkbox").forEach(function (checkbox) {
@@ -810,10 +812,9 @@
                     // 평단가 계산(월세는 월세로, 매매는 가격으로)
                     let pyeongPrice =  (salePrice / pyeongArea) / 10000;
                     let priceValue = formatNumber(item.price);
-                    //let jeonsePriceValue = convertNumberToKorean(jeonseMaxPrice);     // 140000000 => 1억 4,000
-                    let jeonsePriceValue = convertNumberToKorean2(jeonseMaxPrice) + '/' + convertNumberToKorean2(jeonseMinPrice);     // 140000000 => 1억 4천,
-                    let jeonsePrice = jeonseMaxPrice;             // 소팅및 전세율계산에 사용함 => 150000000
-
+                    // 전세율 표시
+                    let jeonsePriceDisplay = `<span style="color: red;">${convertNumberToKorean2(jeonseMaxPrice)}</span> / <span style="color: green;">${convertNumberToKorean2(jeonseMinPrice)}</span>`;
+                    let jeonsePrice = parseInt(jeonseMaxPrice) * 10000;             // 소팅및 전세율계산에 사용함 => 150000000
                     //console.log('' + item.article_name + ' : ' + item.area2 + ' : ' + item.price + ' : salePrice => ' + salePrice + ' : ' + jeonsePriceValue);
 
                     // 계약(area1),전용(area2)평형조회(m2,전용)
@@ -828,6 +829,8 @@
                     } else {
                         jeonseRate = '0%';
                     }
+
+                    console.log('=== salePrice: ' + salePrice + ', jeonsePrice: ' + jeonsePrice);
 
                     // 소트용 매매가격금액, 전세금액, 분양(계약)평형및 전세율 item 객체에 저장
                     item.sortSalePrice = salePrice;
@@ -857,7 +860,7 @@
                         <td class="center-align">${contractPyeongDisplay}</td>
                         <td class="center-align">${pyeongDisplay}</td>
                         <td class="right-align" style="color: black;">${priceValue}</td>
-                        <td class="right-align" style="color: red;">${jeonsePriceValue}</td>
+                        <td class="right-align" style="color: red;">${jeonsePriceDisplay}</td>
                         <td class="center-align" style="color: blue;">${jeonseRate}</td>
                         <!--
                         <td class="center-align">
@@ -1255,7 +1258,6 @@
                 });
             });
 
-
             function printPreview() {
                 // 인쇄할 영역의 HTML 가져오기
                 const searchHTML = document.querySelector(".search-container").outerHTML;
@@ -1300,6 +1302,49 @@
                     printWindow.focus();
                     printWindow.print();
                 }, 500);
+            }
+
+            // 법정코드관리 버튼 클릭 이벤트 추가
+            function adminLawdCdsPop() {
+                // 기본 옵션
+                const width = 800;
+                const height = 700;
+                const scrollbars = 'no';
+                const resizable  = 'no';
+
+                // 현재 창의 좌표(멀티모니터 대응)
+                const dualLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
+                const dualTop  = window.screenTop  !== undefined ? window.screenTop  : window.screenY;
+
+                // 현재 창의 크기
+                const curWidth  = window.innerWidth  || document.documentElement.clientWidth  || screen.width;
+                const curHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
+
+                // 중앙 좌표 계산
+                const left = dualLeft + (curWidth  - width)  / 2;
+                const top  = dualTop  + (curHeight - height) / 2;
+
+                // 피처 문자열
+                const features = [
+                    `width=${Math.round(width)}`,
+                    `height=${Math.round(height)}`,
+                    `left=${Math.max(0, Math.round(left))}`,
+                    `top=${Math.max(0, Math.round(top))}`,
+                    `scrollbars=${scrollbars}`,
+                    `resizable=${resizable}`,
+                    `toolbar=no`,
+                    `location=no`,
+                    `status=no`,
+                    `menubar=no`
+                ].join(',');
+
+                // 같은 이름이면 기존 팝업 재사용 (중복창 방지)
+                const win = window.open('/api/crawl_lawd_codes/admin', '법정코드관리', features);
+                if (win) {
+                try { win.focus(); } catch(e) {}
+                } else {
+                alert('팝업이 차단되었습니다. 브라우저 팝업 허용을 확인하세요.');
+                }
             }
 
             // 층,평형으로 필터
@@ -1403,7 +1448,11 @@
             </select>
             <button class="search-btn" id="search-btn">검색</button>
             <!-- 프린트 버튼 추가 -->
+            <!--
             <button id="print-btn">프린트</button>
+            -->
+            <!-- 법정코드관리 버튼 추가 -->
+            <button id="admin-btn">법정코드관리</button>
         </div>
         <div class="filter-group">
             <label for="trade_type">거래유형:</label>

@@ -33,7 +33,11 @@ def init_crawl_lawd_codes_db(db_path: str = DB_PATH) -> None:
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         lawd_cd    TEXT NOT NULL,
         lawd_name  TEXT NOT NULL,
-        trade_type TEXT DEFAULT 'SG'  -- 거래유형 (APT: 아파트, VILLA: 빌라, SG: 상가)
+        batch_start_date TEXT,
+        batch_end_date TEXT,
+        batch_cycle TEXT DEFAULT '5',   -- 배치주기(5일)
+        batch_count INTEGER DEFAULT 0,  -- 배치총건수
+        trade_type TEXT DEFAULT 'SG'    -- 거래유형 (APT: 아파트, VILLA: 빌라, SG: 상가)
     );
     """
 
@@ -58,6 +62,10 @@ def init_crawl_lawd_codes_db(db_path: str = DB_PATH) -> None:
 def insert_crawl_lawd_code(
     lawd_cd: str,
     lawd_name: str,
+    batch_start_date: Optional[str] = None,
+    batch_end_date: Optional[str] = None,
+    batch_cycle: Optional[str] = None,
+    batch_count: Optional[int] = None,
     trade_type: str = "SG",
     db_path: str = DB_PATH
 ) -> int:
@@ -68,15 +76,15 @@ def insert_crawl_lawd_code(
     반환: 변경된 행 수(rowcount)
     """
     sql = f"""
-    INSERT INTO {TABLE_NAME} (lawd_cd, lawd_name, trade_type)
-    VALUES (?, ?, ?)
+    INSERT INTO {TABLE_NAME} (lawd_cd, lawd_name, batch_start_date, batch_end_date, batch_cycle, batch_count, trade_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(lawd_cd, trade_type) DO UPDATE SET
         lawd_name = excluded.lawd_name;
     """
     conn = get_conn(db_path)
     try:
         cur = conn.cursor()
-        cur.execute(sql, (lawd_cd, lawd_name, trade_type))
+        cur.execute(sql, (lawd_cd, lawd_name, batch_start_date, batch_end_date, batch_cycle, batch_count, trade_type))
         conn.commit()
         print(f"🟢 UPSERT: {lawd_cd} / {lawd_name} / {trade_type}")
         return cur.rowcount
@@ -111,13 +119,94 @@ def bulk_insert_crawl_lawd_codes(
         conn.close()
 
 # ==========================
+# 3) 수정
+# ==========================
+def update_crawl_lawd_code_fields(
+    lawd_cd: str,
+    trade_type: str,
+    batch_start_date: Optional[str] = None,
+    batch_end_date: Optional[str] = None,
+    batch_cycle: Optional[str] = None,
+    batch_count: Optional[int] = None,
+    lawd_name: Optional[str] = None,
+    db_path: str = DB_PATH
+) -> int:
+    """
+    제공된(=None이 아닌) 필드만 부분 업데이트.
+    """
+    allowed = {
+        "batch_start_date": batch_start_date,
+        "batch_end_date": batch_end_date,
+        "batch_cycle": batch_cycle,
+        "batch_count": batch_count,
+        "lawd_name": lawd_name,
+    }
+    sets = []
+    vals = []
+    for k, v in allowed.items():
+        if v is not None:
+            sets.append(f"{k} = ?")
+            vals.append(v)
+
+    if not sets:
+        print("⚠️ 업데이트할 필드가 없습니다.")
+        return 0
+
+    vals.extend([lawd_cd, trade_type])
+
+    sql = f"""
+    UPDATE {TABLE_NAME}
+       SET {", ".join(sets)}
+     WHERE lawd_cd = ? AND trade_type = ?;
+    """
+    conn = get_conn(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, vals)
+        conn.commit()
+        print(f"✏️ UPDATE({lawd_cd},{trade_type}) → {cur.rowcount}건")
+        return cur.rowcount or 0
+    finally:
+        conn.close()
+
+# ==========================
+# 단순 버전: 배치주기 업데이트 (trade_type 없으면 전체)
+# ==========================
+def update_batch_cycle_by_trade_type(trade_type: Optional[str], batch_cycle: str, db_path: str = DB_PATH) -> int:
+    """
+    trade_type이 지정되면 해당 구분만,
+    없으면 전체 레코드의 batch_cycle을 업데이트합니다.
+    """
+    conn = get_conn(db_path)
+    try:
+        cur = conn.cursor()
+        if trade_type:  # 특정 구분만 업데이트
+            cur.execute(f"""
+                UPDATE {TABLE_NAME}
+                   SET batch_cycle = ?
+                 WHERE trade_type = ?;
+            """, (batch_cycle, trade_type))
+            print(f"🔄 UPDATE batch_cycle='{batch_cycle}' WHERE trade_type='{trade_type}' → {cur.rowcount}건")
+        else:  # trade_type 없으면 전체 업데이트
+            cur.execute(f"""
+                UPDATE {TABLE_NAME}
+                   SET batch_cycle = ?;
+            """, (batch_cycle,))
+            print(f"🔄 UPDATE batch_cycle='{batch_cycle}' (전체) → {cur.rowcount}건")
+
+        conn.commit()
+        return cur.rowcount or 0
+    finally:
+        conn.close()
+
+# ==========================
 # 3) 조회
 # ==========================
 def search_crawl_lawd_codes(
     db_path: str = DB_PATH,
     lawd_cd: Optional[str] = None,
     lawd_name: Optional[str] = None,
-    trade_type: Optional[str] = 'SG'
+    trade_type: Optional[str] = None
 ) -> Optional[List[Dict[str, str]]]:
     """
     crawl_lawd_codes에서 조건(lawd_cd, lawd_name, trade_type)에 맞는 레코드를 조회.
@@ -125,8 +214,9 @@ def search_crawl_lawd_codes(
     조건이 없으면 전체 조회.
     """
     conn = get_conn(db_path)
+
     try:
-        sql = f"SELECT id, lawd_cd, lawd_name, trade_type FROM {TABLE_NAME}"
+        sql = f"SELECT id, lawd_cd, lawd_name, batch_start_date, batch_end_date, batch_cycle, batch_count, trade_type FROM {TABLE_NAME}"
         params = []
         conditions = []
 
@@ -151,11 +241,11 @@ def search_crawl_lawd_codes(
             print("⚠️ 검색 결과가 없습니다.")
             return None
 
-        results = [{"id": r[0], "lawd_cd": r[1], "lawd_name": r[2], "trade_type": r[3]} for r in rows]
+        results = [{"id": r[0], "lawd_cd": r[1], "lawd_name": r[2], "batch_count": r[6], "trade_type": r[7]} for r in rows]
 
         print(f"\n=== 검색 결과 ({len(results)}건) ===")
         for row in results:
-            print(f"{row['id']}  | {row['lawd_cd']}  | {row['lawd_name']}  |  {row['trade_type']}")
+            print(f"{row['id']}  | {row['lawd_cd']}  | {row['lawd_name']}  | {row['batch_count']} |  {row['trade_type']}")
 
         return results
     finally:
@@ -173,7 +263,7 @@ def get_crawl_lawd_code_by_cd_type(
     try:
         cur = conn.cursor()
         cur.execute(
-            f"SELECT id, lawd_cd, lawd_name, trade_type FROM {TABLE_NAME} "
+            f"SELECT id, lawd_cd, lawd_name, batch_start_date, batch_end_date, batch_cycle, batch_count, trade_type  FROM {TABLE_NAME} "
             "WHERE lawd_cd = ? AND trade_type = ? LIMIT 1;",
             (lawd_cd, trade_type)
         )
@@ -184,7 +274,11 @@ def get_crawl_lawd_code_by_cd_type(
             "id": row[0],
             "lawd_cd": row[1],
             "lawd_name": row[2],
-            "trade_type": row[3],
+            "batch_start_date": row[3],
+            "batch_end_date": row[4],
+            "batch_cycle": row[5],
+            "batch_count": row[6],
+            "trade_type": row[7]
         }
     finally:
         conn.close()
@@ -218,6 +312,7 @@ def delete_crawl_lawd_code_by_id(record_id: int, db_path: str = DB_PATH) -> int:
         return cur.rowcount
     finally:
         conn.close()
+
 
 def delete_crawl_lawd_codes(
     db_path: str = DB_PATH,
@@ -289,7 +384,7 @@ def drop_crawl_lawd_codes_table(db_path: str = DB_PATH) -> None:
 # ==========================
 if __name__ == "__main__":
     # 초기화
-    init_crawl_lawd_codes_db()
+    #init_crawl_lawd_codes_db()
 
     # sample_data = {
     #     "운양동": "4157010300",
@@ -297,14 +392,36 @@ if __name__ == "__main__":
     #     "구래동": "4157010500",
     # }
 
-    # 단건 UPSERT
-    insert_crawl_lawd_code("4157010300", "경기도 김포시 운양동", "APT")
+    # [수정] 단건 UPSERT 샘플: 배치 윈도우/사이클/카운트 함께 입력
+    insert_crawl_lawd_code(
+        "41570103xx",
+        "경기도 김포시 배치동",
+        "2025-10-01",
+        "",
+        "5",  # 5일
+        0,
+        "APT"
+    )
+
+    # [신규] 부분 수정 예시: batch_start_date, batch_count만 갱신
+    # update_crawl_lawd_code_fields(
+    #     "4157010500", "APT",
+    #     batch_start_date="2025-11-01",
+    #     batch_count=11
+    # )
 
     # 대량 UPSERT
-    bulk_insert_crawl_lawd_codes([
-        ("4157010400", "경기도 김포시 장기동", "APT"),
-        ("4157010500", "경기도 김포시 구래동", "APT"),
-    ])
+    # [신규] 대량 UPSERT 샘플(딕셔너리 방식: 행마다 제공된 필드만 반영)
+    # bulk_upsert_crawl_lawd_codes_dict([
+    #     {
+    #         "lawd_cd": "4157010400", "lawd_name": "경기도 김포시 장기동", "trade_type": "APT",
+    #         "batch_start_date": "2025-10-01", "batch_end_date": "2025-10-31", "batch_cycle": "7"
+    #     },
+    #     {
+    #         "lawd_cd": "4157010500", "lawd_name": "경기도 김포시 구래동", "trade_type": "APT",
+    #         "batch_cycle": "3", "batch_count": 10
+    #     },
+    # ])
 
     # # 조회 예시
     # search_crawl_lawd_codes(trade_type="SG")

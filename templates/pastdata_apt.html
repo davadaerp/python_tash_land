@@ -31,8 +31,8 @@
       padding: 8px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      width: 90%;
-      max-width: 990px;
+      width: 98%;
+      max-width: 1200px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -354,6 +354,9 @@
           } else {
             window.allFetchedItems = data.map((item, i) => ({ ...item, originalIndex: i }));
             console.log(window.allFetchedItems);
+            // [ADD] 아파트 선택리스트 생성
+            buildAptFilterFromList(window.allFetchedItems);
+            // 화면목록 출력
             renderTable(window.allFetchedItems);
           }
         },
@@ -546,6 +549,45 @@
         );
     }
 
+    // [ADD] fetchData()로 가져온 데이터에서 중복 제거·가나다 정렬해 드롭다운 구성
+    function buildAptFilterFromList(items) {
+      const names = Array.from(new Set(
+        (items || []).map(v => (v.apt_name || "").trim()).filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, 'ko'));
+
+      const sel = document.getElementById('aptFilter');
+      if (!sel) return;
+      sel.innerHTML = '<option value="all">전체</option>';
+      names.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = n;
+        sel.appendChild(opt);
+      });
+    }
+
+    // [ADD] 드롭다운 선택 시 renderTable() 재호출
+    function applyAptDropdownFilter() {
+      const sel = document.getElementById('aptFilter');
+      if (!sel) return;
+      const selected = sel.value || 'all';
+      const base = window.allFetchedItems || [];
+      const filtered = (selected === 'all')
+        ? base
+        : base.filter(it => (it.apt_name || '').includes(selected));
+      renderTable(filtered);
+      const el = document.getElementById("result-count");
+      if (el) el.textContent = `건수: ${filtered.length}`;
+    }
+
+    // [ADD] change 이벤트 바인딩 (DOMContentLoaded 시점)
+    document.addEventListener('DOMContentLoaded', function () {
+      const aptFilter = document.getElementById('aptFilter');
+      if (aptFilter) {
+        aptFilter.addEventListener('change', applyAptDropdownFilter);
+      }
+    });
+
   </script>
 </head>
 <body>
@@ -574,8 +616,6 @@
       </select>
       <select id="sggNm"></select>
       <select id="umdNm"></select>
-      <label for="aptNm">아파트명:</label>
-      <input type="text" id="aptNm" placeholder="아파트명">
       <label for="houseCnt">가구수:</label>
       <select id="houseCnt">
         <option value="all">전체</option>
@@ -583,12 +623,21 @@
         <option value="500">500↑</option>
         <option value="300">300↑</option>
       </select>
+      <label for="aptNm">아파트명:</label>
+      <input type="text" id="aptNm" placeholder="아파트명">
+      <!-- [ADD] 아파트 선택 리스트 -->
+      <label for="aptFilter">선택:</label>
+      <select id="aptFilter" style="padding:8px; border:1px solid #ddd; border-radius:4px; min-width:200px;">
+        <option value="all">전체</option>
+      </select>
       <!--
       <span id="result-amt" style="margin-left: auto;">인구및평균소득: 0/0</span>
       -->
       <span id="result-count" style="margin-left: auto;">건수: 0</span>
       <button id="search-btn">검색</button>
+      <!--
       <button id="property-btn" onclick="openPropertyRegistgerPopup()">등기부발급</button>
+      -->
     </div>
   </div>
   <div id="header-container">

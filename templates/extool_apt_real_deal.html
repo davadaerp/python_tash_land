@@ -638,6 +638,8 @@
                     set_rent_deal_auction_floor(allItems, 'deal');
                     // 월세, 실거래,경매 평형를 설정함(pgm_type: rent, deal, auction)
                     set_rent_deal_auction_area(allItems, 'deal');
+                    // [ADD] 실거래 데이터 기준으로 아파트 선택 리스트 구성
+                    buildAptFilterFromDeal(allItems);
                     //
                     renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
                   })
@@ -688,7 +690,13 @@
                     // 현재 선택로우 위경도를 기준으로 해당거리에 위치한 실거래데이타 목록 가져오기(실거래에서 위,경도를 못가져옴 ㅠ.ㅠ)
                     // 차후 오픈맵api를 이용한 위경도 가져오기 처리후 비교해야 할듯.
                     //let filteredItems = getRealDealDistanceFilterItems(allItems);
-
+                    //
+                    // [ADD] 아파트 선택 필터(전체: 필터 미적용)
+                    const selectedApt = ($('#aptFilter').val() || 'all');
+                    if (selectedApt !== 'all') {
+                        allItems = allItems.filter(it => (it.aptNm || '').includes(selectedApt));
+                    }
+                    //
                     // 층,평형필터 처리
                     let filteredItems = getFloorAreaFilters(allItems, 'deal');
                     //
@@ -906,6 +914,12 @@
 
                 function renderAuctionTable(allItems) {
 
+                    // [ADD] 아파트 선택 필터(Deal의 aptNm 기준으로, 경매는 dangi_name에 포함 매칭)
+                    const selectedApt = ($('#aptFilter').val() || 'all');
+                    if (selectedApt !== 'all') {
+                        allItems = allItems.filter(it => (it.dangi_name || '').includes(selectedApt));
+                    }
+
                     // 층,평형필터 처리
                     let filteredItems = getFloorAreaFilters(allItems, 'auction');
                     //
@@ -1062,6 +1076,20 @@
                 const item = window.selectedRentItem;
                 openMapNaverDetailDirect(item);
             });
+
+            //================================================
+            // [ADD] 실거래(Deal)에서 수집한 aptNm으로 아파트 필터 옵션 구성
+            function buildAptFilterFromDeal(dealItems) {
+              const names = Array.from(new Set(
+                (dealItems || [])
+                  .map(v => (v.aptNm || "").trim())
+                  .filter(Boolean)
+              )).sort((a, b) => a.localeCompare(b, 'ko'));  // 가나다 정렬
+
+              const $sel = $('#aptFilter');
+              $sel.empty().append('<option value="all">전체</option>');
+              names.forEach(n => $sel.append(`<option value="${n}">${n}</option>`));
+            }
         });
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -1162,6 +1190,14 @@
                     popup.postMessage(payload, window.location.origin);
                 };
             });
+
+            // [ADD] 아파트 선택 필터 변경시 실거래,경매 필터 동기화 처리
+            document.getElementById('aptFilter').addEventListener('change', function () {
+                const dealFloor = document.getElementById('deal_sel_floor');
+                const aucFloor  = document.getElementById('auction_sel_floor');
+                if (dealFloor) dealFloor.dispatchEvent(new Event('change', { bubbles: true }));
+                if (aucFloor)  aucFloor.dispatchEvent(new Event('change',  { bubbles: true }));
+            });
         });
     </script>
 </head>
@@ -1174,6 +1210,13 @@
     <h2 style="margin: 0; font-size: 20px;">
         [아파트]실거래/경매 데이터 검색(<span id="popup-lawName" style="color:blue;"></span>)
     </h2>
+    <!-- [ADD] 아파트 선택 리스트 -->
+    <div id="apt-filter-wrap" style="display:flex; align-items:center; gap:6px; margin-left:8px;">
+      <label for="aptFilter" style="font-weight:bold;">아파트:</label>
+      <select id="aptFilter" style="padding:5px; border:1px solid #ddd; border-radius:4px; min-width:200px;">
+        <option value="all">전체</option>
+      </select>
+    </div>
     <!-- 버튼 둘을 감싸는 wrapper 추가 -->
     <div style="display: flex; gap: 8px;">
         <button id="extool-map-btn"

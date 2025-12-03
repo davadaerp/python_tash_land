@@ -1,14 +1,21 @@
 # -*- coding: utf-8 -*-
+import os
+import time
+from typing import Optional
+
 import requests
 import xmltodict
 import datetime
 import json
 from collections import OrderedDict
 
-from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_codes, update_land_batch_yn_single
 from pubdata.public_land_apt_db_utils import init_apt_db, read_apt_db, insert_apt_items
 from pubdata.public_land_sanga_db_utils import init_sanga_db, insert_sanga_items, read_sanga_db
 from pubdata.public_land_villa_db_utils import init_villa_db, read_villa_db, insert_villa_items
+
+# 👇 지오코딩된 건수 글로벌 카운터 (추가)
+GEOCODED_COUNT = 0
 
 # ==============================
 # 아파트/빌라/상가/비주거 월검색 API
@@ -47,17 +54,44 @@ def fetch_land_month(url: str, params: dict, lawd_cd: str, lawd_nm: str, umd_nm:
         umd_nm = (umd_nm or "").strip()
         filtered_items = [it for it in items_sorted if it.get("umdNm", "") == umd_nm]
 
+        # # 🟢 수정된 부분 시작: 시군구명 필터링 및 지번에 '*'가 없는 항목만 필터링(차후 실거래금액 구할때 없애면 안될듯)
+        # filtered_items = []
+        # for it in items_sorted:
+        #     # 1. 시군구명(umdNm) 필터링
+        #     if it.get("umdNm", "") == umd_nm:
+        #         jibun = it.get("jibun", "")
+        #         # 2. 지번(`jibun`)에 '*'가 포함되지 않은 항목만 포함
+        #         if "*" not in jibun:
+        #             filtered_items.append(it)
+        #         else:
+        #             # '*'가 포함된 항목은 건너뜁니다.
+        #             print(f"INFO: Jibun contains '*', skipping item: {lawd_nm} {it.get('umdNm', '')} {jibun}")
+        # # 🟢 수정된 부분 끝
+
         # 각 item에 위도/경도 추가
         for it in filtered_items:
             it["sggNm"] = lawd_nm   # 시군구명(서울시 종로구)
             umdNm = it.get("umdNm", "")
             jibun = it.get("jibun", "")
-            # 전체 주소 조합및 geocoding
-            address = f"{lawd_nm} {umdNm} {jibun}"
-            print("Geocoding address:", address)
-            geo = geocode_vworld(address)
-            it["lat"] = str(geo["lat"])
-            it["lon"] = str(geo["lng"])
+
+            # --- 수정된 부분 시작: 지번에 '*' 포함 시 geocode 생략 및 0.0 처리 ---
+            if "*" in jibun:
+                print(f"WARNING: Jibun contains '*', skipping geocoding for: {lawd_nm} {umdNm} {jibun}")
+                it["lat"] = "0.0"
+                it["lon"] = "0.0"
+            else:
+                # 전체 주소 조합 및 geocoding
+                address = f"{lawd_nm} {umdNm} {jibun}"
+                # geo = geocode_vworld(address)
+                geo = geocode(address)
+                it["lat"] = str(geo["lat"])
+                it["lon"] = str(geo["lng"])
+                print("Geocoding address:", address, "->", geo)
+
+                # 👇 지오코딩이 수행된 건만 글로벌 카운트 (추가)
+                global GEOCODED_COUNT
+                GEOCODED_COUNT += 1
+            # --- 수정된 부분 끝 ---
 
         return filtered_items
 
@@ -145,7 +179,9 @@ def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
     all_items = []
     for year in years:
         """상가/비주거 1개년 전체 조회"""
-        url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+        # url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+        # service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
+        url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
         service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         params = {
             "serviceKey": service_key,
@@ -167,7 +203,7 @@ def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
                 year_items.extend(month_items)
                 all_items.extend(month_items)
             else:
-                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청")
+                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청(SANGA)")
                 month_items = fetch_land_month(url, params_month,lawd_cd, lawd_nm, umd_nm, year, month, verify=verify)
                 # DB저장
                 if month_items:
@@ -282,7 +318,7 @@ def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
         # url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
         # service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         """빌라 1개년 전체 조회"""
-        url = "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade"
+        url = "http://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade"
         service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         params = {
             "serviceKey": service_key,
@@ -304,7 +340,7 @@ def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
                 year_items.extend(month_items)
                 all_items.extend(month_items)
             else:
-                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청")
+                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청(VILLA)")
                 month_items = fetch_land_month(url, params_month, lawd_cd, lawd_nm, umd_nm, year, month, verify=verify)
                 # DB저장
                 if month_items:
@@ -447,7 +483,7 @@ def run_apt(lawd_cd: str, lawd_nm:str, umd_nm: str, apt_nm:str, verify: bool = F
                 year_items.extend(month_items)
                 all_items.extend(month_items)
             else:
-                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청")
+                print(f"{year}년 {month:02d}월: DB 데이터 없음 → API 요청(APT)")
                 month_items = fetch_land_month(url, params_month, lawd_cd, lawd_nm, umd_nm, year, month, verify=verify)
                 # DB저장
                 if month_items:
@@ -542,56 +578,269 @@ def apt_items_to_json(items: list, lawd_cd: str) -> list:
 
     return json_records
 
+
 # ==============================
-# main — 테스트 실행
+# 법정동명에서 시군구명(sgg_nm)과 읍/면/동/리/가 추출 유틸리티
+def extract_eup_myeon_dong(lawd_name: str) -> Optional[tuple[str, str]]:
+    """
+    법정동명 문자열(예: '서울특별시 종로구 청운동')에서
+    시군구명(sgg_nm)과 읍/면/동/리/가(umd_nm) 부분을 추출합니다.
+
+    Args:
+        lawd_name: 법정동명 문자열.
+
+    Returns:
+        추출된 (시군구명, 읍면동명) 튜플 (예: ('서울특별시 종로구', '청운동')),
+        또는 찾지 못하면 None.
+    """
+    if not lawd_name:
+        return None
+
+    # 일반적으로 사용되는 말단 행정구역 단위
+    UNITS = ['읍', '면', '동', '리', '가']
+
+    # 공백을 기준으로 나눕니다.
+    parts = lawd_name.split()
+
+    # 마지막 파트부터 역순으로 탐색하여 읍면동명을 찾습니다.
+    umd_nm = None
+    umd_index = -1  # 읍면동명이 위치한 인덱스
+
+    for i in reversed(range(len(parts))):
+        part = parts[i]
+        # 파트의 마지막 글자가 '읍', '면', '동', '리', '가' 중 하나인지 확인
+        if len(part) > 1 and part[-1] in UNITS:
+            umd_nm = part
+            umd_index = i
+            break
+
+    if umd_nm is None:
+        return None  # 읍면동명 찾기 실패
+
+    # 읍면동명 앞까지의 모든 파트를 시군구명으로 간주합니다.
+    # 예: ['서울특별시', '종로구', '청운동'] -> '청운동'은 인덱스 2. sgg_parts는 [0, 1]
+    sgg_parts = parts[:umd_index]
+    sgg_nm = " ".join(sgg_parts)
+
+    # 시군구명은 공백이 아니어야 합니다.
+    if not sgg_nm:
+        return None
+
+    return sgg_nm, umd_nm
+
+
+# ==============================
+# 헬퍼 함수: 배치 로그에서 최종 처리 일자 읽기 (lawd_cd 제거)
+# ==============================
+# ==============================
+# 헬퍼 함수: 배치 로그에서 최종 처리 일자 읽기 (lawd_cd 제거)
+# ==============================
+def get_last_batch_date(batch_log_file: str) -> Optional[datetime.date]:
+    """
+    배치 로그 파일 (덮어쓰기 방식으로 저장된)에서 기록된 가장 최근의 배치 제한 일자를 읽습니다.
+    로그 형식: 일시(YYYY-MM-DD HH:MM:SS), OVER_LIMIT, 누적건수
+    """
+    try:
+        if not os.path.exists(batch_log_file):
+            return None
+
+        with open(batch_log_file, "r", encoding="utf-8") as f:
+            # 💡 수정: 파일이 덮어쓰기로 저장되므로, 첫 번째 라인(가장 최근 기록)만 읽습니다.
+            first_line = f.readline().strip()
+            if not first_line:
+                return None
+
+            parts = first_line.split(',')
+            # OVER_LIMIT 태그 확인
+            if len(parts) >= 3 and parts[1] == 'OVER_LIMIT':
+                # 일시 (YYYY-MM-DD HH:MM:SS)에서 날짜 부분만 추출
+                date_part = parts[0].split(' ')[0]
+                last_date = datetime.datetime.strptime(date_part, "%Y-%m-%d").date()
+                return last_date
+            return None # OVER_LIMIT 태그가 없는 경우
+    except Exception as e:
+        print(f"로그 파일 읽기 중 오류 발생: {e}")
+        return None
+
+
+# ==============================
+# 헬퍼 함수: 누적 건수 초과 시 로그 기록 (lawd_cd 제거, 파일에 lawd_cd는 포함)
+# ==============================
+# ==============================
+# 헬퍼 함수: 누적 건수 초과 시 로그 기록 (lawd_cd 제거, 파일에 lawd_cd는 포함)
+# ==============================
+def log_batch_over_limit_date(cumulative_count: int, gecode_count: int, max_limit: int, batch_log_file: str):
+    """
+    gecode변환 누적 건수 제한 초과 시 현재 일자를 파일에 기록하고, 중단 신호를 반환합니다.
+    (함수 호출 시 lawd_cd를 인자로 받아 파일에 기록합니다.)
+    """
+    if gecode_count > max_limit:
+        current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            # 💡 수정: 파일 모드를 "a" (추가)에서 "w" (쓰기/덮어쓰기)로 변경
+            with open(batch_log_file, "w", encoding="utf-8") as f:
+                # 로그 형식: 일시(YYYY-MM-DD HH:MM:SS), OVER_LIMIT, 누적건수
+                # (lawd_cd는 제거됨)
+                f.write(f"{current_datetime},OVER_LIMIT,총건수:{cumulative_count},주소변환건수:{gecode_count}\n")
+            print(f"⚠️ [주소변환 누적 건수({gecode_count})가 {max_limit}건을 초과하여 처리를 중단하고 {batch_log_file}에 기록되었습니다.")
+            return True  # 중단 필요
+        except Exception as e:
+            print(f"❌ 로그 파일 저장 중 오류 발생: {e}")
+            return True  # 오류 발생 시에도 안전하게 중단
+
+    return False  # 계속 진행
+
+
+#
+# ==============================
+# 배치 본처리 함수 (기존 main 루프 분리)
+# ==============================
+def _process_land_batch(MAX_DAILY_COUNT: int = 25000, batch_log_file: str = "batch_land_lawd.txt") -> None:
+    import datetime, time
+
+    # 실행 전 카운터 초기화
+    global GEOCODED_COUNT
+    GEOCODED_COUNT = 0
+
+    # 1) 전체 법정동 코드 조회
+    all_lawd_records = get_lawd_by_codes()
+    print(f"[필터링] 총 법정동 레코드 건수: {len(all_lawd_records)}")
+
+    # 처리 상태 플래그 초기화
+    cumulative_count = 0
+    should_stop_batch = False
+
+    # 2) 'batch_apt_yn'/'batch_villa_yn'/'batch_sanga_yn' 이 'N'인 것만 처리
+    for record in all_lawd_records:
+        full_lawd_cd = record["lawd_cd"]  # 10자리
+        full_lawd_nm = record["lawd_name"]
+        batch_apt_yn = record.get("batch_apt_yn")
+        batch_villa_yn = record.get("batch_villa_yn")
+        batch_sanga_yn = record.get("batch_sanga_yn")
+
+        print("record:", record)
+
+        # 읍/면/동 추출
+        result = extract_eup_myeon_dong(full_lawd_nm)
+        if result is None:
+            print(f"읍/면/동명 추출 실패: 법정동명='{full_lawd_nm}'")
+            continue
+
+        # 시군구/읍면동명
+        lawd_cd = full_lawd_cd[:5]
+        lawd_nm, umd_nm = result
+
+        # 이미 모두 처리(Y/Y/Y)면 스킵
+        if not (batch_apt_yn == 'N' or batch_villa_yn == 'N' or batch_sanga_yn == 'N'):
+            continue
+
+        print(f"\n--- 법정동 처리 시작: {lawd_cd} ({lawd_nm}, {umd_nm}) ---")
+
+        # 2-1) APT
+        if not should_stop_batch and batch_apt_yn == 'N':
+            try:
+                apt_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm="", verify=False)
+                apt_count = len(apt_items)
+                cumulative_count += apt_count
+                print(f"[APT] {lawd_nm} ({umd_nm}) 처리 건수: {apt_count} 건 (누적: {cumulative_count})")
+
+                update_land_batch_yn_single(full_lawd_cd, "APT", "Y")
+
+                should_stop_batch = log_batch_over_limit_date(cumulative_count, GEOCODED_COUNT, MAX_DAILY_COUNT, batch_log_file)
+                if should_stop_batch:
+                    print(f"⚠️ [APT] 주소변환 누적 건수({MAX_DAILY_COUNT}) 제한으로 인해 {lawd_cd} ({lawd_nm})의 추가 처리를 중단합니다.")
+                    break
+            except Exception as e:
+                print(f"❌ [APT] 처리 중 오류 발생: {e}")
+                should_stop_batch = True
+                update_land_batch_yn_single(full_lawd_cd, "APT", "N")
+
+        time.sleep(0.5)
+
+        # 2-2) SANGA
+        if not should_stop_batch and batch_sanga_yn == 'N':
+            try:
+                sanga_items = run_sanga(lawd_cd, lawd_nm, umd_nm, verify=False)
+                sanga_count = len(sanga_items)
+                cumulative_count += sanga_count
+                print(f"[SANGA] {lawd_nm} ({umd_nm}) 처리 건수: {sanga_count} 건 (누적: {cumulative_count})")
+
+                update_land_batch_yn_single(full_lawd_cd, "SANGA", "Y")
+
+                should_stop_batch = log_batch_over_limit_date(cumulative_count, GEOCODED_COUNT, MAX_DAILY_COUNT, batch_log_file)
+                if should_stop_batch:
+                    print(f"⚠️ [SANGA] 주소변환 누적 건수({MAX_DAILY_COUNT}) 제한으로 인해 {lawd_cd} ({lawd_nm})의 추가 처리를 중단합니다.")
+                    break
+            except Exception as e:
+                print(f"❌ [SANGA] 처리 중 오류 발생: {e}")
+                should_stop_batch = True
+                update_land_batch_yn_single(full_lawd_cd, "SANGA", "N")
+
+        time.sleep(0.5)
+
+        # 2-3) VILLA
+        if not should_stop_batch and batch_villa_yn == 'N':
+            try:
+                villa_items = run_villa(lawd_cd, lawd_nm, umd_nm, verify=False)
+                villa_count = len(villa_items)
+                cumulative_count += villa_count
+                print(f"[VILLA] {lawd_nm} ({umd_nm}) 처리 건수: {villa_count} 건 (누적: {cumulative_count})")
+
+                update_land_batch_yn_single(full_lawd_cd, "VILLA", "Y")
+
+                should_stop_batch = log_batch_over_limit_date(cumulative_count, GEOCODED_COUNT, MAX_DAILY_COUNT, batch_log_file)
+                if should_stop_batch:
+                    print(f"⚠️ [VILLA] 주소변환 누적 건수({MAX_DAILY_COUNT}) 제한으로 인해 {lawd_cd} ({lawd_nm})의 추가 처리를 중단합니다.")
+                    break
+            except Exception as e:
+                print(f"❌ [VILLA] 처리 중 오류 발생: {e}")
+                should_stop_batch = True
+                update_land_batch_yn_single(full_lawd_cd, "VILLA", "N")
+
+        # 4) 결과 출력
+        if not should_stop_batch:
+            print(f"✅ {lawd_cd} ({lawd_nm})의 배치 처리가 성공적으로 완료되었습니다 (총 {cumulative_count}건).")
+        elif should_stop_batch:
+            print(f"⚠️ {lawd_cd} ({lawd_nm})는 누적 건수 제한 또는 오류로 인해 중단되었습니다.")
+        else:
+            print(f"❌ {lawd_cd} ({lawd_nm})의 일부 배치 처리가 실패했습니다.")
+
+    print(f"\n[총 법정동 레코드 건수: {len(all_lawd_records)}]")
+    print(f"배치 처리 정보는 {batch_log_file} 파일을 확인하세요.")
+
+
+# ==============================
+# 하루 1회 실행 보장 래퍼 함수
+# ==============================
+def run_land_batch_once_per_day(MAX_DAILY_COUNT: int = 25000, batch_log_file: str = "batch_land_lawd.txt") -> bool:
+    """
+    로그 파일의 최근 OVER_LIMIT 일자를 읽어,
+    같은 날짜에는 배치를 재실행하지 않고 건너뜁니다.
+    실행했으면 True, 건너뛰었으면 False 반환.
+    """
+    import datetime
+
+    today_date = datetime.date.today()
+    global_last_batch_date = get_last_batch_date(batch_log_file)
+    is_ready_for_rebatch = (global_last_batch_date is None) or (today_date > global_last_batch_date)
+
+    if not is_ready_for_rebatch:
+        print(f"🔴 글로벌 배치 제한 일자({global_last_batch_date})가 오늘({today_date})과 같거나 이후이므로, 배치 처리를 건너뜁니다.")
+        return False
+
+    # 배치 본처리 함수 호출
+    _process_land_batch(MAX_DAILY_COUNT=MAX_DAILY_COUNT, batch_log_file=batch_log_file)
+    return True
+
+
+# ==============================
+# main — 테스트 실행 (수정된 버전)
 # ==============================
 if __name__ == "__main__":
+    # 일일 최대 처리 건수 설정 (요청 조건: 27000건, 테스트: 1000건)
+    MAX_DAILY_COUNT = 29000
+    batch_log_file = "batch_land_lawd.txt"
 
-    #const lawdCd = selectedLawdCd.slice(0, 5);
-    #const umdNm = selectedUmdNm;
-
-    lawd_cd = "11110"  # 11110: 서울시 종로구 창신동, 41570: 경기도 김포시 운양동
-    # 3) 코드로 단건 조회
-    res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
-    print("[READ]", res)
-    lawd_nm = res["lawd_name"]  # 서울특별시 종로구
-    umd_nm = "청운동"  # 읍면동(창신동,숭인동, 종로1가, 인사동 등)
-
-    #=== 상가 테스트 ===
-    # 1) DB 초기화(테이블 생성)
-   #init_sanga_db()
-
-    # print("\n########## SANGA (비주거) ##########")
-    # all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, verify=False)
-    # #
-    # # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
-    # json_records = sanga_items_to_json(all_items, lawd_cd)
-    # print(json.dumps(json_records, ensure_ascii=False, indent=2))
-    # #
-    # print(f"\n[상가 총 누적 건수: {len(all_items)}\n")
-
-    #=== 빌라(연릭) 테스트 ===
-    # 1) DB 초기화(테이블 생성)
-    #init_villa_db()
-    #
-    # print("\n########## VILLA(빌라/연립등) ##########")
-    # all_items = run_villa(lawd_cd, lawd_nm, umd_nm, verify=False)
-    # #
-    # # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
-    # json_records = villa_items_to_json(all_items, lawd_cd)
-    # #print(json.dumps(json_records, ensure_ascii=False, indent=2))
-    # #
-    # print(f"\n[빌라 총 누적 건수: {len(all_items)}\n")
-
-    #=== 아파트 테스트 ===
-    # 1) DB 초기화(테이블 생성)
-    #init_apt_db()
-
-    print("\n########## APT(아파트) ##########")
-    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm="", verify=False)
-    #
-    # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
-    json_records = apt_items_to_json(all_items, lawd_cd)
-    #print(json.dumps(json_records, ensure_ascii=False, indent=2))
-    #
-    print(f"\n[아파트 총 누적 건수: {len(all_items)}\n")
+    # 3. 하루 1회 실행 보장 래퍼 함수 호출
+    run_land_batch_once_per_day(MAX_DAILY_COUNT, batch_log_file)

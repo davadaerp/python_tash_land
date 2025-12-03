@@ -30,7 +30,7 @@ from sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
 from crawling.apt_mobile_db_utils import apt_read_db as apt_mobile_read_db, get_jeonse_min_max as get_jeonse_min_max_mobile
 from crawling.sanga_mobile_db_utils import sanga_read_db as sanga_mobile_read_db
 from crawling.crawl_lawd_codes_db_utils import search_crawl_lawd_codes, insert_crawl_lawd_code, \
-    delete_crawl_lawd_code_by_id, get_crawl_lawd_code_by_cd_type
+    delete_crawl_lawd_code_by_id, get_crawl_lawd_code_by_cd_type, update_batch_cycle_by_trade_type
 from crawling.lawd_code_db_utils import search_lawd_by_name
 #
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
@@ -1352,6 +1352,9 @@ def ext_tool():
     # 아파트 국토부 실거래 팝업 검색
     if menu == 'apt':
         return render_template("realdata_apt.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+    # 아파트 PIR 데이타 검색
+    if menu == 'pir_apt':
+        return render_template("pastdata_apt.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     # NPL 경매데이타 검색
     if menu == 'npl_search':
         return render_template("crawling_npl_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
@@ -1485,33 +1488,76 @@ def upload_files():
     })
 
 # == 문서양식 다운로드 리스트 =============
+# 요청 1. 폴더와 폴더 안의 파일 목록을 JSON 형식으로 전송
 @app.route('/api/form_list', methods=['GET'])
 def form_list():
-    try:
-        # FORM_DIRECTORY 내 파일 목록 가져오기
-        files = os.listdir(FORM_DIRECTORY)
+    """
+    FORM_DIRECTORY의 폴더 및 파일 구조를 읽어 클라이언트로 전송합니다.
+    폴더는 이름 순서(순번 포함)로 정렬됩니다.
+    """
+    form_structure = []
 
-        # 숨김파일(.DS_Store 등) 제거
-        files = [f for f in files if not f.startswith('.')]
+    try:
+        # 1. FORM_DIRECTORY 내 항목(폴더, 파일) 목록 가져오기
+        items = os.listdir(FORM_DIRECTORY)
+
+        # 2. 숨김파일 및 불필요한 파일 제거
+        valid_items = [item for item in items if not item.startswith('.')]
+
+        # 3. 폴더만 필터링하고 이름 순(순번 기준)으로 정렬
+        folders = sorted([item for item in valid_items if os.path.isdir(os.path.join(FORM_DIRECTORY, item))])
+
+        # 4. 각 폴더 순회하며 구조 생성
+        for folder_name in folders:
+            folder_path = os.path.join(FORM_DIRECTORY, folder_name)
+
+            # 해당 폴더 내 파일 목록 가져오기
+            folder_files = os.listdir(folder_path)
+
+            # 숨김파일 및 불필요한 파일 제거
+            files = sorted(
+                [f for f in folder_files if not f.startswith('.') and os.path.isfile(os.path.join(folder_path, f))])
+
+            form_structure.append({
+                "folderName": folder_name,
+                "files": files
+            })
 
         # JSON 응답으로 리턴
-        return jsonify({"files": files})
+        # 예시 JSON: [{"folderName": "01_기본양식", "files": ["개인정보_동의서.docx", "재직증명서_양식.hwp"]}, ...]
+        return jsonify({"structure": form_structure})
+
     except Exception as e:
         print("❌ Error reading FORM_DIRECTORY:", e)
-        return jsonify({"error": "파일 목록을 불러올 수 없습니다."}), 500
+        return jsonify({"error": "파일 목록 구조를 불러올 수 없습니다."}), 500
 
+# 파일 다운로드 처리 함수 (원래 코드에서 재사용)
 @app.route('/api/form_down', methods=['GET'])
-def form_download():
-    # 쿼리 파라미터 form 값을 확인
-    fileName = request.args.get('fileName')
+def form_down():
+    # 클라이언트에서 'path' 파라미터로 "폴더명/파일명" 형태를 받습니다.
+    file_path = request.args.get('path')
+    if not file_path:
+        return jsonify({"error": "다운로드할 파일 경로가 지정되지 않았습니다."}), 400
 
     try:
-        print(fileName)
-        # 파일을 첨부파일로 전송 (다운로드 처리)
-        return send_from_directory(FORM_DIRECTORY, fileName, as_attachment=True)
-    except Exception as e:
-        abort(404)
+        # 폴더명과 파일명 분리
+        folder_name, file_name = os.path.split(file_path)
 
+        # 폴더 내 파일 전송 (경로 보안을 위해 safe_join 사용을 권장하나, 여기서는 단순화)
+        # as_attachment=True: 브라우저가 파일을 다운로드하도록 유도
+        return send_from_directory(
+            directory=os.path.join(FORM_DIRECTORY, folder_name),
+            path=file_name,
+            as_attachment=True
+        )
+    except FileNotFoundError:
+        return jsonify({"error": "요청하신 파일을 찾을 수 없습니다."}), 404
+    except Exception as e:
+        print("❌ Error downloading file:", e)
+        return jsonify({"error": "파일 다운로드 중 오류가 발생했습니다."}), 500
+
+
+# == 문서양식 편집기 =============
 @app.route('/api/form_editor', methods=['GET'])
 def form_editor():
     return render_template("form_editor.html")
@@ -1739,6 +1785,7 @@ def get_pastapt_property_download():
     # 파일이 존재하면 첨부파일로 전송
     return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
 
+
 #===================================================
 # 크롤링할 법정동코드 CRUD처리
 # -----------------------
@@ -1800,7 +1847,7 @@ def insert_lawd_code():
         if existing:
             return jsonify({"error": f"법정동코드({lawd_cd})가 중복되어집니다. 확인해주세요."}), 400
 
-        insert_crawl_lawd_code(lawd_cd, lawd_name, trade_type)
+        insert_crawl_lawd_code(lawd_cd, lawd_name, "", "", "5", 0, trade_type)
         return jsonify({"ok": True, "message": "저장(업서트) 되었습니다."})
     except Exception as e:
         return jsonify({"error": f"저장 실패: {e}"}), 500
@@ -1826,6 +1873,22 @@ def remove_lawd_code(record_id: int):
     except Exception as e:
         return jsonify({"error": f"삭제 실패: {e}"}), 500
 
+# -----------------------
+# 3) 배치주기처리
+# -----------------------
+@app.post("/api/crawl_lawd_codes/batch_cycle")
+def batch_cycle_lawd_codes():
+    #
+    data = request.get_json(silent=True) or {}
+    trade_type = (data.get("trade_type") or "").strip().upper()
+    cycle = data.get("cycle")
+
+    print(f"trade_type:{trade_type}, 배치할 주기 ID: {cycle}")
+    try:
+        update_batch_cycle_by_trade_type(trade_type, cycle)
+        return jsonify({"status": "Success", "message": f"배치주기 저장 성공({cycle})"})
+    except Exception as e:
+        return jsonify({"error": f"배치주기 저장 실패: {e}"}), 500
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
