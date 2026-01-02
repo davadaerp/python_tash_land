@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>로그인</title>
   <style>
-    body {
+   body {
       display: flex;
       flex-direction: column;
       justify-content: flex-start; /* 상단에 정렬 */
@@ -21,6 +21,15 @@
       border: 1px solid #ccc;
       padding: 20px;
       border-radius: 8px;
+      /* 버튼 중앙 정렬을 위한 추가 설정 */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    /* 입력 필드 그룹을 감싸는 컨테이너 (라벨 정렬 유지용) */
+    .input-group {
+      width: 100%;
+      margin-bottom: 15px;
     }
     label {
       display: inline-block;
@@ -33,11 +42,21 @@
       padding: 8px;
       font-size: 14px;
     }
+    /* 버튼들을 감싸는 영역 설정 */
+    .button-container {
+      display: flex;
+      flex-wrap: wrap;       /* 개수가 많으면 다음 줄로 */
+      justify-content: center; /* 가로 중앙 정렬 */
+      gap: 10px;            /* 버튼 사이 간격 */
+      width: 100%;
+      margin-top: 10px;
+    }
     button {
       padding: 10px 20px;
       font-size: 14px;
       cursor: pointer;
-      margin-left: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
     /* 네이버 버튼 전용 스타일 */
     #naver-login-btn {
@@ -56,24 +75,29 @@
   <script src="/static/js/common.js"></script>
 </head>
 <body>
-  <h2>분석로그인</h2>
+  <h2>투자는 랜드코어</h2>
   <form id="login-form" method="POST">
-    <label>ID:</label>
-    <input type="text" id="userid" required>
-    <br><br>
-    <label>PSWD:</label>
-    <input type="password" id="password" required>
-    <br><br>
-    <!-- 로그인 버튼과 네이버 버튼을 나란히 배치 -->
-    <button type="submit">로그인</button>
-    <!--
-    <button type="button" id="naver-login-btn">간편회원가입(네이버)</button>
-    -->
-    <button id="kakao-login-btn" style="display:inline-block;padding:10px 16px;background:#FEE500;border-radius:8px;
-      color:#000;text-decoration:none;font-weight:700">카카오로 시작하기</button>
-     <button type="button" id="signup">회원가입</button>
-    <p class="error" id="error-message"></p>
-  </form>
+      <div class="input-group">
+        <label>ID:</label>
+        <input type="text" id="userid" required>
+      </div>
+      <div class="input-group">
+        <label>PSWD:</label>
+        <input type="password" id="password" required>
+      </div>
+
+      <div class="button-container">
+        <button type="submit">로그인</button>
+        <!--
+        <button type="button" id="naver-login-btn">간편회원가입(네이버)</button>
+        <button id="kakao-login-btn" type="button" style="padding:10px 16px;background:#FEE500;border-radius:8px;
+          color:#000;text-decoration:none;font-weight:700;border:none;">카카오로 시작하기</button>
+        <button type="button" id="signup">회원가입</button>
+        -->
+      </div>
+
+      <p class="error" id="error-message"></p>
+    </form>
 
   <script>
     function login_auth() {
@@ -103,6 +127,7 @@
             // 로그인 성공
             const access_token = response.access_token.trim();
             localStorage.setItem("access_token", access_token);
+            localStorage.setItem("nick_name",   response.nick_name);
             localStorage.setItem("apt_key",     response.apt_key);
             localStorage.setItem("villa_key",   response.villa_key);
             localStorage.setItem("sanga_key",   response.sanga_key);
@@ -127,9 +152,22 @@
         url: BASE_URL + '/api/login_token',
         method: 'GET',
         headers: { "Authorization": "Bearer " + access_token }
-      }).done(function(response) {
+      }).done(async function (response) {
         if (response.result === "Success") {
+          // 로그인 성공후 메인호출 처리
+          /*
+          const main_url = BASE_URL + '/api/main';
+          const r = await fetch(main_url, {
+            method: "GET",
+            headers: {"Authorization": "Bearer " + access_token }
+          });
+            if (!r.ok) {
+                $('#error-message').text('메인 페이지 로드 중 오류가 발생했습니다.');
+                return;
+           */
+          // 1. 쿠키에 토큰 저장 (Path=/ 필수, 도메인 내 모든 경로에서 접근 가능)
           document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
+          // 2. 페이지 이동 (브라우저가 서버에 GET 요청을 보냄)
           window.location.href = BASE_URL + '/api/main';
         } else {
           $('#error-message').text(response.errmsg);

@@ -163,6 +163,7 @@
       font-weight: bold;
     }
   </style>
+  <script src="/static/js/common.js"></script>
 </head>
 <body>
   <!-- 상단 메뉴 -->
@@ -218,19 +219,17 @@
       // 필요한 경우 로컬스토리지 비우고 로그아웃
       const token = localStorage.getItem("access_token");
       try {
-        const r = await fetch("/api/kakao/logout", {
-          method: "GET",
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        //if (!r.ok) throw new Error("세션 만료");
-
+        // 내부 스토리지 초기화
         const keys = ['access_token','user_id','nick_name','email','profile_image','apt_key','villa_key','sanga_key','sms_count'];
         keys.forEach(k => localStorage.removeItem(k));
 
-        window.location.href = "/ts/"; // 맨처음 로그인 페이지로 이동
+        // 서버측 세션도 종료 및 로그인 페이지로 이동(쿠키 서버에서 삭제)
+        //const url = "/api/kakao/logout";
+        window.location.href = BASE_URL + '/api/logout';
+
       } catch (e) {
         // 네트워크 오류여도 로컬 세션은 비우고 UI 초기화
-        alert('로그아웃 처리 중 오류가 발생했습니다. 세션을 초기화합니다.');
+        alert('로그아웃 처리 중 오류가 발생했습니다. 세션을 초기화합니다.' + e.message);
       }
     }
 

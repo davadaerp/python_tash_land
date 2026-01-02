@@ -9,7 +9,8 @@ import datetime
 import json
 from collections import OrderedDict
 
-from pubdata.public_land_lawd_code_db_utils import get_lawd_by_codes, update_land_batch_yn_single
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_codes, update_land_batch_yn_single, \
+    update_land_batch_yn_multi
 from pubdata.public_land_apt_db_utils import init_apt_db, read_apt_db, insert_apt_items
 from pubdata.public_land_sanga_db_utils import init_sanga_db, insert_sanga_items, read_sanga_db
 from pubdata.public_land_villa_db_utils import init_villa_db, read_villa_db, insert_villa_items
@@ -731,11 +732,21 @@ def _process_land_batch(MAX_DAILY_COUNT: int = 25000, batch_log_file: str = "bat
         lawd_cd = full_lawd_cd[:5]
         lawd_nm, umd_nm = result
 
+        print(f"\n--- 법정동 처리 시작: {lawd_cd} ({lawd_nm}, {umd_nm}) ---")
+
         # 이미 모두 처리(Y/Y/Y)면 스킵
         if not (batch_apt_yn == 'N' or batch_villa_yn == 'N' or batch_sanga_yn == 'N'):
             continue
 
-        print(f"\n--- 법정동 처리 시작: {lawd_cd} ({lawd_nm}, {umd_nm}) ---")
+        # ✅ [추가 로직] lawd_nm 안에 '면' 또는 '읍'이 있으면
+        #    APT / SANGA / VILLA 를 모두 'Y'로만 업데이트하고 스킵
+        if ('면' in lawd_nm) or ('읍' in lawd_nm) or ('면' in umd_nm) or ('읍' in umd_nm):
+            print(f"⚠️ 면/읍 지역 스킵: {lawd_cd} ({lawd_nm}, {umd_nm}) -> 배치 상태만 Y로 업데이트")
+
+            update_land_batch_yn_multi("4374532000", apt="Y", villa="Y", sanga="Y")
+
+            # 실제 run_apt / run_sanga / run_villa 는 수행하지 않고 다음 레코드로
+            continue
 
         # 2-1) APT
         if not should_stop_batch and batch_apt_yn == 'N':

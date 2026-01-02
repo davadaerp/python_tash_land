@@ -5,123 +5,10 @@ from functools import wraps
 from flask import request, jsonify
 
 from config import SECRET_KEY
-from master.user_db_utils import verify_user
-
-# Auth Header를 이용한 처리
-def token_header_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        print('======token_required=====')
-        print(request.headers)
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            print(auth_header)
-            parts = auth_header.split()
-            if len(parts) == 2 and parts[0] == 'Bearer':
-                token = parts[1]
-        if not token:
-            # 필요한 시점에 loginForm을 import
-            from tash_service_app import loginForm
-            return loginForm()
-        try:
-            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            current_user = data['userid']
-        except jwt.ExpiredSignatureError:
-            from tash_service_app import loginForm
-            return loginForm()
-        except jwt.InvalidTokenError:
-            from tash_service_app import loginForm
-            return loginForm()
-        return f(current_user, *args, **kwargs)
-    return decorated
+from master.user_db_utils import verify_user, get_user_info_db
 
 
-# 쿠키를 이용한 토큰처리
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        # 쿠키에서 access_token 추출
-        token = request.cookies.get("access_token")
-        print("Cookie access_token:", token)
-        if not token:
-            # 필요한 시점에 loginForm을 import
-            from tash_service_app import loginForm
-            return loginForm()
-        try:
-            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            current_user = data['userid']
-        except jwt.ExpiredSignatureError:
-            from tash_service_app import loginForm
-            return loginForm()
-        except jwt.InvalidTokenError:
-            from tash_service_app import loginForm
-            return loginForm()
-        return f(current_user, *args, **kwargs)
-    return decorated
-
-# 쿠키를 이용한 토큰처리(PC 카카오 로그인 전용)
-def kakao_token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        # 쿠키에서 access_token 추출
-        token = request.cookies.get("access_token")
-        print("kakao_token_required() Cookie access_token:", token)
-        if not token:
-            # 필요한 시점에 loginForm을 import
-            from tash_service_app import loginForm
-            return loginForm()
-
-        current_user = 'kakao'
-
-        return f(current_user, *args, **kwargs)
-    return decorated
-
-
-from kakao.kakao_client import kakao           # KakaoAPI 인스턴스 (단일 지점)
-
-# 확장툴 사용시 공통 인증 에러 클래스
-def kakao_extool_auth_required(fn):
-    """
-    Authorization: Bearer <JWT> 를 검증하고,
-    payload.sub(=user_id)를 view 함수 인자로 주입.
-    """
-    @wraps(fn)
-    def _wrapped(*args, **kwargs):
-        try:
-            auth = request.headers.get("Authorization", "")
-
-            # # 토큰 정합성 체크
-            # if not auth.startswith("Bearer "):
-            #     return jsonify({ "result": False, "message": "unauthorized"}), 401
-
-            if auth.startswith("Bearer "):
-                token = auth.split(" ", 1)[1]
-            else:
-                # 2. 헤더에 없으면 파라미터 확인 (GET 방식 대응)
-                token = request.args.get("tk")  # URL 파라미터에서 먼저 확인
-
-            print("kakao_extool_auth_required token:", token)
-            payload = kakao.verify_jwt(token)
-            if not payload:
-                return jsonify({"result": False, "message": "인증이 안된 사용자입니다"}), 401
-
-            user_id = payload.get("sub")
-            if not user_id:
-                return jsonify({"result": False, "message": "인증 페이로드가 유효하지 않습니다."}), 401
-
-        except Exception:
-            # 로그만 남기고 500 통일
-            # current_app.logger.exception("Auth error")
-            # 핵심: 에러의 실제 내용을 터미널에 출력합니다.
-            import traceback
-            print("=== AUTH ERROR TRACEBACK ===")
-            traceback.print_exc()  # 터미널에서 구체적인 에러 라인을 확인할 수 있습니다.
-            return jsonify({"result": False, "message": "internal_error"}), 500
-
-        return fn(user_id=user_id, *args, **kwargs)
-    return _wrapped
-
+# 1) /api/token 엔드포인트: 토큰 발급
 def create_access_token():
     """
     클라이언트가 /api/token에 POST 요청을 보내면,
@@ -170,7 +57,20 @@ def create_access_token():
             'message': 'Invalid userid or password'
         })
 
-    # 5) 성공: 토큰 발급
+    # 5) 사용자 정보 조회 (⭐ 닉네임)
+    user_info = get_user_info_db(userid)
+    if not user_info:
+        return jsonify({
+            'result': 'Fail',
+            'errcode': 404,
+            'message': 'User not found'
+        })
+
+    nick_name = user_info.get("nick_name")
+    if not nick_name:
+        nick_name = user_info.get("user_name", "Unknown")
+
+    # 6) 성공: 토큰 발급
     access_token = generate_token(userid, expiration_hours=1)
     return jsonify({
         'result':       'Success',
@@ -178,9 +78,9 @@ def create_access_token():
         'message':      'Token created successfully',
         'access_token': access_token,
         'expires_in':   3600,
-        'userid':       userid
+        'userid':       userid,
+        'nick_name':     nick_name
     })
-
 
 def generate_token(userid, expiration_hours=1):
     """
@@ -194,6 +94,129 @@ def generate_token(userid, expiration_hours=1):
         algorithm="HS256"
     )
     return token
+
+# Auth Header를 이용한 처리
+def token_header_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        print('======token_required=====')
+        print(request.headers)
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            print(auth_header)
+            parts = auth_header.split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                token = parts[1]
+        if not token:
+            # 필요한 시점에 loginForm을 import
+            from tash_service_app import loginForm
+            return loginForm()
+        try:
+            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_id = data['userid']
+        except jwt.ExpiredSignatureError:
+            from tash_service_app import loginForm
+            return loginForm()
+        except jwt.InvalidTokenError:
+            from tash_service_app import loginForm
+            return loginForm()
+
+        return f(user_id, *args, **kwargs)
+
+    return decorated
+
+# 쿠키를 이용한 토큰내용 인증처리(Core 서비스 전용)
+def core_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        print('======core_token_required=====')
+        # 쿠키에서 access_token 추출
+        token = request.cookies.get("access_token")
+        print("core_token_required() Cookie access_token:", token)
+        if not token:
+            # 필요한 시점에 loginForm을 import
+            from tash_service_app import loginForm
+            return loginForm()
+
+        try:
+            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_id = data['userid']
+        except jwt.ExpiredSignatureError:
+            from tash_service_app import loginForm
+            return loginForm()
+        except jwt.InvalidTokenError:
+            from tash_service_app import loginForm
+            return loginForm()
+
+        return f(user_id, *args, **kwargs)
+
+    return decorated
+
+
+#==========================================================================
+# KakaoAPI 인스턴스 import
+from kakao.kakao_client import kakao           # KakaoAPI 인스턴스 (단일 지점)
+
+# 쿠키를 이용한 토큰처리(PC 카카오 로그인 전용)
+def kakao_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # 쿠키에서 access_token 추출
+        token = request.cookies.get("access_token")
+        print("kakao_token_required() Cookie access_token:", token)
+        if not token:
+            # 필요한 시점에 loginForm을 import
+            from tash_service_app import loginForm
+            return loginForm()
+
+        user_id = 'kakao'
+
+        return f(user_id, *args, **kwargs)
+    return decorated
+
+
+# 확장툴 사용시 공통 인증 에러 클래스
+def kakao_extool_auth_required(fn):
+    """
+    Authorization: Bearer <JWT> 를 검증하고,
+    payload.sub(=user_id)를 view 함수 인자로 주입.
+    """
+    @wraps(fn)
+    def _wrapped(*args, **kwargs):
+        try:
+            auth = request.headers.get("Authorization", "")
+
+            # # 토큰 정합성 체크
+            # if not auth.startswith("Bearer "):
+            #     return jsonify({ "result": False, "message": "unauthorized"}), 401
+
+            if auth.startswith("Bearer "):
+                token = auth.split(" ", 1)[1]
+            else:
+                # 2. 헤더에 없으면 파라미터 확인 (GET 방식 대응)
+                token = request.args.get("tk")  # URL 파라미터에서 먼저 확인
+
+            print("kakao_extool_auth_required token:", token)
+            payload = kakao.verify_jwt(token)
+            if not payload:
+                return jsonify({"result": False, "message": "인증이 안된 사용자입니다"}), 401
+
+            user_id = payload.get("sub")
+            if not user_id:
+                return jsonify({"result": False, "message": "인증 페이로드가 유효하지 않습니다."}), 401
+
+        except Exception:
+            # 로그만 남기고 500 통일
+            # current_app.logger.exception("Auth error")
+            # 핵심: 에러의 실제 내용을 터미널에 출력합니다.
+            import traceback
+            print("=== AUTH ERROR TRACEBACK ===")
+            traceback.print_exc()  # 터미널에서 구체적인 에러 라인을 확인할 수 있습니다.
+            return jsonify({"result": False, "message": "internal_error"}), 500
+
+        return fn(user_id=user_id, *args, **kwargs)
+    return _wrapped
 
 def extract_user_info_from_token(access_token):
     """

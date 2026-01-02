@@ -121,9 +121,9 @@
 
   <h2>마이페이지</h2>
   <script>
-    // URL 파라미터에서 access_token 추출
+    // 서버 페이지에서는 chrome.storage 못씀 → URL의 tk 사용
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('access_token') || "";
+    const token = (urlParams.get("tk") || urlParams.get("access_token") || "").trim();
 
     function activateTab(tabName) {
       // 탭 활성화/비활성
@@ -396,7 +396,7 @@
 
     }
 
-    window.addEventListener('DOMContentLoaded', function() {
+    window.addEventListener('DOMContentLoaded', async function () {
       bindTabs();
       activateTab('member');
       loadMember(); // 첫 탭 자동 로드

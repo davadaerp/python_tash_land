@@ -2981,6 +2981,7 @@ window.addEventListener('load', function() {
 });
 
 // html페이지에서 데이타 전달위함.. listen for requests from the page
+// @app.get("/api/kakao/callback")에서 window.opener && window.opener.postMessage()
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   const msg = event.data;

@@ -34,7 +34,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>투자멘토스</h1>
+    <h1>랜드코어</h1>
 
     <!-- 비로그인 상태 -->
     <div id="login-section" class="card hidden">
@@ -95,16 +95,6 @@
     // 쿠키 설정 함수및 메인페이지 이동(3초후)
     function mainLogin() {
       setTimeout(() => {
-          // 1) 서버가 읽는 건 쿠키이므로, 없으면 localStorage에서 보강
-          // const at = localStorage.getItem('access_token') || '';
-          // if (at) {
-          //   setCookie('access_token', at, {
-          //     path: '/',
-          //     sameSite: 'Lax',
-          //     secure: (location.protocol === 'https:')
-          //     // 필요시 maxAge: 1800  // 예: 30분
-          //   });
-          // }
            const access_token = localStorage.getItem('access_token') || '';
            document.cookie = "access_token=" + encodeURIComponent(access_token) + "; path=/";
           // 2) 이동

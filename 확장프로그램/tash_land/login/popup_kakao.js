@@ -295,7 +295,7 @@ async function openMypageWithToken() {
       const base = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : '';
       // const query = access_token ? `?access_token=${encodeURIComponent(access_token)}` : '';
       // const url = `${base}/api/user/mypage${query}`;
-      const url  = `${base}/api/menu?menu=mypage&access_token=${encodeURIComponent(access_token)}`;
+      const url  = `${base}/api/ext_tool/menu?menu=mypage&tk=${encodeURIComponent(access_token)}`;
 
       const width = 590, height = 800;
       const screenW = window.screen.availWidth;
@@ -328,7 +328,7 @@ function openSubscribePopup(token) {
   const top  = Math.round((screen.height - h) / 2);
 
   const base = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : '';
-  const url  = `${base}/api/menu?menu=subscribe&access_token=${encodeURIComponent(token)}`;
+  const url  = `${base}/api/ext_tool/menu?menu=subscribe&tk=${encodeURIComponent(token)}`;
 
   const pop = window.open(
     url,
@@ -354,7 +354,7 @@ btnCharge.addEventListener("click", async () => {
       const top  = Math.round((screen.height - h) / 2);
 
       const base = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : '';
-      const url  = `${base}/api/menu?menu=recharge&access_token=${encodeURIComponent(token)}`;
+      const url  = `${base}/api/ext_tool/menu?menu=recharge&tk=${encodeURIComponent(token)}`;
 
       const pop = window.open(
         url,
