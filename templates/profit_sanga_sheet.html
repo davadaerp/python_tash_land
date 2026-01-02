@@ -168,6 +168,28 @@
             background-color: #ffdddd;
             color: #c0392b;
         }
+
+        /* 1. 이미지 저장 버튼 스타일 정의 */
+        .save-btn {
+            margin-left: 20px;
+            padding: 5px 15px;
+            font-size: 0.7em;
+            vertical-align: middle;
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .save-btn:hover {
+            background-color: #218838;
+        }
+
+        /* [신규] 경매번호 입력필드 왼쪽 정렬 (ID 기준) */
+        #legal_fees_table_1_field_0,
+        #legal_fees_table_1_field_0_1 {
+            text-align: left !important;
+        }
     </style>
     <script>
         // 천단위 콤마 처리 함수
@@ -336,6 +358,11 @@
         // 입력 필드에 콤마 추가 및 계산 실행
         function onInput(event) {
             var input = event.target;
+            // [추가] 경매번호와 위치 입력필드는 텍스트 그대로 허용 (숫자 변환 및 콤마 처리 제외)
+            if (input.id === 'legal_fees_table_1_field_0' || input.id === 'legal_fees_table_1_field_0_1') {
+                return;
+            }
+
             var value = input.value.replace(/,/g, '');
             if (isNaN(value) || value == 0) {
                 return;
@@ -372,6 +399,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('legal_fees_table_1_field_0').addEventListener('input', onInput);
+            document.getElementById('legal_fees_table_1_field_0_1').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_1_field_1').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_1_field_2').addEventListener('input', onInput);
             document.getElementById('legal_fees_table_1_field_3_1').addEventListener('input', onInput);
@@ -399,6 +428,11 @@
             const inputs = Array.from(document.querySelectorAll('input'));
             inputs.forEach((input, index) => {
                 input.addEventListener('keydown', function (event) {
+                    // 한글 조합 중(isComposing)일 때 발생하는 Enter 이벤트는 무시
+                    if (event.isComposing || event.keyCode === 229) {
+                        return;
+                    }
+
                     if (event.key === 'Enter') {
                         event.preventDefault();
                         const nextInput = inputs[index + 1];
@@ -436,11 +470,76 @@
                 });
             });
         });
+
+        // 2 & 3. 이미지 저장 로직 함수 수정
+        function saveAsImage() {
+            const auctionNoInput = document.getElementById('legal_fees_table_1_field_0');
+            const auctionNo = auctionNoInput.value.trim();
+
+            // 1. 경매번호 체크
+            if (auctionNo === "" || auctionNo === "0") {
+                alert("경매번호를 입력해 주세요.");
+                auctionNoInput.focus();
+                return;
+            }
+
+            // 2. 저장 확인
+            if (confirm(`경매번호 [${auctionNo}] 이미지를 저장하시겠습니까?`)) {
+                // 캡처 영역 지정
+                const captureArea = document.body;
+
+                html2canvas(captureArea, {
+                    scale: 2,
+                    backgroundColor: "#f8f9fa",
+                    // 버튼 등 특정 요소를 제외하고 캡처하도록 설정
+                    ignoreElements: (el) => el.getAttribute('data-html2canvas-ignore') === 'true'
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    // 파일명: 경매번호_수익율분석기(상가).png
+                    link.download = `${auctionNo}_수익율분석기(상가).png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                });
+            }
+        }
+
+        // 1. 마우스 오른쪽 버튼 클릭 차단
+        document.oncontextmenu = function() {
+            return false;
+        };
+
+        // 2. 키보드 단축키 차단
+        document.onkeydown = function(e) {
+            // F12 (개발자 도구) 차단
+            if (e.keyCode == 123) {
+                return false;
+            }
+            // Ctrl + Shift + I (개발자 도구) 차단
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 73) {
+                return false;
+            }
+            // Ctrl + Shift + J (개발자 도구 콘솔) 차단
+            if (e.ctrlKey && e.shiftKey && e.keyCode == 74) {
+                return false;
+            }
+            // Ctrl + U (소스 보기) 차단
+            if (e.ctrlKey && e.keyCode == 85) {
+                return false;
+            }
+            // Ctrl + S (페이지 저장) 차단
+            if (e.ctrlKey && e.keyCode == 83) {
+                return false;
+            }
+        };
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
     <div class="header">
-        <h1>수익율분석기(상가)</h1>
+        <h1>
+            수익율분석기(상가)
+            <button type="button" class="save-btn" onclick="saveAsImage()" data-html2canvas-ignore="true">이미지저장</button>
+        </h1>
     </div>
 
     <div class="container">
@@ -455,7 +554,12 @@
                     <th>비고</th>
                 </tr>
                 <tr>
-                    <th rowspan="4">취득비용</th>
+                    <th rowspan="5">취득비용</th>
+                    <td>경매번호</td>
+                    <td><input type="text" id="legal_fees_table_1_field_0"  placeholder="경매번호" value=""></td>
+                    <td><input type="text" id="legal_fees_table_1_field_0_1" placeholder="위치/건물" value=""></td>
+                </tr>
+                <tr>
                     <td>감정가</td>
                     <td><input type="text" id="legal_fees_table_1_field_1" value="0"></td>
                     <td></td>

@@ -55,14 +55,19 @@
         국민은행&nbsp;<b>1110-11-11111</b>&nbsp;
         <span id="copy" class="copy">복사</span>
       </div>
+      <!-- ✅ (추가) 결제금액 표시 -->
+      <div id="pay-amount" style="margin-top:8px; margin-bottom: 8px; font-weight:900; color:#e11d48;">
+        결제할금액: 0원(vat포함)
+      </div>
       <div class="small">입금자명은 카카오 닉네임과 동일하게 부탁드립니다.</div>
     </div>
 
     <!-- 플랜 선택 -->
     <div class="options">
-      <label class="opt"><input type="radio" name="plan" value="1" checked> 1개월 (월 5만원)</label>
+      <label class="opt"><input type="radio" name="plan" value="0" checked> 2주간(체험용)</label>
+      <label class="opt"><input type="radio" name="plan" value="1"> 1개월 (월 10만원)</label>
       <label class="opt"><input type="radio" name="plan" value="6"> 6개월 (월 7만원)</label>
-      <label class="opt"><input type="radio" name="plan" value="12"> 1년 (월 10만원)</label>
+      <label class="opt"><input type="radio" name="plan" value="12"> 1년 (월 5만원)</label>
     </div>
 
     <!-- ===== (추가) 본인확인 인증 섹션: 플랜 선택 위에 배치 ===== -->
@@ -102,11 +107,12 @@
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('access_token') || "";
 
-    // 선택 텍스트 매핑 (기존 코드)
+    // 선택 텍스트 매핑 (기존 코드) => 구독 신청 시 사용(월기준)
     const planTextMap = {
-      "1m": "1개월(10만원)",
-      "6m": "6개월(7만원)",
-      "12m": "1년(10만원)"
+      "0": "2주간(체험용)",
+      "1": "1개월(10만원)",
+      "6": "6개월(7만원)",
+      "12": "1년(10만원)"
     };
 
     // 계좌 복사 (기존 코드)
@@ -250,9 +256,11 @@
     // ===== (기존) 신청 요청 =====
     document.getElementById('btnDoSubscribe').addEventListener('click', async () => {
       const val = (document.querySelector('input[name="plan"]:checked') || {}).value;
+      alert(val);
       if (!val) { alert('구독 기간을 선택해주세요.'); return; }
 
       const chosenText = planTextMap[val] || '';
+      alert(chosenText);
       if (!confirm(`${chosenText} 선택하신 조건으로 구독하시겠습니까?`)) return;
 
       // ✅ 전화번호 포함 (기존 반영)
@@ -283,6 +291,45 @@
         alert('네트워크 오류로 실패했습니다. 잠시 후 다시 시도해주세요.');
       }
     });
+
+    // ===== (추가) 결제금액 계산/표시 로직 =====
+    // ✅ (추가) 플랜별 월 요금(원) - VAT 포함/표시용 (원하시는 금액으로 조정)
+    const planMonthlyPriceMap = {
+      "0": 0,        // 체험용
+      "1": 100000,   // 1개월 월 10만원
+      "6": 70000,    // 6개월 월 7만원
+      "12": 50000    // 1년 월 5만원
+    };
+
+    // ✅ (추가) 금액 표시 포맷
+    function formatKRW(n) {
+      const num = Number(n) || 0;
+      return num.toLocaleString('ko-KR');
+    }
+
+    // ✅ (추가) 결제금액 계산/표시 함수
+    function updatePayAmount() {
+      const val = (document.querySelector('input[name="plan"]:checked') || {}).value;
+      const months = Number(val) || 0;
+      const monthly = planMonthlyPriceMap[String(val)] ?? 0;
+
+      // 체험용: 0원
+      const total = months === 0 ? 0 : months * monthly;
+
+      const $pay = document.getElementById('pay-amount');
+      if ($pay) {
+        $pay.textContent = `결제금액: ${formatKRW(total)}원(vat포함)`;
+      }
+    }
+
+    // ✅ (추가) 플랜 라디오 변경 시 결제금액 자동 표시
+    document.querySelectorAll('input[name="plan"]').forEach(radio => {
+      radio.addEventListener('change', updatePayAmount);
+    });
+
+    // ✅ (추가) 초기 표시(기본 체크값 반영)
+    updatePayAmount();
+
   </script>
 </body>
 </html>

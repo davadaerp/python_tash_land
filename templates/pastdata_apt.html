@@ -249,6 +249,23 @@
       categoryData('region', '01');
       //document.getElementById('region').dispatchEvent(new Event('change'));
     });
+    /*
+    // 즉시 실행 함수로 변경
+    (function() {
+      try {
+          // 데이터가 잘 주입되었는지 확인용 (서버에서 주입된 값)
+          const lawCd = "{{ law_cd }}";
+          const lawName = "{{ lawName }}";
+
+          alert('Data Loaded: ' + lawName);
+
+          // 초기 함수 호출
+          categoryData('region', '01');
+      } catch (e) {
+          console.error("초기화 오류:", e);
+      }
+    })();
+     */
 
     document.addEventListener('DOMContentLoaded', function () {
       //

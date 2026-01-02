@@ -226,6 +226,84 @@ def update_land_batch_yn_single(lawd_cd: str, trade_type: str, yn: str, db_path:
         conn.close()
 
 # ==========================
+# 5) land_batch_yn 멀티 업데이트 (APT / VILLA / SANGA)
+# ==========================
+def update_land_batch_yn_multi(
+    lawd_cd: str,
+    apt: str = None,
+    villa: str = None,
+    sanga: str = None,
+    db_path: str = DB_PATH
+) -> int:
+    """
+    한 번의 호출로 APT / VILLA / SANGA 필드를 선택적 업데이트.
+
+    Args:
+        lawd_cd (str): 업데이트할 단일 법정동 코드
+        apt (str): 'Y'/'N' 또는 None
+        villa (str): 'Y'/'N' 또는 None
+        sanga (str): 'Y'/'N' 또는 None
+    """
+
+    if not lawd_cd:
+        return 0
+
+    updates = []
+    values = []
+
+    # 유효성 검사 + 업데이트 목록 생성
+    if apt is not None:
+        if apt.upper() not in ("Y", "N"):
+            print(f"❌ APT yn값 오류: {apt}")
+        else:
+            updates.append("batch_apt_yn = ?")
+            values.append(apt.upper())
+
+    if villa is not None:
+        if villa.upper() not in ("Y", "N"):
+            print(f"❌ VILLA yn값 오류: {villa}")
+        else:
+            updates.append("batch_villa_yn = ?")
+            values.append(villa.upper())
+
+    if sanga is not None:
+        if sanga.upper() not in ("Y", "N"):
+            print(f"❌ SANGA yn값 오류: {sanga}")
+        else:
+            updates.append("batch_sanga_yn = ?")
+            values.append(sanga.upper())
+
+    # 업데이트할 값이 없는 경우
+    if not updates:
+        print("⚠️ 업데이트할 배치 필드가 없습니다.")
+        return 0
+
+    set_clause = ", ".join(updates)
+
+    conn = get_conn(db_path)
+    try:
+        sql = f"""
+            UPDATE {TABLE_NAME}
+            SET {set_clause}
+            WHERE lawd_cd = ?;
+        """
+        values.append(str(lawd_cd).strip())
+
+        cur = conn.execute(sql, values)
+        conn.commit()
+        return cur.rowcount
+
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ 멀티 업데이트 오류: {e}")
+        return 0
+
+    finally:
+        conn.close()
+
+
+
+# ==========================
 # 사용 예시
 # ==========================
 if __name__ == "__main__":

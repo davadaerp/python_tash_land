@@ -16,11 +16,14 @@ import time
 
 import requests
 import secrets
-from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory
+
+from cryptography.fernet import Fernet
+from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, send_file
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
+from io import BytesIO
 
 # 상가및 아파트 크롤링데이타(예전PC)
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
@@ -412,6 +415,7 @@ def api_me(user_id):
 #@token_required
 @kakao_token_required
 def main(current_user):
+    print("== main() current_user:", current_user)
     return render_template("main.html")
 
 @app.route("/api/menu", methods=["GET"])
@@ -495,7 +499,9 @@ def user_subscribe(user_id):
     phone_number = data.get("phoneNumber") or ''
     print("📋 subscription_month:", subscription_month, "phone_number:", phone_number)
 
-    # 오늘 일시 (YYYY-MM-DD HH:MM:SS)
+    # =========================
+    # 시작일: 오늘 일시 (YYYY-MM-DD HH:MM:SS)
+    # =========================
     subscription_start_date = datetime.now()
 
     # 종료일 = 시작일 + plan 개월
@@ -504,8 +510,16 @@ def user_subscribe(user_id):
     except (TypeError, ValueError):
         months = 0  # plan 값이 잘못 들어왔을 때 fallback
 
+    # =========================
     # 구독 종료일 계산
-    subscription_end_date = subscription_start_date + relativedelta(months=months)
+    # =========================
+    if months == 0:
+        # 🔹 체험용: 2주
+        subscription_end_date = subscription_start_date + timedelta(days=14)
+        plan_text = "2주간(체험용)"
+    else:
+        subscription_end_date = subscription_start_date + relativedelta(months=months)
+        plan_text = f"{months}개월"
 
     # DB 저장용 포맷 문자열
     start_str = subscription_start_date.strftime("%Y-%m-%d %H:%M:%S")
@@ -517,10 +531,15 @@ def user_subscribe(user_id):
     if not userInfo:
         return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
 
-    # 메니저에게 카톡으로 구독처리여부 알림톡/SMS 전송요망
+    # =========================
+    # 관리자 알림톡/SMS 전송요망
+    # =========================
     to = "01022709085"
-    title = subscription_month + "개월 구독"
-    message = "\n" + user_name + "님이 " + subscription_month + "개월 구독요청하였습니다. 관리자페이지에서 승인처리바랍니다."
+    title = f"{plan_text} 구독요청"
+    message = (
+        f"\n{user_name}님이 {plan_text} 구독요청하였습니다.\n"
+        f"관리자페이지에서 승인처리 바랍니다."
+    )
     data = {
         "userid": user_id,
         "userpswd": "0000",
@@ -559,16 +578,53 @@ def user_subscribe_approval():
     user_id = data.get("user_id")
     approval_status = data.get("subscribe_status", "cancelled")  # Y/N
     subscription_month = data.get("subscription_month", 1)
-    print("📋 user_id:", user_id, "approval:", approval_status)
+    #
+    # "0m": "2주간(체험용)", "1m": "1개월(10만원)", "6m": "6개월(7만원)", "12m": "1년(10만원)"
+    print("📋 user_id:", user_id, "approval:", approval_status, "subscription_month:", subscription_month)
 
     # if approval != "Y":
     #     return jsonify({"result": "Fail", "message": "승인여부가 Y가 아닙니다."}), 400
 
-    user_update_exist_record({
+    update_payload = {
         "user_id": user_id,
         "subscription_month": subscription_month,
-        "subscription_status": approval_status   # 관리자 승인 대기 상태(request:구독요청,active:구독,cancelled:구독취소)
-    })
+        "subscription_status": approval_status          # 관리자 승인 대기 상태(request:구독요청,active:구독,cancelled:구독취소)
+    }
+
+    # =========================
+    # 1️⃣ 취소 상태
+    # =========================
+    if approval_status == "cancelled":
+        update_payload["subscription_start_date"] = ""
+        update_payload["subscription_end_date"] = ""
+
+    # =========================
+    # 2️⃣ 구독 상태
+    # =========================
+    elif approval_status == "active":
+
+        # 오늘 일시
+        subscription_start_date = datetime.now()
+
+        # 개월 수 안전 처리
+        try:
+            months = int(subscription_month)
+        except (TypeError, ValueError):
+            months = 1
+
+        # 🔹 체험용 (0개월 → 2주)
+        if months == 0:
+            subscription_end_date = subscription_start_date + timedelta(days=14)
+        else:
+            subscription_end_date = subscription_start_date + relativedelta(months=months)
+
+        update_payload["subscription_start_date"] = subscription_start_date.strftime("%Y-%m-%d %H:%M:%S")
+        update_payload["subscription_end_date"] = subscription_end_date.strftime("%Y-%m-%d %H:%M:%S")
+
+    # =========================
+    # DB 업데이트
+    # =========================
+    user_update_exist_record(update_payload)
 
     return jsonify({"success": "구독승인되었습니다."}), 200
 
@@ -1221,8 +1277,8 @@ def get_npl_region_categories():
     print('category: ' + category, sel_code, parent_sel_code)
 
     json_data = query_npl_region_hierarchy(category, sel_code, parent_sel_code)
-    print("Region query 결과:")
-    print(json.dumps(json_data, ensure_ascii=False, indent=2))
+    # print("Region query 결과:")
+    # print(json.dumps(json_data, ensure_ascii=False, indent=2))
 
     return json_data
 
@@ -1287,11 +1343,11 @@ def get_jumpo_data():
 def ext_tool_main():
     return render_template("extool_main_popup.html")
 
-@app.route("/api/ext_tool", methods=["GET"])
-# @token_required
-def ext_tool():
+@app.route("/api/ext_tool", methods=["GET", "POST"])
+@kakao_extool_auth_required
+def ext_tool(user_id):
     menu = request.args.get("menu", "")
-    print(menu)
+    print(menu, user_id)
 
     # 시도 매핑 딕셔너리
     region_map = {
@@ -1320,10 +1376,12 @@ def ext_tool():
     sigungu = regions[1]
     umdNm = regions[2]
     lawName = region + ' ' + sigungu + ' ' + umdNm
+    # 아파트명
+    aptNm = request.args.get("aptNm", "")
 
     # 법정동코드.txt를 읽음.. 차후 redis 메모리DB이용
     law_cd = extract_law_codes(region, sigungu, umdNm)
-    print(regions)
+    print(regions, aptNm)
     print(lawName, law_cd)
 
     #= 국토부 api_key
@@ -1368,6 +1426,7 @@ def ext_tool():
         return render_template("crawling_realtor_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
     if menu == 'form_down':
         return render_template("form_download.html")
+
 
 @app.route("/api/ext_tool/map", methods=["GET"])
 def ext_tool_map():
@@ -1889,6 +1948,98 @@ def batch_cycle_lawd_codes():
         return jsonify({"status": "Success", "message": f"배치주기 저장 성공({cycle})"})
     except Exception as e:
         return jsonify({"error": f"배치주기 저장 실패: {e}"}), 500
+
+
+#====== 매물검색기 샘플파일 다운로드 ======
+SAMPLE_FILE = os.path.join(FORM_DIRECTORY, "landcore-searcher.zip")
+@app.get("/api/download/listing-searcher")
+def download_listing_searcher():
+    # auth = request.headers.get("Authorization", "")
+    # token = auth.replace("Bearer", "").strip()
+    #
+    # user = verify_token_and_get_user(token)
+    # if not user:
+    #     return jsonify({"message": "인증이 필요합니다."}), 401
+    #
+    # if not is_user_subscribed(user):
+    #     return jsonify({"message": "구독 사용자만 다운로드 가능합니다."}), 403
+
+    if not os.path.exists(SAMPLE_FILE):
+        return jsonify({"message": "다운로드 파일이 서버에 없습니다."}), 404
+
+    # Content-Disposition filename 설정(한글/UTF-8 대응)
+    return send_file(
+        SAMPLE_FILE,
+        as_attachment=True,
+        download_name="매물검색기_샘플.zip",
+        mimetype="application/zip"
+    )
+
+# ✅ Fernet 키는 반드시 "urlsafe base64 인코딩된 32바이트" 형식이어야 합니다(운영에서는 환경변수로 넣는걸 권장합니다)
+# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FERNET_SECRET_KEY = os.environ.get("FERNET_SECRET_KEY", "aRNcrDiyuhYZQ0tMDv-sfRCEHGjoy93zXuGQKTl_kyc=")
+@app.get("/api/download/license-key")
+@kakao_extool_auth_required
+def download_license_key(user_id):
+    try:
+        fernet = Fernet(FERNET_SECRET_KEY.encode("utf-8"))
+    except Exception as e:
+        return jsonify({"message": f"서버 라이센스 키 설정 오류: {str(e)}"}), 500
+
+    print("user_id:", user_id)
+    userInfo = user_read_db(user_id)
+    #user_name = userInfo[0].get("user_name")
+    #subscription_month = userInfo[0].get("subscription_month", 0)
+
+    # DB에서 날짜 정보 가져오기 (예: "2023-12-01" 또는 "2023-12-01 10:00:00")
+    start_str = userInfo[0].get("subscription_start_date", "")
+    end_str = userInfo[0].get("subscription_end_date", "")
+
+    try:
+        # 날짜 문자열을 datetime 객체로 변환 (형식에 맞춰 %Y-%m-%d 등 조정 필요)
+        # 문자열 앞 10자리만 사용하여 날짜 비교를 단순화합니다.
+        start_date = datetime.strptime(start_str[:10], "%Y-%m-%d")
+        end_date = datetime.strptime(end_str[:10], "%Y-%m-%d")
+
+        # 시작일로부터 종료일까지의 전체 기간 계산
+        delta = end_date - start_date
+        days = delta.days  # 시작일과 종료일 사이의 총 일수
+
+        if days <= 0:
+            return jsonify({"message": "잔여 구독 일수가 없습니다."}), 403
+
+    except Exception as e:
+        return jsonify({"message": f"날짜 정보 형식이 잘못되었습니다: {str(e)}"}), 500
+
+    # ✅ 라이센스 발급 정보 설정
+    issued_at = datetime.now(timezone.utc)
+    # 만료일은 DB의 종료일(end_str)을 그대로 따르는 것이 정확합니다.
+    expires_at = end_date.strftime("%Y-%m-%d")
+
+    # ✅ 라이센스 데이터(요구하신 형태: day=30 느낌을 반영해서 days 필드 포함)
+    payload = {
+        "user_id": user_id,
+        "days": days,  # [수정] 시작일 기준 종료일까지의 총 일수
+        "issued_at": issued_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "expires_at": expires_at  # 라이선스 만료일
+    }
+
+    # ✅ Fernet로 암호화 (토큰 문자열 생성)
+    token_bytes = fernet.encrypt(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    license_token = token_bytes.decode("utf-8")
+
+    # 파일 내용은 "토큰 문자열 1줄"로 저장 (원하면 JSON으로 감싸도 됨)
+    content = (license_token + "\n").encode("utf-8")
+    bio = BytesIO(content)
+    bio.seek(0)
+
+    # ✅ 파일명 고정: license.key
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name="license.key",
+        mimetype="application/octet-stream"
+    )
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)

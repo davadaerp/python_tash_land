@@ -279,28 +279,25 @@
             let sortPyeongAscending = false;
             let sortPriceAscending = false;
 
-            // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
-            window.onload = function() {
-                var lawName = "{{ lawName }}";
-                var umdNm = "{{ umdNm }}";
-                var lawCd = "{{ law_cd }}";
-                // lawName = '경기도 김포시 구래동';
-                // lawCd = '4157010900';
-                //alert(lawName + ',' + umdNm + ',' + lawCd);
-                // 확장툴실행여부
-                if (lawCd && lawCd.trim() !== '') {
-                    // selectedLawdCd = '4157010900';
-                    // selectedUmdNm = '구래동';
-                    selectedLawdCd = lawCd;
-                    selectedUmdNm = umdNm;
-                    document.getElementById("locatadd_nm").value = lawName;
-                    // 0.5초 후 버튼 클릭 이벤트 강제 실행
-                    setTimeout(() => {
-                        document.getElementById("search-btn").click();
-                        //document.getElementById("search-btn").dispatchEvent(new Event('click'));
-                    }, 500);
-                }
-            };
+            var lawName = "{{ lawName }}";
+            var umdNm = "{{ umdNm }}";
+            var lawCd = "{{ law_cd }}";
+            // lawName = '경기도 김포시 구래동';
+            // lawCd = '4157010900';
+            //alert(lawName + ',' + umdNm + ',' + lawCd);
+            // 확장툴실행여부
+            if (lawCd && lawCd.trim() !== '') {
+                // selectedLawdCd = '4157010900';
+                // selectedUmdNm = '구래동';
+                selectedLawdCd = lawCd;
+                selectedUmdNm = umdNm;
+                document.getElementById("locatadd_nm").value = lawName;
+                // 0.5초 후 버튼 클릭 이벤트 강제 실행
+                setTimeout(() => {
+                    document.getElementById("search-btn").click();
+                    //document.getElementById("search-btn").dispatchEvent(new Event('click'));
+                }, 500);
+            }
 
             // 매각일자 정렬
             $('#sortSalesDate').click(function () {
@@ -662,20 +659,29 @@
                         <td class="center-align" style="width:80px">${item.sales_date}</td>
                         <td class="center-align" style="width:90px">
                           <a href="javascript:void(0)"
+                             title="클릭하면 사건번호가 복사됩니다"
                              onclick="(function(){
-                               var w = 1200, h = 1200;
-                               var left = Math.round((screen.width - w) / 2);
-                               var top  = Math.round((screen.height - h) / 2) - 100;
-                               window.open(
-                                 'https://www.tankauction.com/ca/caView.php?tid=${item.tid}',
-                                 'detailPopup',
-                                 'width=' + w +
-                                 ',height=' + h +
-                                 ',scrollbars=yes' +
-                                 ',left=' + left +
-                                 ',top='  + top
-                               );
+                                 // 1. 클립보드 복사
+                               const caseNum = '${item.case_number}';
+                               navigator.clipboard.writeText(caseNum).then(() => {
+                                   alert('사건번호 복사 완료: ' + caseNum);
+                               });
+
+                               // // 2. 탱크옥션 상세페이지 팝업
+                               // var w = 1200, h = 1200;
+                               // var left = Math.round((screen.width - w) / 2);
+                               // var top  = Math.round((screen.height - h) / 2) - 100;
+                               // window.open(
+                               //   'https://www.tankauction.com/ca/caView.php?tid=${item.tid}',
+                               //   'detailPopup',
+                               //   'width=' + w +
+                               //   ',height=' + h +
+                               //   ',scrollbars=yes' +
+                               //   ',left=' + left +
+                               //   ',top='  + top
+                               // );
                              })()"
+                             style="cursor: pointer; text-decoration: underline;"
                           >
                             ${item.case_number}
                           </a>
@@ -950,6 +956,10 @@
                   sggSelect.value = "all";
                   return;
                 }
+                // region이 변경될 때 시군구 데이터 갱신
+                selectedLawdCd = '';    // 확장툴에서 넘어온 지역코드 초기화
+                document.getElementById("locatadd_nm").value = "";
+                //
                 regionCategoryData('region', selectedValue, '');
             });
         });

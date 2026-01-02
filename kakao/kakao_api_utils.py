@@ -12,7 +12,7 @@ KAKAO_REDIRECT_URI = "http://127.0.0.1:5000/api/kakao/callback"
 
 JWT_SECRET = "bSDWyM1O8UhqyRXcFHY1g2ekkJQXeocB"
 JWT_ALG = "HS256"
-JWT_EXPIRES = 60 * 60 * 24 * 7  # 7일
+JWT_EXPIRES = 60 * 60 * 24 * 1  # 1일
 
 # 아주 단순한 인메모리 세션 저장소 (실서비스: Redis/DB 권장)
 TOKENS = {}  # {jti: {sub, kakao_access_token, exp}}

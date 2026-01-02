@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>국토부 실거래 데이터</title>
+  <title>문자 메시지</title>
   <style>
     /* 전체 페이지 중앙 정렬 */
     body {
@@ -746,17 +746,15 @@
         window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
       });
 
-      // #excel-btn 클릭 시 CSV 생성 및 다운로드
+      // #excel-btn 클릭 시 CSV 생성 및 다운로드 (전화번호 건수 표시 및 줄바꿈 해결)
       document.getElementById('download-btn').addEventListener('click', function() {
 
-          // 선택된 행이 없으면 알림 후 종료
           const checkedRows = $('input.row-checkbox:checked');
           if (checkedRows.length === 0) {
             alert("체크된 데이터가 없습니다.");
             return;
           }
 
-          // ===== [추가] 파일명 구성: dangiName + 구분(중개사/상담사/세무사) =====
           const dangiName = ($('#dangiName').val() || '').trim();
           const selType = $('#sel_type').val();
           const selTypeName =
@@ -766,24 +764,15 @@
 
           const excelFileName = (dangiName ? dangiName : '미지정') + '_' + selTypeName + '.xls';
 
-          // ===== [추가] 저장 여부 확인 =====
           const totalSelected = checkedRows.length;
           const confirmMsg = `선택한 데이터(${totalSelected}건)를\n"${excelFileName}" 파일로 저장하시겠습니까?`;
           if (!confirm(confirmMsg)) return;
 
-          // 헤더 행 생성
-          var tableHTML = "<table>";
-          tableHTML += "<tr>" +
-                          "<th>순번</th>" +
-                          "<th>제목</th>" +
-                          "<th>대표자</th>" +
-                          "<th>주소지</th>" +
-                          "<th>일반전화</th>" +
-                          "<th>휴대전화</th>" +
-                       "</tr>";
+          // 1. 그룹전화목록 추출
+          let phoneList = [];
+          let rowDataHtml = "";
 
-          // 선택된 각 행에 대해 데이터를 추출하여 테이블 행 생성
-          $('input.row-checkbox:checked').each(function(){
+          checkedRows.each(function(){
               var row = $(this).closest('tr');
               var tds = row.find('td');
               var seq = $(tds[1]).text();
@@ -791,8 +780,13 @@
               var rep = $(tds[3]).text();
               var addr = $(tds[4]).text();
               var phone = $(tds[5]).text();
-              var mobile = $(tds[6]).text();
-              tableHTML += "<tr>" +
+              var mobile = $(tds[6]).text().trim();
+
+              if(mobile.startsWith("010")) {
+                  phoneList.push(mobile);
+              }
+
+              rowDataHtml += "<tr>" +
                               "<td>" + seq + "</td>" +
                               "<td>" + title + "</td>" +
                               "<td>" + rep + "</td>" +
@@ -801,25 +795,66 @@
                               "<td>" + mobile + "</td>" +
                            "</tr>";
           });
+
+          // 2. 전송메시지 정의 (엑셀 줄바꿈을 위해 \n 대신 <br> 사용 및 스타일 적용)
+          // 엑셀에서는 <br style='mso-data-placement:same-cell;'> 형식이 가장 확실하게 줄바꿈을 지원합니다.
+          const br = "<br style='mso-data-placement:same-cell;'>";
+          let messageContent =
+            "안녕하세요. 매매의뢰합니다." + br + br +
+            "1.주소: 강북구 수유동 100-1번지" + br +
+            "2.년식: 2018" + br +
+            "3.평수: 20평(전용)" + br +
+            "4.방수: 방3-욕실2" + br +
+            "5.층향: 4층,남향" + br +
+            "6.엘베: 있슴" + br +
+            "7.주차: 1대무료" + br +
+            "8.관리비: 5만원" + br +
+            "9.금액: 2.5억" + br +
+            "10.비고: 지하철5분거리, 초.중.고 2개존재함.";
+
+          // --- 엑셀 HTML 구성 ---
+          var tableHTML = "<table border='1'>";
+
+          // 상단 타이틀에 (건수) 표시 추가
+          tableHTML += "<tr><th colspan='6' style='background-color:#ffff99; text-align:left;'>-- 그룹전화목록 (" + phoneList.length + "건) --</th></tr>";
+          tableHTML += "<tr><td colspan='6' style='text-align:left;'>" + phoneList.join(", ") + "</td></tr>";
+          tableHTML += "<tr><td colspan='6'></td></tr>";
+
+          tableHTML += "<tr><th colspan='6' style='background-color:#e1f5fe; text-align:left;'>-- 전송메시지 --</th></tr>";
+          // 엑셀 셀 내 줄바꿈을 위해 white-space:normal 및 vertical-align 설정
+          tableHTML += "<tr><td colspan='6' style='text-align:left; white-space:normal; vertical-align:top;'>" + messageContent + "</td></tr>";
+          tableHTML += "<tr><td colspan='6'></td></tr>";
+
+          tableHTML += "<tr style='background-color:#f2f2f2;'>" +
+                          "<th>순번</th>" +
+                          "<th>제목</th>" +
+                          "<th>대표자</th>" +
+                          "<th>주소지</th>" +
+                          "<th>일반전화</th>" +
+                          "<th>휴대전화</th>" +
+                       "</tr>";
+
+          tableHTML += rowDataHtml;
           tableHTML += "</table>";
 
-          // 첫번째 h1 요소의 outerHTML 추출 (엑셀 문서 상단 제목)
-          var titleHTML = $("h1").first().prop("outerHTML");
+          var titleHTML = $("h1").first().prop("outerHTML") || "<h2>그룹문자 메시지</h2>";
 
-          // 엑셀에서 인식할 수 있도록 HTML 문서 형태로 감싸기
           var excelHTML = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
                           'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
                           'xmlns="http://www.w3.org/TR/REC-html40">' +
-                          '<head><meta charset="UTF-8"></head><body>' +
+                          '<head>' +
+                          '<meta charset="UTF-8">' +
+                          '' +
+                          '<style>br { mso-data-placement:same-cell; }</style>' +
+                          '</head><body>' +
                           titleHTML + tableHTML +
                           '</body></html>';
 
-          // Blob 객체 생성
           var blob = new Blob([excelHTML], { type: "application/vnd.ms-excel" });
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
           a.href = url;
-          a.download = excelFileName;          // ← [변경] 동적 파일명 적용
+          a.download = excelFileName;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

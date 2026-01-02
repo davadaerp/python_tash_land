@@ -1,6 +1,7 @@
 // ====== 공통 ======
 const SERVER = "http://127.0.0.1:5000";
 //const SERVER = "https://erp-dev.bacchuserp.com";
+// const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
 const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
 const API_ME_URL = `${SERVER}/api/kakao/me`;
@@ -199,6 +200,20 @@ function handleLoginMessage(ev) {
       window.removeEventListener("message", handleLoginMessage);
 }
 
+// 안전한 이벤트 리스너 추가 함수
+function safeAddListener(selectorOrEl, event, handler, options) {
+    const el = (typeof selectorOrEl === "string")
+      ? document.querySelector(selectorOrEl)
+      : selectorOrEl;
+
+    if (!el) {
+      console.warn("⚠️ addEventListener 대상이 없습니다:", selectorOrEl);
+      return false;
+    }
+    el.addEventListener(event, handler, options);
+    return true;
+}
+
 // 로그인 버튼 클릭 - 팝업후 post메시지로 리턴받음
 btnLogin.addEventListener("click", () => {
       const w = 480, h = 640;
@@ -230,8 +245,9 @@ btnLogout.addEventListener("click", async () => {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}` }
         });
-      } catch (_) { /* 네트워크 오류여도 로컬 정리 진행 */ }
-
+      } catch (_) {
+        // 네트워크 오류여도 로컬 정리 진행
+      }
       // 저장-chrome.storage.local을 Promise로 감싸서 정확히 저장 후 UI 갱신
       await csSet({ access_token: "" })
 
@@ -307,7 +323,7 @@ async function openMypageWithToken() {
 
 // ====== 구독 팝업 열기 ======
 function openSubscribePopup(token) {
-  const w = 420, h = 490;
+  const w = 420, h = 570;
   const left = Math.round((screen.width - w) / 2);
   const top  = Math.round((screen.height - h) / 2);
 

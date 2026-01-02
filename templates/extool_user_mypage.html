@@ -91,6 +91,30 @@
       .tabs { flex-wrap: wrap; }
     }
 
+    /* ===== (추가) 기타 다운로드 버튼 스타일 ===== */
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    .btn-download:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .hint {
+      margin-top: 10px;
+      color: #666;
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
@@ -112,6 +136,9 @@
       });
     }
 
+    // ===== (추가) member 데이터를 캐시해두고 구독 체크에 재사용 =====
+    let memberCache = null;
+
     // ===== member 데이터 로드 =====
     async function loadMember() {
       try {
@@ -125,6 +152,9 @@
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const j = await res.json();
+
+        // (추가) 캐시에 저장
+        memberCache = j;
 
         // 사용자명(별명) 합치기
         //const userNameWithNick = j.user_name + (j.nick_name ? ` (${j.nick_name})` : "");
@@ -149,8 +179,185 @@
         });
       } catch (e) {
         console.error(e);
-        // 간단한 오류 표시(필요 시 별도 영역 추가 가능)
         alert('회원정보를 불러오지 못했습니다.');
+      }
+    }
+
+    // ===== (추가) 구독 여부 체크 =====
+    function isSubscribed(member) {
+      const s = (member?.subscription_status ?? '').toString().trim().toLowerCase();
+      // 프로젝트에서 쓰는 값에 맞춰 필요하면 여기만 확장하면 됩니다.
+      //return (s === 'active' || s === 'y' || s === 'paid' || s === 'subscribed');
+      return (s === 'active' || s === 'paid' || s === '구독' || s === 'subscribed');
+    }
+
+    // ===== (추가) 다운로드 처리 (구독 확인 → 서버 연동 → 파일 다운로드) =====
+    async function downloadListingSearcher() {
+      const btn = document.getElementById('btn-download-listing');
+      const msg = document.getElementById('download-msg');
+
+      try {
+        if (!token) {
+          alert('로그인 토큰이 없습니다. 다시 로그인 해주세요.');
+          return;
+        }
+
+        btn.disabled = true;
+        msg.textContent = '구독 상태 확인 중...';
+
+        // memberCache가 없으면 먼저 member API 호출해서 구독상태 확인
+        if (!memberCache) {
+          await loadMember();
+        }
+
+        // 구독 상태 체크
+        if (!isSubscribed(memberCache)) {
+          msg.textContent = '';
+          alert('구독 사용자만 다운로드 가능합니다. 구독 상태를 확인해주세요.');
+          return;
+        }
+
+        // ===== (추가) 다운로드 확인 =====
+        const ok = confirm('매물탐색기를 다운로드 하시겠습니까?');
+        if (!ok) {
+          msg.textContent = '';
+          btn.disabled = false;
+          return; // 사용자가 No 선택 시 중단
+        }
+
+        msg.textContent = '다운로드 준비 중...';
+
+        // 서버 다운로드 엔드포인트 호출 (샘플)
+        const res = await fetch('/api/download/listing-searcher', {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          },
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          // JSON 에러가 내려오면 메세지 표시
+          let errText = '다운로드 실패 (HTTP ' + res.status + ')';
+          try {
+            const ej = await res.json();
+            if (ej?.message) errText = ej.message;
+          } catch (_) {}
+          throw new Error(errText);
+        }
+
+        // 파일 다운로드 (Blob)
+        const blob = await res.blob();
+
+        // 파일명 추출(서버가 Content-Disposition 주면 그걸 우선)
+        let filename = 'listing-searcher.zip';
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i);
+        if (m) filename = decodeURIComponent(m[1] || m[2]);
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        msg.textContent = '다운로드가 시작되었습니다.';
+      } catch (e) {
+        console.error(e);
+        alert(e.message || '다운로드 중 오류가 발생했습니다.');
+        const msg = document.getElementById('download-msg');
+        if (msg) msg.textContent = '';
+      } finally {
+        const btn = document.getElementById('btn-download-listing');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // ===== (추가) 라이센스키 발급 + 다운로드 =====
+    async function downloadLicenseKey() {
+      const btn = document.getElementById('btn-download-license');
+      const msg = document.getElementById('license-msg');
+
+      try {
+        if (!token) {
+          alert('로그인 토큰이 없습니다. 다시 로그인 해주세요.');
+          return;
+        }
+
+        btn.disabled = true;
+        msg.textContent = '구독 상태 확인 중...';
+
+        // 구독/체험 상태 확인을 위해 memberCache 확보
+        if (!memberCache) {
+          await loadMember();
+        }
+
+        // (선택) 클라이언트 단에서도 1차 제한 (최종 판단은 서버)
+        // 체험도 허용하려면 아래 조건을 완화하면 됩니다.
+        const s = (memberCache?.subscription_status ?? '').toString().trim().toLowerCase();
+        const isTrial = (s === 'trial');
+        const isSub = isSubscribed(memberCache);
+
+        if (!(isSub || isTrial)) {
+          msg.textContent = '';
+          alert('구독/체험 사용자만 라이센스키 발급이 가능합니다.');
+          return;
+        }
+
+        // 다운로드 여부 확인
+        const ok = confirm('라이센스키를 발급(다운로드) 하시겠습니까?');
+        if (!ok) {
+          msg.textContent = '';
+          return;
+        }
+
+        msg.textContent = '라이센스 생성 중...';
+
+        // 서버에서 라이센스 파일 다운로드
+        const res = await fetch('/api/download/license-key', {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          },
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          let errText = '라이센스 다운로드 실패 (HTTP ' + res.status + ')';
+          try {
+            const ej = await res.json();
+            if (ej?.message) errText = ej.message;
+          } catch (_) {}
+          throw new Error(errText);
+        }
+
+        const blob = await res.blob();
+
+        // 파일명 추출
+        let filename = 'license.key';
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i);
+        if (m) filename = decodeURIComponent(m[1] || m[2]);
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        msg.textContent = '라이센스 다운로드가 시작되었습니다.';
+      } catch (e) {
+        console.error(e);
+        alert(e.message || '라이센스 발급 중 오류가 발생했습니다.');
+        if (msg) msg.textContent = '';
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
@@ -172,6 +379,21 @@
           }
         });
       });
+
+      // (추가) 기타 탭 다운로드 버튼 이벤트 바인딩
+      document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t && t.id === 'btn-download-listing') {
+          downloadListingSearcher();
+        }
+
+        // ✅ (추가) 라이센스키 발급 버튼
+        if (t && t.id === 'btn-download-license') {
+          downloadLicenseKey();
+        }
+      });
+
+
     }
 
     window.addEventListener('DOMContentLoaded', function() {
@@ -240,9 +462,20 @@
     </table>
   </div>
 
+  <!-- ✅ (수정) 기타 탭: 매물검색기 다운로드 UI -->
   <div id="etc" class="panel" style="display:none;">
-    <h3>기타</h3>
-    <p>추가 기능 및 설정 페이지를 구성할 수 있는 영역입니다.</p>
+    <h3>매물검색기 다운로드</h3>
+    <p>구독 사용자만 다운로드 가능합니다.</p>
+    <button id="btn-download-listing" class="btn-download">매물검색기 다운로드</button>
+    <div id="download-msg" class="hint"></div>
+
+    <hr style="margin:18px 0; border:0; border-top:1px solid #eee;">
+
+    <h3>라이센스키 발급</h3>
+    <p>구독개월(또는 체험)에 맞춰 라이센스키가 생성되어 파일로 다운로드됩니다.</p>
+    <button id="btn-download-license" class="btn-download">라이센스키 발급</button>
+    <div id="license-msg" class="hint"></div>
+
   </div>
 </body>
 </html>

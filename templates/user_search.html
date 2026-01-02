@@ -512,8 +512,11 @@
                   : 'style="font-size:12px; font-weight:bold;"';
 
         // 구독 개월수 select box
-        const monthOptions = [1, 3, 6, 12].map(m => `
-          <option value="${m}" ${item.subscription_month == m ? 'selected' : ''}>${m}개월</option>
+        //"0m": "2주간(체험용)", "1m": "1개월(10만원)", "6m": "6개월(7만원)", "12m": "1년(10만원)"
+        const monthOptions = [0, 1, 3, 6, 12].map(m => `
+          <option value="${m}" ${item.subscription_month == m ? 'selected' : ''}>
+            ${m === 0 ? '체험용' : `${m}개월`}
+          </option>
         `).join("");
 
         let actionTd = '<td class="center-align">-</td>';
@@ -576,7 +579,8 @@
     async function subscribe_approval(user_id, subscribe_status, subscription_month) {
       let msg = '';
       if (subscribe_status === 'active') {
-        msg = `구독승인(${subscription_month}개월) 하시겠습니까?`;
+        const planText = Number(subscription_month) === 0 ? '2주간(체험용)' : `${subscription_month}개월`;
+        msg = `구독승인(${planText}) 하시겠습니까?`;
       } else if (subscribe_status === 'cancelled') {
         msg = '구독취소 하시겠습니까?';
       }

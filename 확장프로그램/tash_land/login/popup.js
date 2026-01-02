@@ -219,7 +219,6 @@
       sign_cancel();
   });
 
-
   // 폼 제출 시 로그인 요청 실행
   $(document).ready(function(){
     $('#login-form').submit(function(e) {
