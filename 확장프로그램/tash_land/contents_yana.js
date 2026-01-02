@@ -6,10 +6,13 @@ let isScheduled = false; // 함수 호출이 예약되었는지 여부를 나타
 let tableData = []; // 테이블 만들 데이터 { key: data, key2: data2} 형식으로 저장
 let tabGubun = '';
 //let BASE_URL = "https://erp-dev.bacchuserp.com";
+// let BASE_URL = "https://www.landcore.co.kr";          // 175.106.99.143
 let BASE_URL = 'http://127.0.0.1:5000';
+// let LOCAL_BASE_URL = 'https://www.landcore.co.kr';
 let LOCAL_BASE_URL = 'http://127.0.0.1:5000';
 let currSelectedType = 'all';
 let isLoggedInStatus = false;
+let access_token = ""
 let apt_key = "";
 let villa_key = "";
 let sanga_key = "";
@@ -666,7 +669,7 @@ function summaryTable() {
             `;
         }
 
-        // 3. 왼쪽: 통계 테이블, 오른쪽: 컨트롤(요약표 버튼, 수익율(%) 레이블, 수익율 input)을
+        // 3. 왼쪽: 통계 테이블, 오른쪽: 컨트롤(분석표 버튼, 수익율(%) 레이블, 수익율 input)을
         //    위에서 아래로 나열하는 테이블 형식으로 배치하고, outer table 높이를 newBox 높이에 맞춤
         const combinedHTML = `
             <table border="0" style="width: 100%; height: 100%; border-collapse: collapse; text-align: center;">
@@ -707,7 +710,7 @@ function summaryTable() {
                   <table border="0" style="height: 100%; border-collapse: collapse;">
                      <tr>
                         <td style="padding-bottom: 5px;">
-                           <button id="summaryBtn" style="border: 1px solid #555555; border-radius:5px; padding:2px 5px;">요약표</button>
+                           <button id="summaryBtn" style="border: 1px solid #555555; border-radius:5px; padding:2px 5px;">분석표</button>
                         </td>
                      </tr>
                      <tr>
@@ -729,7 +732,7 @@ function summaryTable() {
         // newBox 안에 결합된 HTML 삽입
         newBox.innerHTML = combinedHTML;
 
-        // 4. 요약표 버튼에 클릭 이벤트 등록 (클릭 시 sangaSummaryList() 실행)
+        // 4. 분석표 버튼에 클릭 이벤트 등록 (클릭 시 sangaSummaryList() 실행)
         const summaryBtn = newBox.querySelector('#summaryBtn');
         if (summaryBtn) {
             summaryBtn.addEventListener('click', function() {
@@ -1604,6 +1607,7 @@ function getSelectedRegions() {
 
 // 실거래분석(국토부및경매데이터)
 function analyzeRealdealDemand() {
+    /*
     // 지역선택 가져오기
     const {region, sigungu, umdNm} = getSelectedRegions();
     //alert(region + ',' + sigungu + ',' + umdNm);
@@ -1624,6 +1628,16 @@ function analyzeRealdealDemand() {
     const top = (screen.height - popupHeight) / 2;
     window.open(ext_url , "analyzeCatchmentDemand",
       `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    */
+    let menu = '';
+    if (tabGubun === 'sanga') {
+        menu = 'sanga_real_deal';
+    } else {
+        menu = 'villa_real_deal';
+    }
+    const popupWidth = 950;   // 원하는 팝업 너비
+    const popupHeight = 840;  // 원하는 팝업 높이
+    openExtensionPopup(menu, { customTag: menu}, "realDataPopup", popupWidth, popupHeight);
 }
 
 // 배후분석(마이프차접속)
@@ -1637,134 +1651,7 @@ function analyzeCatchmentDemand() {
       `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
 }
 
-// 국토부 실거래데이타 분석
-function searchLandRealData() {
-
-    // 기본 컨트롤 박스 가져오기
-    const onoffPanel = document.querySelector('.filter_area');
-    onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
-
-    // 네이버매물검색 버튼 생성
-    const landSearch = document.createElement('span');
-    landSearch.id = 'landSearch'; // id 지정
-    landSearch.textContent = '실거래분석';
-    landSearch.style.marginTop = '15px';
-    landSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
-    landSearch.style.backgroundColor = '#09d624'; // 엷은 파란색 배경
-    landSearch.style.color = '#fff'; // 검정색 텍스트
-    landSearch.style.padding = '5px 6px'; // 내부 여백
-    landSearch.style.fontSize = '12px'; // 글씨 크기
-    landSearch.style.borderRadius = '8px'; // 둥근 모서리
-    landSearch.style.cursor = 'pointer'; // 커서
-    landSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
-    landSearch.style.verticalAlign = 'middle'; // 정렬 보정
-    landSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
-
-    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
-    landSearch.addEventListener('click', function() {
-        //alert('준비중입니다.');
-        // 로그인여부 체크
-        loginValid().then(valid => {
-            if (!valid) return;   // 로그인 실패 시 여기서 중단
-            //
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
-            const aptNm = "구래역한강리슈빌";
-            // '경기도,김포시,구래동, 아파트명'
-            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
-            //alert(regions);
-
-            let search_menu = "";
-            if (tabGubun === 'apt') {
-                search_menu = "menu=apt_real_deal&regions=" + regions;
-            }
-            // 확장툴url
-            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-
-            const popupWidth = 950;  // 원하는 팝업 너비
-            const popupHeight= 840;  // 원하는 팝업 높이
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            // window.open(ext_url, "realDataPopup",
-            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-            window.open(
-                  ext_url,
-                  "realDataPopup",
-                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-                );
-        });
-  });
-
-  // onoffPanel에 실거래검색 버튼 추가
-  onoffPanel.appendChild(landSearch);
-}
-
-// 부동산원 PIR데이타 분석
-function searchPirAnalyzeData() {
-
-    // 기본 컨트롤 박스 가져오기
-    const onoffPanel = document.querySelector('.filter_area');
-    onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
-
-    // 아파트 PIR분석 버튼 생성
-    const pirSearch = document.createElement('span');
-    pirSearch.id = 'pirSearch'; // id 지정
-    pirSearch.textContent = 'PIR분석';
-    pirSearch.style.marginTop = '15px';
-    pirSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
-    pirSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
-    pirSearch.style.color = '#0e0c0c'; // 검정색 텍스트
-    pirSearch.style.padding = '5px 6px'; // 내부 여백
-    pirSearch.style.fontSize = '12px'; // 글씨 크기
-    pirSearch.style.borderRadius = '8px'; // 둥근 모서리
-    pirSearch.style.cursor = 'pointer'; // 커서
-    pirSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
-    pirSearch.style.verticalAlign = 'middle'; // 정렬 보정
-    pirSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
-
-    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
-    pirSearch.addEventListener('click', function() {
-        //alert('준비중입니다.');
-        // 로그인여부 체크
-        loginValid().then(valid => {
-            if (!valid) return;   // 로그인 실패 시 여기서 중단
-            //
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
-            const aptNm = "구래역한강리슈빌";
-            // '경기도,김포시,구래동, 아파트명'
-            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
-            //alert(regions);
-
-            let search_menu = "menu=pir_apt&regions=" + regions;
-
-            // 확장툴url
-            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-
-            const popupWidth =  1390;   // 원하는 팝업 너비
-            const popupHeight = 1180;  // 원하는 팝업 높이
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            // window.open(ext_url, "realDataPopup",
-            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-            window.open(
-                  ext_url,
-                  "realDataPopup",
-                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-                );
-        });
-  });
-
-    // tabGubun에 따라 버튼 위치 결정
-    if (tabGubun === 'apt') {
-        // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
-        const landSearch = document.getElementById("landSearch");
-        landSearch.parentNode.insertBefore(pirSearch, landSearch.nextSibling);
-    } else {
-        // onoffPanel에 실거래검색 버튼 추가
-        onoffPanel.appendChild(pirSearch);
-    }
-}
+//---- top버튼메뉴 기준 ----
 
 // 네이버 매물검색 처리
 function searchNaverListings() {
@@ -1796,6 +1683,19 @@ function searchNaverListings() {
         loginValid().then(valid => {
             if (!valid) return;   // 로그인 실패 시 여기서 중단
             //
+            let menu = '';
+            if (tabGubun === 'apt') {
+                menu = 'apt_search';
+            } else if (tabGubun === 'sanga') {
+                menu = 'sanga_search';
+            } else {
+                alert('빌라 매물검색은 준비중입니다.');
+                return;
+            }
+            const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
+            const popupHeight = 1200;  // 원하는 팝업 높이
+            openExtensionPopup(menu, { customTag: menu}, "realDataPopup", popupWidth, popupHeight);
+            /*
             // 지역선택 가져오기
             const {region, sigungu, umdNm} = getSelectedRegions();
             //alert(region + ',' + sigungu + ',' + umdNm);
@@ -1828,82 +1728,308 @@ function searchNaverListings() {
                   "realDataPopup",
                   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
                 );
+
+             */
         });
   });
     // tabGubun에 따라 버튼 위치 결정
-    if (tabGubun === 'apt') {
-        // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
-        const pirSearch = document.getElementById("pirSearch");
-        pirSearch.parentNode.insertBefore(naverSearch, pirSearch.nextSibling);
-    } else {
-        // onoffPanel에 실거래검색 버튼 추가
-        onoffPanel.appendChild(naverSearch);
-    }
+    // if (tabGubun === 'apt') {
+    //     // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
+    //     const pirSearch = document.getElementById("pirSearch");
+    //     pirSearch.parentNode.insertBefore(naverSearch, pirSearch.nextSibling);
+    // } else {
+    //     // onoffPanel에 실거래검색 버튼 추가
+    //     onoffPanel.appendChild(naverSearch);
+    // }
+    // onoffPanel에 실거래검색 버튼 추가
+    onoffPanel.appendChild(naverSearch);
 }
 
-// NPL 매물검색 처리
-function nplSearchListings() {
+// 국토부 실거래데이타 분석
+function searchLandRealData() {
 
-  // 실거래검색 버튼 요소 가져오기
-  const naverSearch = document.getElementById("naverSearch");
+    // 네이버 실거래검색 버튼 요소 가져오기
+    const naverSearch = document.getElementById("naverSearch");
 
-  // NPL매물검색 버튼 생성
-  const nplSearch = document.createElement('span');
-  nplSearch.id = 'nplSearch'; // id 지정
-  nplSearch.textContent = 'NPL검색';
-  nplSearch.style.marginTop = '15px';
-  nplSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
-  nplSearch.style.backgroundColor = '#e40909'; // 엷은 파란색 배경
-  nplSearch.style.color = '#fff'; // 검정색 텍스트
-  nplSearch.style.padding = '5px 6px'; // 내부 여백
-  nplSearch.style.fontSize = '12px'; // 글씨 크기
-  nplSearch.style.borderRadius = '8px'; // 둥근 모서리
-  nplSearch.style.cursor = 'pointer'; // 커서
-  nplSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
-  nplSearch.style.verticalAlign = 'middle'; // 정렬 보정
-  nplSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+    // 국토부실거래 버튼 생성
+    const landSearch = document.createElement('span');
+    landSearch.id = 'landSearch'; // id 지정
+    landSearch.textContent = '실거래분석';
+    landSearch.style.marginTop = '15px';
+    landSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    landSearch.style.backgroundColor = '#09d624'; // 엷은 파란색 배경
+    landSearch.style.color = '#fff'; // 검정색 텍스트
+    landSearch.style.padding = '5px 6px'; // 내부 여백
+    landSearch.style.fontSize = '12px'; // 글씨 크기
+    landSearch.style.borderRadius = '8px'; // 둥근 모서리
+    landSearch.style.cursor = 'pointer'; // 커서
+    landSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    landSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    landSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
 
-  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
-  nplSearch.addEventListener('click', function() {
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    landSearch.addEventListener('click', function() {
+        //alert('준비중입니다.');
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            // 국토부 실거래데이타 팝업 오픈
+            let menu = '';
+            if (tabGubun === 'apt') {
+                menu = 'apt_real_deal';
+            } else if (tabGubun === 'sanga') {
+                menu = 'sanga_real_deal';
+            } else {
+                menu = 'villa_real_deal';
+            }
+            openExtensionPopup(menu, { customTag: menu}, "realDataPopup", 950, 840);
+            /*
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+            const aptNm = "";
+            // '경기도,김포시,구래동, 아파트명'
+            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
+            //alert(regions);
 
-    // 로그인여부 체크
-    loginValid().then(valid => {
-        if (!valid) return;   // 로그인 실패 시 여기서 중단
+            let search_menu = "";
+            if (tabGubun === 'apt') {
+                search_menu = "menu=apt_real_deal&regions=" + regions;
+            } else if (tabGubun === 'sanga') {
+                search_menu = "menu=sanga_real_deal&regions=" + regions;
+            } else {
+                search_menu = "menu=villa_real_deal&regions=" + regions;
+            }
 
-        // 지역선택 가져오기
-        const {region, sigungu, umdNm} = getSelectedRegions();
-        //alert(region + ',' + sigungu + ',' + umdNm);
-        // '경기도,김포시,구래동'
-        const regions = region + ',' + sigungu + ',' + umdNm;
+            // 확장툴url
+            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
 
-        let search_menu = "menu=npl_search&regions=" + regions;
-
-        // 확장툴url
-        let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-        //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
-
-        const popupWidth = 1490;   // 원하는 팝업 너비
-        const popupHeight = 1200;  // 원하는 팝업 높이
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        // window.open(ext_url, "realDataPopup",
-        //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-        window.open(
-              ext_url,
-              "nplDataPopup",
-              `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+            const popupWidth = 950;  // 원하는 팝업 너비
+            const popupHeight= 840;  // 원하는 팝업 높이
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            // window.open(ext_url, "realDataPopup",
+            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+            window.open(
+                  ext_url,
+                  "realDataPopup",
+                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
             );
-    });
+             */
+        });
   });
 
-  // 네이버매물검색 버튼 바로 뒤에 NPL검색 버튼 추가
-  naverSearch.parentNode.insertBefore(nplSearch, naverSearch.nextSibling);
+  // 네이버 매물검색 버튼 바로 뒤에 국토부실거래 버튼 추가
+  naverSearch.parentNode.insertBefore(landSearch, naverSearch.nextSibling);
+}
+
+// 아파트경우 부동산원 PIR데이타 분석
+function searchPirAnalyzeData() {
+
+    // 국토부실거래 버튼 생성
+    const landSearch = document.getElementById("landSearch");
+
+    // 아파트 PIR분석 버튼 생성
+    const pirSearch = document.createElement('span');
+    pirSearch.id = 'pirSearch'; // id 지정
+    pirSearch.textContent = 'PIR분석';
+    pirSearch.style.marginTop = '15px';
+    pirSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    pirSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
+    pirSearch.style.color = '#0e0c0c'; // 검정색 텍스트
+    pirSearch.style.padding = '5px 6px'; // 내부 여백
+    pirSearch.style.fontSize = '12px'; // 글씨 크기
+    pirSearch.style.borderRadius = '8px'; // 둥근 모서리
+    pirSearch.style.cursor = 'pointer'; // 커서
+    pirSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    pirSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    pirSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    pirSearch.addEventListener('click', function() {
+        //alert('준비중입니다.');
+        // 로그인여부 체크
+        loginValid().then(async valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            //
+            // 아파트 선택여부 체크
+            let aptNm = "";
+            const el = document.getElementById("complexTitle");
+            if (!el || !el.innerText.trim()) {
+                alert("아파트를 선택하세요");
+                return;
+            } else {
+                aptNm = el.innerText.trim();
+            }
+            // 공통 함수 호출 시 extraParams 객체에 담아서 전달
+            openExtensionPopup('pir_apt', {
+                aptNm: aptNm,
+                customTag: 'v1' // 필요시 다른 파라미터도 자유롭게 추가 가능
+            }, "pirListPopup", 1390, 1180);
+            /*
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+
+            // '경기도,김포시,구래동, 아파트명'
+            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
+            //alert(regions);
+
+            // 확장툴url
+            const extUrl = `${BASE_URL}/api/ext_tool?menu=pir_apt&regions=${encodeURIComponent(regions)}&tk=${encodeURIComponent(access_token)}`;
+            //
+            const popupName = "pirListPopup";
+            const popupWidth = 1390;   // 원하는 팝업 너비
+            const popupHeight = 1180;  // 원하는 팝업 높이
+            const left = (screen.width - popupWidth) / 2;
+            const top = (screen.height - popupHeight) / 2;
+            window.open(
+                extUrl,
+                popupName,
+                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+            );
+             */
+
+        });
+  });
+
+    // 국토부실거래 버튼 바로 뒤에 PIR분석 버튼 추가
+    landSearch.parentNode.insertBefore(pirSearch, landSearch.nextSibling);
+}
+
+/**
+ * 확장툴 공통 팝업 함수
+ * @param {string} menu - 메뉴 구분
+ * @param {object} extraParams - 외부에서 넘겨준 파라미터 (aptNm 등 포함)
+ * @param {string|null} popupName - 팝업 창 이름 (기본값: null)
+ * @param {number} popupWidth - 팝업 창 너비 (기본값: 1390)
+ * @param {number} popupHeight - 팝업 창 높이 (기본값: 1180)
+ */
+function openExtensionPopup(menu, extraParams = {}, popupName = null, popupWidth = 1390, popupHeight = 1180) {
+    // 1. 공통 지역 선택 정보만 가져오기 (기본값)
+    const { region, sigungu, umdNm } = getSelectedRegions();
+    const regions = `${region},${sigungu},${umdNm}`;
+
+    // 2. 파라미터 통합 (기본값 + 외부 주입값)
+    const finalParams = {
+        menu: menu,
+        regions: regions,
+        tk: access_token, // 전역 변수 가정
+        ...extraParams    // 외부에서 넘긴 aptNm 등이 여기에 담김
+    };
+
+    // 3. URL 생성
+    const urlParams = new URLSearchParams(finalParams);
+    const extUrl = `${BASE_URL}/api/ext_tool?${urlParams.toString()}`;
+
+    // 4. 팝업 창 설정
+    // const popupWidth = 1390;
+    // const popupHeight = 1180;
+    const left = (screen.width - popupWidth) / 2;
+    const top = (screen.height - popupHeight) / 2;
+
+    window.open(
+        extUrl,
+        popupName,
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+}
+
+// 아파트경우 부동산원 PIR데이타 분석
+function searchPirAnalyzeData_post() {
+
+    // 국토부실거래 버튼 생성
+    const landSearch = document.getElementById("landSearch");
+
+    // 아파트 PIR분석 버튼 생성
+    const pirSearch = document.createElement('span');
+    pirSearch.id = 'pirSearch'; // id 지정
+    pirSearch.textContent = 'PIR분석';
+    pirSearch.style.marginTop = '15px';
+    pirSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+    pirSearch.style.backgroundColor = '#ffb700'; // 엷은 파란색 배경
+    pirSearch.style.color = '#0e0c0c'; // 검정색 텍스트
+    pirSearch.style.padding = '5px 6px'; // 내부 여백
+    pirSearch.style.fontSize = '12px'; // 글씨 크기
+    pirSearch.style.borderRadius = '8px'; // 둥근 모서리
+    pirSearch.style.cursor = 'pointer'; // 커서
+    pirSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+    pirSearch.style.verticalAlign = 'middle'; // 정렬 보정
+    pirSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+    // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+    pirSearch.addEventListener('click', function() {
+        //alert('준비중입니다.');
+        // 로그인여부 체크
+        loginValid().then(async valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            //
+            // 지역선택 가져오기
+            const {region, sigungu, umdNm} = getSelectedRegions();
+
+            // 아파트 선택여부 체크
+            let aptNm = "";
+            const el = document.getElementById("complexTitle");
+            if (!el || !el.innerText.trim()) {
+                alert("아파트를 선택하세요");
+                return;
+            } else {
+                aptNm = el.innerText.trim();
+            }
+            //
+            //const regions = region + ',' + sigungu + ',' + umdNm;
+            const regions = `${region},${sigungu},${umdNm},${aptNm}`;
+            const extUrl = `${BASE_URL}/api/ext_tool_post`; // 쿼리 스트링 제거
+
+            try {
+                // 1. 서버에 POST 요청 (인증 헤더 포함)
+                const response = await fetch(extUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'menu': 'pir_apt',
+                        'regions': regions,
+                        'api_key': '' // 필요시 추가
+                    })
+                });
+
+                // 2. 에러 처리
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(`에러 발생: ${errorData.message || '인증에 실패했습니다.'}`);
+                    return;
+                }
+
+                // 3. 성공 시: 응답받은 HTML을 새 팝업창에 주입
+                const htmlContent = await response.text();
+
+                const popupName = "pirListPopup";
+                const popupWidth = 1390;
+                const popupHeight = 1180;
+                const left = (screen.width - popupWidth) / 2;
+                const top = (screen.height - popupHeight) / 2;
+
+                const popup = window.open("", popupName,
+                    `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+                popup.document.open();
+                popup.document.write(htmlContent); // 서버에서 리턴한 render_template 내용 출력
+                popup.document.close();
+
+            } catch (error) {
+                console.error("Network Error:", error);
+                alert("서버 통신 중 오류가 발생했습니다.");
+            }
+        });
+  });
+
+    // 국토부실거래 버튼 바로 뒤에 PIR분석 버튼 추가
+    landSearch.parentNode.insertBefore(pirSearch, landSearch.nextSibling);
 }
 
 // 수익율분석 처리
 function analyzeProfitDemand() {
-  // 실거래검색 버튼 요소 가져오기
-  const nplSearch = document.getElementById("nplSearch");
 
   // 수익율분석 버튼 생성
   const analyzeProfit = document.createElement('span');
@@ -1926,7 +2052,23 @@ function analyzeProfitDemand() {
     // 로그인여부 체크
     loginValid().then(valid => {
         if (!valid) return;   // 로그인 실패 시 여기서 중단
-
+        // 수익율분석(상가외)
+        let menu = '';
+        let popupName = 'analyzeProfit';
+        let popupWidth = 950;  // 원하는 팝업 너비
+        let popupHeight= 970;  // 원하는 팝업 높이
+        if (tabGubun === 'sanga') {
+            menu = 'sanga_profit';
+            popupWidth = 970;
+            popupHeight = 790;
+        } else {
+            menu = 'general_profit';
+            popupWidth = 620;
+            popupHeight = 780;
+        }
+        // 공통 팝업 함수 호출
+        openExtensionPopup(menu, { customTag: menu }, popupName, popupWidth, popupHeight);
+        /*
         // 지역선택 가져오기
         const {region, sigungu, umdNm} = getSelectedRegions();
         const regions = region + ',' + sigungu + ',' + umdNm;
@@ -1949,12 +2091,22 @@ function analyzeProfitDemand() {
         const left = (screen.width - popupWidth) / 2;
         const top = (screen.height - popupHeight) / 2;
         window.open(ext_url, "analyzeProfit",
-            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+        */
     });
   });
 
-  // NPL매물검색 버튼 바로 뒤에 수익율분석 버튼 추가
-  nplSearch.parentNode.insertBefore(analyzeProfit, nplSearch.nextSibling);
+    // tabGubun에 따라 버튼 위치 결정
+    if (tabGubun === 'apt') {
+      // 아파트 PIR분석 버튼 생성
+        const pirSearch = document.getElementById("pirSearch");
+        pirSearch.parentNode.insertBefore(analyzeProfit, pirSearch.nextSibling);
+    } else {
+        // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
+        const landSearch = document.getElementById("landSearch");
+        landSearch.parentNode.insertBefore(analyzeProfit, landSearch.nextSibling);
+    }
 }
 
 // 문자보내기(중개사및 대출상담사) 처리
@@ -1983,20 +2135,8 @@ function smsSend() {
     // 로그인여부 체크
     loginValid().then(valid => {
         if (!valid) return;   // 로그인 실패 시 여기서 중단
-
-        // 지역선택 가져오기
-        const {region, sigungu, umdNm} = getSelectedRegions();
-        const regions = region + ',' + sigungu + ',' + umdNm;
-        //
-        // 확장툴url
-        let ext_url = BASE_URL + "/api/ext_tool?menu=realtor&regions=" + regions;
-        //
-        const popupWidth = 1000;
-        const popupHeight = 1180;
-        const left = (screen.width - popupWidth) / 2;
-        const top = (screen.height - popupHeight) / 2;
-        window.open(ext_url, "smsSendSearch",
-            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        // 중개사 문자보내기
+        openExtensionPopup('realtor', { customTag: 'sms' }, "smsSendSearch", 1000, 1180);
     });
   });
 
@@ -2004,10 +2144,112 @@ function smsSend() {
   analyzeProfit.parentNode.insertBefore(smsSendSearch, analyzeProfit.nextSibling);
 }
 
+// 양식다운로드 처리
+function formDownload() {
+
+   // 문자검색 버튼 요소 가져오기
+   const smsSendSearch = document.getElementById("smsSendSearch");
+
+  // 양식다운 버튼 생성
+  const formDownload = document.createElement('span');
+  formDownload.id = 'formDownload'; // id 지정
+  formDownload.textContent = '양식다운';
+  formDownload.style.marginLeft = '10px'; // 실거래검색 버튼과 간격
+  formDownload.style.backgroundColor = 'lightred'; // 엷은 노란색 배경
+  formDownload.style.color = '#000'; // 검정색 텍스트
+  formDownload.style.padding = '5px 6px'; // 내부 여백
+  formDownload.style.fontSize = '12px'; // 글씨 크기
+  formDownload.style.borderRadius = '8px'; // 둥근 모서리
+  formDownload.style.cursor = 'pointer'; // 커서
+  formDownload.style.transition = 'all 0.3s ease'; // 부드러운 효과
+  formDownload.style.display = 'inline-block'; // 옆으로 배치되도록 설정
+  formDownload.style.verticalAlign = 'middle'; // 정렬 보정
+  formDownload.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+  formDownload.addEventListener('click', function() {
+
+        // background.js에 오픈팝업처리 호출(탱크옥션 네이버부동산 연동시 윈도우팝업에 툴바없으면 나오지를 않음 ㅠ.ㅠ)
+        //chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_POPUP' });
+
+        // 로그인여부 체크
+        loginValid().then(valid => {
+            if (!valid) return;   // 로그인 실패 시 여기서 중단
+            // 양식다운
+            openExtensionPopup('form_down', { customTag: 'form' }, "formDownload", 500, 450);
+        });
+  });
+
+  // 그 외 탭은 문자 버튼 뒤
+  smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
+}
+
+// NPL 매물검색 처리
+function nplSearchListings() {
+
+  // 양식다운 버튼 생성
+  const formDownload = document.getElementById("formDownload");
+
+  // NPL매물검색 버튼 생성
+  const nplSearch = document.createElement('span');
+  nplSearch.id = 'nplSearch'; // id 지정
+  nplSearch.textContent = 'NPL검색';
+  nplSearch.style.marginTop = '15px';
+  nplSearch.style.marginLeft = '10px'; // 다른 요소와의 간격 조절
+  nplSearch.style.backgroundColor = '#e40909'; // 엷은 파란색 배경
+  nplSearch.style.color = '#fff'; // 검정색 텍스트
+  nplSearch.style.padding = '5px 6px'; // 내부 여백
+  nplSearch.style.fontSize = '12px'; // 글씨 크기
+  nplSearch.style.borderRadius = '8px'; // 둥근 모서리
+  nplSearch.style.cursor = 'pointer'; // 커서
+  nplSearch.style.transition = 'all 0.3s ease'; // 부드러운 효과
+  nplSearch.style.verticalAlign = 'middle'; // 정렬 보정
+  nplSearch.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+
+  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
+  nplSearch.addEventListener('click', function() {
+
+    // 로그인여부 체크
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
+        //
+        openExtensionPopup('npl_search', { customTag: 'npl' }, "nplDataPopup", 1490, 1200);
+        /*
+        // 지역선택 가져오기
+        const {region, sigungu, umdNm} = getSelectedRegions();
+        //alert(region + ',' + sigungu + ',' + umdNm);
+        // '경기도,김포시,구래동'
+        const regions = region + ',' + sigungu + ',' + umdNm;
+
+        let search_menu = "menu=npl_search&regions=" + regions;
+
+        // 확장툴url
+        let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
+        //let ext_url = "http://192.168.45.167:8081/api/ext_tool?" + search_menu;
+
+        const popupWidth = 1490;   // 원하는 팝업 너비
+        const popupHeight = 1200;  // 원하는 팝업 높이
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        // window.open(ext_url, "realDataPopup",
+        //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+        window.open(
+              ext_url,
+              "nplDataPopup",
+              `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
+            );
+        */
+    });
+  });
+
+  // 양식다운 버튼 바로 뒤에 NPL검색 버튼 추가
+  formDownload.parentNode.insertBefore(nplSearch, formDownload.nextSibling);
+}
+
 // 상가경우 등기부출력 처리
 function printLegalDoc() {
-  // 수익율분석 버튼 요소 가져오기
-  const smsSendSearch = document.getElementById("smsSendSearch");
+  // NPL매물검색 버튼 요소 가져오기
+  const nplSearch = document.getElementById("nplSearch");
 
   // 등기부 버튼 생성
   const printLegalDoc = document.createElement('span');
@@ -2048,74 +2290,93 @@ function printLegalDoc() {
     });
   });
 
-  // 수익율분석 버튼 바로 뒤에 추가
-  smsSendSearch.parentNode.insertBefore(printLegalDoc, smsSendSearch.nextSibling);
+  // 양식다운로드 버튼 바로 뒤에 추가
+  nplSearch.parentNode.insertBefore(printLegalDoc, nplSearch.nextSibling);
 }
 
+// 사이트 바로가기 처리 (드롭다운 메뉴 방식)
+function openSite() {
+  // NPL매물검색 버튼 요소 가져오기
+  const nplSearch = document.getElementById("nplSearch");
+  if (!nplSearch) return;
 
-// 양식다운로드 처리
-function formDownload() {
+  // 1. 버튼과 메뉴를 감쌀 컨테이너 생성 (상대 위치 기준)
+  const container = document.createElement('div');
+  container.style.display = 'inline-block';
+  container.style.position = 'relative'; // 메뉴 위치의 기준점
+  container.style.verticalAlign = 'middle';
 
-   // 문자검색 버튼 요소 가져오기
-   const smsSendSearch = document.getElementById("smsSendSearch");
+  // 2. 사이트바로가기 버튼(span) 생성
+  const openSiteBtn = document.createElement('span');
+  openSiteBtn.id = 'printLegalDoc';
+  openSiteBtn.textContent = '사이트가기 ▼'; // 메뉴가 있음을 표시
+  openSiteBtn.style.marginLeft = '10px';
+  openSiteBtn.style.backgroundColor = '#ffb700';
+  openSiteBtn.style.color = '#000';
+  openSiteBtn.style.padding = '5px 8px';
+  openSiteBtn.style.fontSize = '12px';
+  openSiteBtn.style.borderRadius = '8px';
+  openSiteBtn.style.cursor = 'pointer';
+  openSiteBtn.style.border = '1px solid #ccc';
+  openSiteBtn.style.display = 'inline-block';
 
-  // 양식다운 버튼 생성
-  const formDownload = document.createElement('span');
-  formDownload.id = 'formDownload'; // id 지정
-  formDownload.textContent = '양식다운';
-  formDownload.style.marginLeft = '10px'; // 실거래검색 버튼과 간격
-  formDownload.style.backgroundColor = 'lightred'; // 엷은 노란색 배경
-  formDownload.style.color = '#000'; // 검정색 텍스트
-  formDownload.style.padding = '5px 6px'; // 내부 여백
-  formDownload.style.fontSize = '12px'; // 글씨 크기
-  formDownload.style.borderRadius = '8px'; // 둥근 모서리
-  formDownload.style.cursor = 'pointer'; // 커서
-  formDownload.style.transition = 'all 0.3s ease'; // 부드러운 효과
-  formDownload.style.display = 'inline-block'; // 옆으로 배치되도록 설정
-  formDownload.style.verticalAlign = 'middle'; // 정렬 보정
-  formDownload.style.border = '1px solid #ccc'; // 테두리 추가 (연한 회색)
+  // 3. 드롭다운 메뉴용 DIV 생성
+  const menuDiv = document.createElement('div');
+  menuDiv.id = 'site-dropdown-menu';
+  menuDiv.style.display = 'none'; // 초기엔 숨김
+  menuDiv.style.position = 'absolute';
+  menuDiv.style.top = '100%'; // 버튼 바로 아래
+  menuDiv.style.left = '10px';
+  menuDiv.style.width = '120px';
+  menuDiv.style.backgroundColor = '#fff';
+  menuDiv.style.border = '1px solid #ccc';
+  menuDiv.style.borderRadius = '4px';
+  menuDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+  menuDiv.style.zIndex = '9999';
+  menuDiv.style.marginTop = '5px';
 
-  // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
-  formDownload.addEventListener('click', function() {
+  // 메뉴 항목 스타일 함수
+  const createMenuItem = (text, url) => {
+    const item = document.createElement('div');
+    item.textContent = text;
+    item.style.padding = '8px 10px';
+    item.style.cursor = 'pointer';
+    item.style.fontSize = '12px';
+    item.style.borderBottom = '1px solid #eee';
 
-        // background.js에 오픈팝업처리 호출(탱크옥션 네이버부동산 연동시 윈도우팝업에 툴바없으면 나오지를 않음 ㅠ.ㅠ)
-        //chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_POPUP' });
+    // 마우스 호버 효과
+    item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+    item.onmouseout = () => item.style.backgroundColor = '#fff';
 
-        // 로그인여부 체크
-        loginValid().then(valid => {
-            if (!valid) return;   // 로그인 실패 시 여기서 중단
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
-            const regions = region + ',' + sigungu + ',' + umdNm;
-            //
-            // 확장툴url
-            let ext_url = BASE_URL + "/api/ext_tool?menu=form_down&regions=" + regions;
-            //
-            const popupWidth = 500;
-            const popupHeight = 450;
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            window.open(ext_url, "analyzeProfit",
-                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-        });
+    // 클릭 시 새 창 열기
+    item.onclick = (e) => {
+      e.stopPropagation(); // 부모 클릭 이벤트 전파 방지
+      window.open(url, '_blank');
+      menuDiv.style.display = 'none'; // 클릭 후 메뉴 닫기
+    };
+    return item;
+  };
+
+  // 메뉴 항목 추가
+  menuDiv.appendChild(createMenuItem('인터넷등기소', 'http://www.iros.go.kr/'));
+  menuDiv.appendChild(createMenuItem('정부24(민원)', 'https://www.gov.kr/'));
+
+  // 4. 버튼 클릭 시 메뉴 토글
+  openSiteBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const isVisible = menuDiv.style.display === 'block';
+    menuDiv.style.display = isVisible ? 'none' : 'block';
   });
 
-  // 상가경우만 등기부출력
-  if (tabGubun === 'sanga') {
-      // 상가에서는 등기부 버튼 바로 뒤에 붙이기
-      const printLegalDoc = document.getElementById("printLegalDoc");
-      if (printLegalDoc && printLegalDoc.parentNode) {
-        printLegalDoc.parentNode.insertBefore(formDownload, printLegalDoc.nextSibling);
-      } else if (smsSendSearch && smsSendSearch.parentNode) {
-        // 혹시 등기부 버튼이 아직 없다면, 문자버튼 뒤에 임시로 붙임
-        smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
-      }
-  } else {
-      // 그 외 탭은 문자 버튼 뒤
-      if (smsSendSearch && smsSendSearch.parentNode) {
-        smsSendSearch.parentNode.insertBefore(formDownload, smsSendSearch.nextSibling);
-      }
-  }
+  // 바탕 화면 클릭 시 메뉴 닫기
+  document.addEventListener('click', () => {
+    menuDiv.style.display = 'none';
+  });
+
+  // 5. 버튼과 메뉴를 컨테이너에 넣고, 컨테이너를 페이지에 삽입
+  container.appendChild(openSiteBtn);
+  container.appendChild(menuDiv);
+  nplSearch.parentNode.insertBefore(container, nplSearch.nextSibling);
 }
 
 function loadSangaItems() {
@@ -2143,7 +2404,7 @@ function loadSangaItems() {
             summaryTable();
             //
             sortItems();
-            // 요약표가 열려있으면
+            // 분석표가 열려있으면
             if (summaryListShowStatus == true) {
                 if (tabGubun === 'sanga') {
                      sangaSummaryList();
@@ -2277,27 +2538,29 @@ function extractPropertyInfo() {
 function topButtonCreate() {
     // 로그인처리(사용안함-비동기문제발생)
     //login();
+    // 네이버매물 팝업
+    searchNaverListings();
+    // 실거래분석 처리(아파트 실거래및 경매내역) 및 PIR분석 데이타
+    searchLandRealData();
     // 실거래분석 처리(아파트 실거래및 경매내역) 및 PIR분석 데이타
     if (tabGubun === 'apt') {
-        searchLandRealData();
+        // searchLandRealData();
         //
         searchPirAnalyzeData();
     }
-    // 네이버매물 팝업
-    searchNaverListings();
-    // NPL 매물검색 처리
-    nplSearchListings();
     // 수익율분석 처리
     analyzeProfitDemand();
     // 문자보내기(중개사및 대출상담사) 처리
     smsSend();
-    //
-    // 등기부출력
-    if (tabGubun === 'sanga') {
-        printLegalDoc();
-    }
     // 양식다운로드 처리
     formDownload();
+    // NPL 매물검색 처리
+    nplSearchListings();
+    // 등기부출력
+    if (tabGubun === 'sanga' || tabGubun === 'villa') {
+        //printLegalDoc();
+        openSite();
+    }
 }
 
 function loginValid() {
@@ -2317,7 +2580,7 @@ function login() {
         // content.js (예: new.land.naver.com에 매칭)
         chrome.storage.local.get(["access_token", "apt_key", 'villa_key', "sanga_key"], (items) => {
             //const { access_token, apt_key, sanga_key } = items;
-            const access_token = items.access_token;
+            access_token = items.access_token;
             apt_key = items.apt_key;
             villa_key = items.villa_key;
             sanga_key = items.sanga_key;
@@ -2406,8 +2669,8 @@ async function observeMutations() {
                         // 상가 및 빌라 아이템 로드
                         loadSangaItems(); // 추가 아이템 로드
                   } else {
-                        // 아파트 아이템 로드
-                        loadAptItems();
+                        // 아파트 아이템 로드(1차로 전세부문 처리 차후로 미룸)
+                        // loadAptItems();
                   }
                 try {
                     const newTarget = await waitForElement('.item_list.item_list--article');

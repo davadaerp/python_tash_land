@@ -1,7 +1,6 @@
 
-    //BASE_URL = 'http://192.168.45.167:5002';
     //BASE_URL = 'https://erp-dev.bacchuserp.com/ts/';
-    //BASE_URL = 'http://localhost:8080';
+    //BASE_URL = 'https://www.landcore.co.kr';
     BASE_URL = 'http://127.0.0.1:5000';
 
     // 자동완성 공통필드
