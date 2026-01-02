@@ -62,7 +62,8 @@ from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_
 from pubdata.public_population_stats import get_population_rows, prev_month_yyyymm
 
 # auth.py에서 토큰 관련 함수 가져오기
-from common.auth import create_access_token, extract_user_info_from_token, kakao_token_required
+from common.auth import create_access_token, token_header_required, extract_user_info_from_token, kakao_token_required, \
+    core_token_required
 #
 from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, UPLOAD_FOLDER_PATH
 
@@ -90,9 +91,10 @@ def health_ready():
 @app.route("/", methods=["GET"])
 @app.route("/ts/", methods=["GET"])
 def loginForm():
-    #return render_template("login.html")
-    return render_template("login_kakao.html")
+    return render_template("login.html")
+    #return render_template("login_kakao.html")
 
+# ===== id및 패스워드를 이용한 토큰 발급 및 로그인/로그아웃 =====
 @app.route("/api/token", methods=["POST"])
 def token_create():
 
@@ -175,6 +177,7 @@ def logout():
     return response
 
 
+#=====================================================
 # # 카카오 로그인 관련
 from kakao.kakao_client import kakao, TOKENS  # 재수출된 TOKENS 사용
 from common.auth import kakao_extool_auth_required
@@ -410,20 +413,19 @@ def api_me(user_id):
         "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
     })
 
-# ===== 메인 페이지 및 메뉴 =====
+#=====================================================
+# ===== PC접속 메인 페이지 및 메뉴 =========================
 @app.route("/api/main")
-#@token_required
-@kakao_token_required
-def main(current_user):
-    print("== main() current_user:", current_user)
+@core_token_required
+def main(user_id):
+    print("== main() user_id:" + user_id)
     return render_template("main.html")
 
 @app.route("/api/menu", methods=["GET"])
-#@token_required
-@kakao_token_required
-def menu(current_user):
+@core_token_required
+def menu(user_id):
     menu = request.args.get("menu", "")
-    print(menu)
+    print("/api/menu => " + menu, "user_id:", user_id)
     if menu == 'user':
         return render_template("user_search.html")
     if menu == 'apt':
@@ -455,6 +457,14 @@ def menu(current_user):
         return render_template("realdata_pop_key.html")
     if menu == 'past_apt':
         return render_template("pastdata_apt.html")
+
+#=====================================================
+# 확장툴에서 로그인팝업(popup_kakao.html)에서 사용하는 메뉴
+@app.route("/api/ext_tool/menu", methods=["GET"])
+@kakao_extool_auth_required
+def ext_tool_menu(user_id):
+    menu = request.args.get("menu", "")
+    print("/api/ext_tool/menu => " + menu, "user_id:", user_id)
     # 마이페이지, 구독, 문자충전
     if menu == 'mypage':
         return render_template("extool_user_mypage.html")
@@ -462,6 +472,7 @@ def menu(current_user):
         return render_template("extool_user_subscribe.html")
     if menu == 'recharge':
         return render_template("extool_user_recharge.html")
+
 
 #===== 사용자(회원) 데이타 처리 =============
 @app.route('/api/user/register', methods=['GET'])

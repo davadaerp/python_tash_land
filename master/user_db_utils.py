@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import datetime
-
+from typing import Optional, Dict
 from config import MASTER_DB_PATH
 
 # 공통 변수 설정
@@ -351,6 +351,41 @@ def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kaka
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+# 단일 사용자 정보 조회
+def get_user_info_db(user_id: str) -> Optional[Dict]:
+    """
+    user_id 기준으로 사용자 1건 정보를 dict로 반환
+    없으면 None 반환
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row   # ⭐ 핵심
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"""
+        SELECT
+            user_id,
+            user_name,
+            phone_number,
+            nick_name,
+            recharge_sms_count,
+            subscription_month,
+            subscription_status
+        FROM {TABLE_NAME}
+        WHERE user_id = ?
+        LIMIT 1
+        """,
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    # sqlite3.Row → dict 변환
+    return dict(row)
 
 def verify_user(user_id: str, password: str) -> bool:
     """user_id / user_passwd 단순 검증."""
