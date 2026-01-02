@@ -90,23 +90,34 @@ def kakao_extool_auth_required(fn):
     def _wrapped(*args, **kwargs):
         try:
             auth = request.headers.get("Authorization", "")
-            # 토큰 정합성 체크
-            if not auth.startswith("Bearer "):
-                return jsonify({"error": "unauthorized"}), 401
-            token = auth.split(" ", 1)[1]
+
+            # # 토큰 정합성 체크
+            # if not auth.startswith("Bearer "):
+            #     return jsonify({ "result": False, "message": "unauthorized"}), 401
+
+            if auth.startswith("Bearer "):
+                token = auth.split(" ", 1)[1]
+            else:
+                # 2. 헤더에 없으면 파라미터 확인 (GET 방식 대응)
+                token = request.args.get("tk")  # URL 파라미터에서 먼저 확인
+
             print("kakao_extool_auth_required token:", token)
             payload = kakao.verify_jwt(token)
             if not payload:
-                return jsonify({"error": "인증이 안된 사용자입니다."}), 401
+                return jsonify({"result": False, "message": "인증이 안된 사용자입니다"}), 401
 
             user_id = payload.get("sub")
             if not user_id:
-                return jsonify({"error": "인증 페이로드가 유효하지 않습니다."}), 401
+                return jsonify({"result": False, "message": "인증 페이로드가 유효하지 않습니다."}), 401
 
         except Exception:
             # 로그만 남기고 500 통일
             # current_app.logger.exception("Auth error")
-            return jsonify({"error": "internal_error"}), 500
+            # 핵심: 에러의 실제 내용을 터미널에 출력합니다.
+            import traceback
+            print("=== AUTH ERROR TRACEBACK ===")
+            traceback.print_exc()  # 터미널에서 구체적인 에러 라인을 확인할 수 있습니다.
+            return jsonify({"result": False, "message": "internal_error"}), 500
 
         return fn(user_id=user_id, *args, **kwargs)
     return _wrapped
