@@ -9,6 +9,7 @@ from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
 from pubdata.public_land_apt_db_utils import init_apt_db, read_apt_db, insert_apt_items
 from pubdata.public_land_sanga_db_utils import init_sanga_db, insert_sanga_items, read_sanga_db
 from pubdata.public_land_villa_db_utils import init_villa_db, read_villa_db, insert_villa_items
+from config import MAP_API_KEY, VWORLD_URL
 
 # ==============================
 # 아파트/빌라/상가/비주거 월검색 API
@@ -73,7 +74,7 @@ def geocode_vworld(address: str) -> dict:
     address: 문자열 주소
     return: {"lat": float, "lng": float}
     """
-    url = "https://erp-dev.bacchuserp.com/api/geocode"
+    url = "https://www.landcore.co.kr/api/geocode"
     params = {"address": address}
 
     try:
@@ -100,7 +101,6 @@ def geocode_vworld(address: str) -> dict:
 
 # 차후 서버상에서는 아래로 수정함
 def geocode(address: str) -> dict:
-    MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F"
     params = {
         "service":"address",
         "request":"getcoord",
@@ -111,7 +111,7 @@ def geocode(address: str) -> dict:
         "key":MAP_API_KEY
     }
     try:
-        r = requests.get("https://api.vworld.kr/req/address", params=params, timeout=5)
+        r = requests.get(VWORLD_URL, params=params, timeout=5)
         data = r.json() # jsonify 처리 체크
         #
         status = data.get("response", {}).get("status")
@@ -133,14 +133,19 @@ def geocode(address: str) -> dict:
 # ==============================
 # 국토부실거래 상가 (SANGA) 전체 실행
 # ==============================
-def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
+def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  years_count: int = 2, verify: bool = False):
     # 1) DB 초기화(테이블 생성)
     init_sanga_db()
 
-    # 현재 연도 기준 최근 2개년
+    # ✅ 선택한 년수(1/2/3)에 맞춰 대상 연도 리스트 생성
+    #    예) years_count=1 -> [2026]
+    #        years_count=2 -> [2026, 2025]
+    #        years_count=3 -> [2026, 2025, 2024]
     current_year = datetime.datetime.now().year
-    years = [current_year, current_year - 1]
-    current_month = datetime.datetime.now().month # 현재 월
+    years_count = max(1, min(3, int(years_count)))  # 1~3만 허용
+    years = [current_year - i for i in range(years_count)]
+    #
+    current_month_now = datetime.datetime.now().month # 현재 월
     #
     all_items = []
     for year in years:
@@ -155,6 +160,9 @@ def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
             "numOfRows": 1000
         }
         year_items = []
+
+        # ✅ 과거 연도면 12월, 현재 연도면 현재 월
+        current_month = 11 if year < current_year else current_month_now
         # 년도별 월별조회
         for month in range(1, current_month + 1):
             # 매 반복마다 params 복사본 생성(사이드이펙트 방지)
@@ -267,14 +275,19 @@ def sanga_items_to_json(items: list, lawd_cd: str) -> list:
 # ==============================
 # 국토부실거래 빌라 (Villa) 전체 실행
 # ==============================
-def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
+def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str, years_count: int = 2,  verify: bool = False):
     # 1) DB 초기화(테이블 생성)
     init_villa_db()
 
-    # 현재 연도 기준 최근 2개년
+    # ✅ 선택한 년수(1/2/3)에 맞춰 대상 연도 리스트 생성
+    #    예) years_count=1 -> [2026]
+    #        years_count=2 -> [2026, 2025]
+    #        years_count=3 -> [2026, 2025, 2024]
     current_year = datetime.datetime.now().year
-    years = [current_year, current_year - 1]
-    current_month = datetime.datetime.now().month  # 현재 월
+    years_count = max(1, min(3, int(years_count)))  # 1~3만 허용
+    years = [current_year - i for i in range(years_count)]
+    #
+    current_month_now = datetime.datetime.now().month # 현재 월
     #
     all_items = []
     for year in years:
@@ -292,6 +305,8 @@ def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str,  verify: bool = False):
             "numOfRows": 1000
         }
         year_items = []
+        # ✅ 과거 연도면 12월, 현재 연도면 현재 월
+        current_month = 12 if year < current_year else current_month_now
         # 년도별 월별조회
         for month in range(1, current_month + 1):
             # 매 반복마다 params 복사본 생성(사이드이펙트 방지)
@@ -410,14 +425,19 @@ def villa_items_to_json(items: list, lawd_cd: str) -> list:
 # ==============================
 # 국토부실거래 아파트 (Apt) 전체 실행
 # ==============================
-def run_apt(lawd_cd: str, lawd_nm:str, umd_nm: str, apt_nm:str, verify: bool = False):
+def run_apt(lawd_cd: str, lawd_nm:str, umd_nm: str, apt_nm:str, years_count: int = 2, verify: bool = False):
     # 1) DB 초기화(테이블 생성)
     init_apt_db()
 
-    # 현재 연도 기준 최근 2개년
+    # ✅ 선택한 년수(1/2/3)에 맞춰 대상 연도 리스트 생성
+    #    예) years_count=1 -> [2026]
+    #        years_count=2 -> [2026, 2025]
+    #        years_count=3 -> [2026, 2025, 2024]
     current_year = datetime.datetime.now().year
-    years = [current_year, current_year - 1]
-    current_month = datetime.datetime.now().month  # 현재 월
+    years_count = max(1, min(3, int(years_count)))  # 1~3만 허용
+    years = [current_year - i for i in range(years_count)]
+    #
+    current_month_now = datetime.datetime.now().month # 현재 월
     #
     all_items = []
     for year in years:
@@ -435,6 +455,8 @@ def run_apt(lawd_cd: str, lawd_nm:str, umd_nm: str, apt_nm:str, verify: bool = F
             "numOfRows": 1000
         }
         year_items = []
+        # ✅ 과거 연도면 12월, 현재 연도면 현재 월
+        current_month = 12 if year < current_year else current_month_now
         # 년도별 월별조회
         for month in range(1, current_month + 1):
             # 매 반복마다 params 복사본 생성(사이드이펙트 방지)
@@ -550,19 +572,21 @@ if __name__ == "__main__":
     #const lawdCd = selectedLawdCd.slice(0, 5);
     #const umdNm = selectedUmdNm;
 
-    lawd_cd = "11110"  # 11110: 서울시 종로구 창신동, 41570: 경기도 김포시 운양동
+    lawd_cd = "41570"  # 11110: 서울시 종로구 창신동, 41570: 경기도 김포시 운양동
     # 3) 코드로 단건 조회
     res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
     print("[READ]", res)
     lawd_nm = res["lawd_name"]  # 서울특별시 종로구
-    umd_nm = "청운동"  # 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+    umd_nm = "운양동"  # 읍면동(창신동,숭인동, 종로1가, 인사동 등)
 
     #=== 상가 테스트 ===
     # 1) DB 초기화(테이블 생성)
    #init_sanga_db()
 
+    years_count = 2  # 최근 2개년
+
     # print("\n########## SANGA (비주거) ##########")
-    # all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, verify=False)
+    # all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, years_count, verify=False)
     # #
     # # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     # json_records = sanga_items_to_json(all_items, lawd_cd)
@@ -575,7 +599,7 @@ if __name__ == "__main__":
     #init_villa_db()
     #
     # print("\n########## VILLA(빌라/연립등) ##########")
-    # all_items = run_villa(lawd_cd, lawd_nm, umd_nm, verify=False)
+    # all_items = run_villa(lawd_cd, lawd_nm, umd_nm, years_count, verify=False)
     # #
     # # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     # json_records = villa_items_to_json(all_items, lawd_cd)
@@ -588,7 +612,7 @@ if __name__ == "__main__":
     #init_apt_db()
 
     print("\n########## APT(아파트) ##########")
-    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm="", verify=False)
+    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, "", years_count, verify=False)
     #
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = apt_items_to_json(all_items, lawd_cd)

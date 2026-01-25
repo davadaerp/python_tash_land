@@ -190,6 +190,24 @@
         #legal_fees_table_1_field_0_1 {
             text-align: left !important;
         }
+
+        /* 글자 색상만 깜빡이는 애니메이션 */
+        @keyframes blink-text {
+            0% { color: red; }
+            50% { color: transparent; } /* 글자가 사라졌다가 나타나는 효과 */
+            100% { color: red; }
+        }
+
+        /* 또는 색상만 변하게 하고 싶다면 아래를 사용하세요 */
+        @keyframes color-change {
+            0% { color: #333; }
+            50% { color: red; font-weight: bold; }
+            100% { color: #333; }
+        }
+
+        .highlight-blink {
+            animation: color-change 1s infinite; /* 1초 간격으로 무한 반복 */
+        }
     </style>
     <script>
         // 천단위 콤마 처리 함수
@@ -299,6 +317,17 @@
             var 레버리지수익율 = ((월순수익 * 12) / 총투자금_보증금포함) * 100;
             document.getElementById('legal_fees_table_6_field_3').value = formatNumber(절대수익율.toFixed(0)) + '%';
             document.getElementById('legal_fees_table_6_field_4').value = formatNumber(레버리지수익율.toFixed(0)) + '%';
+
+            // 총투자금_보증금미포함 계산
+            const realInvestmentField = document.getElementById('legal_fees_table_6_field_1');
+            realInvestmentField.value = formatNumber(총투자금_보증금미포함.toFixed(0));
+
+            // [추가부문] 실투자금이 0이 아니면 빤짝이는 클래스 추가
+            if (총투자금_보증금미포함 !== 0) {
+                realInvestmentField.classList.add('highlight-blink');
+            } else {
+                realInvestmentField.classList.remove('highlight-blink');
+            }
         }
 
         // 예상매도가 계산

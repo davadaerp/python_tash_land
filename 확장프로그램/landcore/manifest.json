@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "랜드코어-부동산 핵심가치투자 분석 프로그램",
+  "description": "웹페이지 상에서 아파트, 빌라, 상가 매물 정보를 기반으로\n실거래 및 경매 데이터, 통계·배후 분석, 수익률 계산 등을 제공하여\n부동산의 핵심 가치 요소를 중심으로\n투자 판단 및 실무 분석을 지원하는 크롬 확장프로그램입니다",
+  "version": "1.0",
+  "permissions":[
+      "activeTab",
+      "storage",
+      "history"
+  ],
+  "host_permissions": [
+    "https://www.landcore.co.kr/"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["/img/asil.png", "/img/nland.png", "config.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_title": "부동산핵심가치투자",
+    "default_popup": "/login/popup_kakao.html",
+    "default_icon": {
+        "16": "/img/tash_16.png"
+    }
+  },
+  // 확장 프로그램 관리 페이지(chrome://extensions)에 표시될 아이콘 설정
+  "icons": {
+    "16": "/img/landcore_16.png",
+    "48": "/img/landcore_48.png",
+    "128": "/img/landcore_128.png"
+  },
+  "content_security_policy": {
+  	"extension_pages": "script-src 'self';frame-src https://www.landcore.co.kr;"
+  },
+  "content_scripts": [
+  	{
+		"matches" : [
+            "https://www.landcore.co.kr/*",
+			"https://new.land.naver.com/*",
+			"https://m.land.naver.com/*",
+			"https://www.auction1.co.kr/*",
+			"https://www.tankauction.com/*",
+			"https://asil.kr/*",
+			"https://myfranchise.kr/map"
+		],
+		"js": [
+            "/libs/jquery-3.6.4.min.js",
+            "/login/popup_kakao.js",
+			"landcore.js"
+        ],
+       "run_at": "document_start",
+       "type": "module"
+	}
+  ],
+  "background": {
+	"service_worker": "background.js"
+  }
+}

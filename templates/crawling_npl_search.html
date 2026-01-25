@@ -661,25 +661,25 @@
                           <a href="javascript:void(0)"
                              title="클릭하면 사건번호가 복사됩니다"
                              onclick="(function(){
-                                 // 1. 클립보드 복사
-                               const caseNum = '${item.case_number}';
-                               navigator.clipboard.writeText(caseNum).then(() => {
-                                   alert('사건번호 복사 완료: ' + caseNum);
-                               });
+                               //   // 1. 클립보드 복사
+                               // const caseNum = '${item.case_number}';
+                               // navigator.clipboard.writeText(caseNum).then(() => {
+                               //     alert('사건번호 복사 완료: ' + caseNum);
+                               // });
 
-                               // // 2. 탱크옥션 상세페이지 팝업
-                               // var w = 1200, h = 1200;
-                               // var left = Math.round((screen.width - w) / 2);
-                               // var top  = Math.round((screen.height - h) / 2) - 100;
-                               // window.open(
-                               //   'https://www.tankauction.com/ca/caView.php?tid=${item.tid}',
-                               //   'detailPopup',
-                               //   'width=' + w +
-                               //   ',height=' + h +
-                               //   ',scrollbars=yes' +
-                               //   ',left=' + left +
-                               //   ',top='  + top
-                               // );
+                               // 2. 탱크옥션 상세페이지 팝업
+                               var w = 1200, h = 1200;
+                               var left = Math.round((screen.width - w) / 2);
+                               var top  = Math.round((screen.height - h) / 2) - 100;
+                               window.open(
+                                 'https://www.tankauction.com/ca/caView.php?tid=${item.tid}',
+                                 'detailPopup',
+                                 'width=' + w +
+                                 ',height=' + h +
+                                 ',scrollbars=yes' +
+                                 ',left=' + left +
+                                 ',top='  + top
+                               );
                              })()"
                              style="cursor: pointer; text-decoration: underline;"
                           >

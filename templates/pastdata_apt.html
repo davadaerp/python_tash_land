@@ -240,57 +240,130 @@
   <script src="/static/js/address_autocomplete.js"></script>
   <script src="/static/js/common.js"></script>
   <script>
+
     // 전역 변수: 평형 및 거래일자 정렬 토글 상태 (초기 오름차순)
     let sortFloorAscending = false;
     let sortPriceAscending = false;
 
-    window.addEventListener("load", function () {
-      // 초기 선택값 가져오기 (예: region의 값을 기본으로 사용)
-      categoryData('region', '01');
-      //document.getElementById('region').dispatchEvent(new Event('change'));
-    });
-    /*
-    // 즉시 실행 함수로 변경
+    // 즉시 실행 함수로 변경 (외부 파라미터 기반 자동 세팅 + 자동 검색)
     (function() {
       try {
-          // 데이터가 잘 주입되었는지 확인용 (서버에서 주입된 값)
-          const lawCd = "{{ law_cd }}";
-          const lawName = "{{ lawName }}";
+        // 서버에서 주입된 값(없을 수도 있음)ㅁ
+        const lawCd  = "{{ law_cd }}";
+        const region = "{{ region }}";   // region select의 value 코드(예: '01')
+        const sigungu = "{{ sigungu }}"; // 시군구 "이름"이 들어온다고 가정(예: '강남구')
+        const umdNm  = "{{ umdNm }}";    // 읍면동 "이름"(예: '역삼동')
+        const aptNm  = "{{ aptNm }}";    // 아파트명(부분검색 가능)
+        console.log("region raw:", JSON.stringify(region));
+        console.log("sigungu raw:", JSON.stringify(sigungu));
+        console.log("umdNm raw:", JSON.stringify(umdNm));
+        console.log("aptNm raw:", JSON.stringify(aptNm));
 
-          alert('Data Loaded: ' + lawName);
+        // ✅ 외부 파라미터가 실질적으로 있는지 판단 (Jinja 미주입/빈값/None 등 방어)
+        const hasRegion  = region  !== null && region  !== undefined && region.trim()  !== "";
+        const hasSigungu = sigungu !== null && sigungu !== undefined && sigungu.trim() !== "";
+        const hasUmd     = umdNm   !== null && umdNm   !== undefined && umdNm.trim()   !== "";
+        const hasApt     = aptNm   !== null && aptNm   !== undefined && aptNm.trim()   !== "";
 
-          // 초기 함수 호출
-          categoryData('region', '01');
+        // ✅ 1) 외부 값이 있으면: 로딩 후 선택값 반영 + 자동 검색
+        document.addEventListener("DOMContentLoaded", function () {
+
+          // 1) region 기반으로 sgg/umd 옵션 로딩
+          //    categoryData('region', ...) 성공 콜백에서 sggNm change를 dispatch 하므로,
+          //    sggNm 옵션이 채워질 때까지 약간 기다린 뒤 이름 매칭으로 선택 적용
+          // region "이름" → select의 value(code)로 변환
+          let regionCodeToLoad;
+          if (hasRegion) {
+            const regionSelect = document.getElementById("region");
+            const opts = Array.from(regionSelect.options);
+            const found = opts.find(o => o.textContent.trim() === region.trim());
+            regionCodeToLoad = found ? found.value : (regionSelect.value || "01");
+
+            // ✅ [ADD] hasRegion이면 select도 실제로 선택 처리
+            if (regionSelect) regionSelect.value = regionCodeToLoad;
+
+          } else {
+            regionCodeToLoad = document.getElementById("region")?.value || "01";
+          }
+          categoryData("region", regionCodeToLoad);
+
+          //alert("초기 로딩: regionCode=" + regionCodeToLoad);
+
+          // 3) 시군구/읍면동/아파트명을 순서대로 적용 후 fetchData 실행
+          //    (옵션 로딩이 async이므로 polling으로 안전하게 적용)
+          const waitUntil = (fn, timeoutMs = 6000, intervalMs = 80) => {
+            const start = Date.now();
+            return new Promise((resolve, reject) => {
+              const t = setInterval(() => {
+                if (fn()) { clearInterval(t); resolve(true); return; }
+                if (Date.now() - start > timeoutMs) { clearInterval(t); reject(new Error("timeout")); }
+              }, intervalMs);
+            });
+          };
+
+          // sggNm 옵션 로딩 대기 후, sigungu(이름)로 선택
+          waitUntil(() => (document.getElementById("sggNm")?.options?.length || 0) > 0)
+            .then(() => {
+              if (hasSigungu) {
+                const sggEl = document.getElementById("sggNm");
+                const opts = Array.from(sggEl.options);
+                const found = opts.find(o => (o.textContent || "").trim() === sigungu.trim());
+                if (found) sggEl.value = found.value;
+              }
+              // sgg 선택 반영 → umd 목록 로딩 트리거
+              document.getElementById("sggNm")?.dispatchEvent(new Event("change"));
+              return waitUntil(() => (document.getElementById("umdNm")?.options?.length || 0) > 0);
+            })
+            .then(() => {
+              if (hasUmd) {
+                const umdEl = document.getElementById("umdNm");
+                const opts = Array.from(umdEl.options);
+                const found = opts.find(o => (o.textContent || "").trim() === umdNm.trim());
+                if (found) umdEl.value = found.value;
+              }
+
+              // aptNm 입력 적용(필터용)
+              if (hasApt) {
+                const aptEl = document.getElementById("aptNm");
+                if (aptEl) aptEl.value = aptNm;
+              }
+
+              // ✅ 최종: 자동 검색 실행
+              fetchData();
+            })
+            .catch((e) => {
+              // 옵션 로딩 타임아웃 등 발생 시: 그냥 기본 흐름 유지(강제 중단 X)
+              console.warn("초기 파라미터 자동 세팅 실패:", e);
+            });
+
+            // 각종 이벤트 바인딩
+            document.getElementById("region").addEventListener("change", function () {
+               let selectedValue = document.getElementById('region').value;
+               categoryData('region', selectedValue, '');
+
+               //resetFilters();
+            });
+
+            document.getElementById("sggNm").addEventListener("change", function () {
+               let selectedRegionValue = document.getElementById('region').value;
+               let selectedValue = document.getElementById('sggNm').value;
+               categoryData('sggNm', selectedValue, selectedRegionValue);
+            });
+
+            document.getElementById("search-btn").addEventListener("click", function () {
+              fetchData();
+            });
+
+            // 단지명 검색
+            document.getElementById("aptNm").addEventListener("keyup", applyFilters);
+        });  // DOMContentLoaded end
+
       } catch (e) {
-          console.error("초기화 오류:", e);
+        console.error("초기화 오류:", e);
       }
     })();
-     */
 
-    document.addEventListener('DOMContentLoaded', function () {
-      //
-      document.getElementById("region").addEventListener("change", function () {
-         let selectedValue = document.getElementById('region').value;
-         categoryData('region', selectedValue, '');
-
-         //resetFilters();
-      });
-
-      document.getElementById("sggNm").addEventListener("change", function () {
-         let selectedRegionValue = document.getElementById('region').value;
-         let selectedValue = document.getElementById('sggNm').value;
-         categoryData('sggNm', selectedValue, selectedRegionValue);
-      });
-
-      document.getElementById("search-btn").addEventListener("click", function () {
-        fetchData();
-      });
-
-      // 단지명 검색
-      document.getElementById("aptNm").addEventListener("keyup", applyFilters);
-
-    });
-
+    //
     function resetFilters() {
       $('#data-container').empty();
       const sggSelect = document.getElementById("sggNm");
@@ -373,6 +446,24 @@
             console.log(window.allFetchedItems);
             // [ADD] 아파트 선택리스트 생성
             buildAptFilterFromList(window.allFetchedItems);
+            //
+            // ✅ [ADD] aptNm이 있으면 aptFilter를 해당 값으로 자동 선택
+            const aptNmInput = document.getElementById("aptNm");
+            const targetAptNm = (aptNmInput?.value || "").trim();
+            if (targetAptNm) {
+              const sel = document.getElementById("aptFilter");
+              if (sel) {
+                const opt = Array.from(sel.options).find(o =>
+                  (o.value || "").trim() === targetAptNm ||
+                  (o.textContent || "").trim() === targetAptNm
+                );
+                if (opt) {
+                  sel.value = opt.value;        // 선택 반영
+                  applyAptDropdownFilter();     // 이 안에서 renderTable 재호출됨
+                  return;                       // ⚠️ 아래 renderTable 중복 호출 방지
+                }
+              }
+            }
             // 화면목록 출력
             renderTable(window.allFetchedItems);
           }

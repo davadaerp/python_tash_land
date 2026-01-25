@@ -1,8 +1,11 @@
 # 법정동코드 생성 및 변환 유틸리티
 # -*- coding: utf-8 -*-
 import os
+import time
 import sqlite3
-from typing import Optional, Dict, List, Iterable, Tuple
+from datetime import datetime, timedelta
+from typing import Optional, Dict, List, Iterable, Tuple, Any
+from crawling.lawd_code_db_utils import get_lawd_by_code
 
 from config import CRAWLING_BASE_PATH
 
@@ -378,6 +381,222 @@ def drop_crawl_lawd_codes_table(db_path: str = DB_PATH) -> None:
     finally:
         conn.close()
 
+
+# ==========================
+# 5) 크롤링 락 획득/갱신 함수 (SQLite 전용)
+# ==========================
+def acquire_crawl_lock_sqlite(
+    lawd_cd: Optional[str] = None,
+    trade_type: Optional[str] = None,
+    sync_id: Optional[str] = None,
+    ttl_sec: int = 10800,
+    db_path: str = DB_PATH,
+) -> Tuple[bool, Dict[str, Any], int]:
+    """
+    crawl_lawd_codes에서 (lawd_cd, trade_type) 단위로 락 획득/갱신 시도.
+
+    필요 컬럼(권장):
+      - batch_status TEXT
+      - batch_start_date TEXT
+      - batch_end_date TEXT
+      - lock_owner TEXT
+      - lock_expires_at INTEGER
+
+    반환:
+      (ok, payload, http_status)
+      - ok=True  -> 락 획득 성공
+      - ok=False -> 다른 프로세스가 락 보유 중(409) 또는 관리대상 없음(404) 등
+    """
+    if not lawd_cd or not trade_type or not sync_id:
+        return False, {"ok": False, "reason": "missing params", "error": "missing params"}, 400
+
+    now_ts = int(time.time())
+    expires_at = now_ts + int(ttl_sec)
+    #
+    start_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_conn(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute("BEGIN IMMEDIATE;")  # ✅ 동시성 확보(쓰기 락 선점)
+
+        # 1) 현재 상태 조회
+        cur.execute(
+            f"""SELECT batch_status, lock_owner, lock_expires_at, batch_start_date, batch_end_date
+                FROM {TABLE_NAME}
+                WHERE lawd_cd=? AND trade_type=?
+                LIMIT 1""",
+            (lawd_cd, trade_type)
+        )
+        row = cur.fetchone()
+        if not row:
+            # 관리 대상 없음 → 신규 삽입 및 락 획득
+            lawd_row = get_lawd_by_code(lawd_cd)
+            lawd_name = lawd_row["lawd_name"]
+            print("⚠️ 관리 대상이 없습니다. 신규 삽입 및 락 획득 시도. lawd_name:", lawd_name)
+            cur.execute(
+                f"""
+                INSERT INTO {TABLE_NAME} (
+                    lawd_cd,
+                    lawd_name,
+                    trade_type,
+                    batch_status,
+                    batch_start_date,
+                    batch_end_date,
+                    batch_count,
+                    lock_owner,
+                    lock_expires_at
+                ) VALUES (?, ?, ?, 'RUNNING', ?, '', 0, ?, ?)
+                """,
+                (lawd_cd, lawd_name, trade_type, start_date, sync_id, expires_at)
+            )
+            conn.commit()
+            return True, {
+                "ok": True,
+                "reason": "lock acquired (insert)",
+                "lock_owner": sync_id,
+                "lock_expires_at": expires_at,
+                "batch_start_date": start_date
+            }, 200
+
+        # hold lock 정보 파싱
+        batch_end_str = (row["batch_end_date"] or "").strip()
+
+        # ✅ COMPLETED(또는 FINISHED) 이후 40~48시간 hold
+        # - batch_status가 COMPLETED인데, end_dt가 있고, 아직 hold window 안이면 "locked" 처리
+        if batch_end_str:
+            end_dt = datetime.strptime(batch_end_str, "%Y-%m-%d %H:%M:%S")
+            hold_until = end_dt + timedelta(hours=48)
+            if datetime.now() < hold_until:
+                conn.rollback()
+                return False, {
+                    "ok": False,
+                    "reason": "hold_window",
+                    "batch_end_date": batch_end_str,
+                    "hold_until": hold_until.strftime("%Y-%m-%d %H:%M:%S"),
+                }, 409
+
+        #
+        batch_status = (row["batch_status"] or "READY").upper()
+        lock_owner = row["lock_owner"]
+        lock_expires = int(row["lock_expires_at"] or 0)
+
+        # 2) 락 유효 판단
+        lock_active = (batch_status == "RUNNING") and (lock_owner is not None) and (lock_expires >= now_ts)
+
+        if lock_active and lock_owner != sync_id:
+            # 다른 클라이언트가 작업 중
+            conn.rollback()
+            return False, {
+                "ok": False,
+                "reason": "locked",
+                "locked_by": lock_owner,
+                "lock_expires_at": lock_expires,
+                "batch_status": batch_status
+            }, 409
+
+        # 3) 락 획득/갱신(내가 이미 owner거나, 만료된 락 선점)
+        cur.execute(
+            f"""UPDATE {TABLE_NAME}
+                SET batch_status='RUNNING',
+                    batch_start_date=?,
+                    batch_end_date='',
+                    lock_owner=?,
+                    lock_expires_at=?
+                WHERE lawd_cd=? AND trade_type=?""",
+            (start_date, sync_id, expires_at, lawd_cd, trade_type)
+        )
+
+        conn.commit()
+        return True, {
+            "ok": True,
+            "reason": "lock acquired",
+            "lock_owner": sync_id,
+            "lock_expires_at": expires_at,
+            "batch_start_date": start_date
+        }, 200
+
+    except Exception as e:
+        conn.rollback()
+        return False, {"ok": False, "error": str(e)}, 500
+    finally:
+        conn.close()
+
+# ==========================
+# 6) 크롤링 락 해제 함수 (SQLite 전용)
+def release_crawl_lock_sqlite(
+    lawd_cd: str,
+    trade_type: str,
+    sync_id: str,
+    final_status: str = "COMPLETED",
+    db_path: str = DB_PATH,
+) -> Tuple[bool, Dict[str, Any], int]:
+    """
+    (lawd_cd, trade_type) 락 해제 처리.
+    - lock_owner == sync_id 인 경우에만 해제
+    - 성공 시: lock_owner/lock_expires_at 해제 + batch_end_date 기록 + batch_status 갱신
+
+    필요 컬럼:
+      - lock_owner TEXT
+      - lock_expires_at INTEGER
+      - batch_end_date TEXT
+      - batch_status TEXT
+    """
+    if not lawd_cd or not trade_type or not sync_id:
+        return False, {"ok": False, "error": "missing params"}, 400
+
+    end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    final_status = (final_status or "COMPLETED").upper()
+
+    conn = get_conn(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute("BEGIN IMMEDIATE;")
+
+        # owner 검증 + 해제
+        cur.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+               SET lock_owner = NULL,
+                   lock_expires_at = NULL,
+                   batch_end_date = ?,
+                   batch_status = ?
+             WHERE lawd_cd = ?
+               AND trade_type = ?
+               AND lock_owner = ?
+            """,
+            (end_date, final_status, lawd_cd, trade_type, sync_id)
+        )
+
+        if cur.rowcount == 0:
+            conn.rollback()
+            # 케이스1) 레코드 자체 없음, 케이스2) owner 불일치, 케이스3) 이미 해제됨
+            return False, {
+                "ok": False,
+                "error": "lock_not_owned_or_already_released",
+                "lawd_cd": lawd_cd,
+                "trade_type": trade_type,
+                "sync_id": sync_id
+            }, 409
+
+        conn.commit()
+        return True, {
+            "ok": True,
+            "reason": "released",
+            "lawd_cd": lawd_cd,
+            "trade_type": trade_type,
+            "sync_id": sync_id,
+            "batch_end_date": end_date,
+            "batch_status": final_status
+        }, 200
+
+    except Exception as e:
+        conn.rollback()
+        return False, {"ok": False, "error": str(e)}, 500
+    finally:
+        conn.close()
 
 # ==========================
 # 사용 예시

@@ -11,7 +11,7 @@ import json
 import os
 #
 from auction_db_utils import auction_save_to_sqlite
-from config import AUCTION_DB_PATH
+from config import AUCTION_DB_PATH, MAP_API_KEY, VWORLD_URL
 
 # 저장파일명
 last_file_name = os.path.join(AUCTION_DB_PATH, "last_auction_date.txt")
@@ -321,7 +321,6 @@ def navigate_pages(driver, total_records):
 
 # 위.경도 가져오기..
 # 발급받은 API Key
-MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F"
 def get_lat_lng(address: str) -> tuple[float, float]:
     """
     vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
@@ -329,7 +328,8 @@ def get_lat_lng(address: str) -> tuple[float, float]:
     :return: (latitude, longitude)
     :raises Exception: API 오류 또는 좌표 미발견 시
     """
-    url = "https://api.vworld.kr/req/address"
+    #url = "https://api.vworld.kr/req/address"
+    url = VWORLD_URL
     params = {
         "service": "address",
         "request": "getcoord",  # 좌표 변환 요청

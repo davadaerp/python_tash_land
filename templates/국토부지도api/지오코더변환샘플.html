@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>vWorld JSONP 예시</title>
+</head>
+<body>
+  <input id="address" placeholder="주소 입력" style="width:300px" value="경기 김포시 운양동 1307-3"/>
+  <button id="btn">위치찾기</button>
+  <pre id="output"></pre>
+
+  <script>
+    const API_KEY = '644F5AF8-9BF1-39DE-A097-22CACA23352F';
+
+    document.getElementById('btn').addEventListener('click', () => {
+      const addr = encodeURIComponent(document.getElementById('address').value.trim());
+      const url = `https://api.vworld.kr/req/address` +
+        `?service=address` +
+        `&request=getcoord` +
+        `&format=jsonp` +              // → JSONP 포맷으로
+        `&crs=epsg:4326` +
+        `&type=parcel` +
+        `&address=${addr}` +
+        `&key=${API_KEY}` +
+        `&callback=handleGeo`;         // → JSONP 콜백 함수 이름
+
+      // <script> 태그로 JSONP 요청
+      const script = document.createElement('script');
+      script.src = url;
+      document.body.appendChild(script);
+      // 응답을 받으면 자동으로 handleGeo() 가 호출됩니다
+    });
+
+    // JSONP 응답 콜백
+    function handleGeo(data) {
+      if (data.response?.status !== 'OK' || !data.response.result?.point) {
+        document.getElementById('output').textContent = '좌표를 찾을 수 없습니다.';
+        return;
+      }
+      const { x, y } = data.response.result.point;
+      document.getElementById('output').textContent =
+        `위도: ${y}, 경도: ${x}`;
+    }
+  </script>
+</body>
+</html>

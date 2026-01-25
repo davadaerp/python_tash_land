@@ -64,7 +64,7 @@
 
     <!-- 플랜 선택 -->
     <div class="options">
-      <label class="opt"><input type="radio" name="plan" value="0" checked> 2주간(체험용)</label>
+      <label class="opt"><input type="radio" name="plan" value="0" checked> 1주간(체험용)</label>
       <label class="opt"><input type="radio" name="plan" value="1"> 1개월 (월 10만원)</label>
       <label class="opt"><input type="radio" name="plan" value="6"> 6개월 (월 7만원)</label>
       <label class="opt"><input type="radio" name="plan" value="12"> 1년 (월 5만원)</label>
@@ -105,14 +105,14 @@
   <script>
     // URL 파라미터에서 access_token 추출 (기존 코드)
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('access_token') || "";
+    const token = (urlParams.get("tk") || urlParams.get("access_token") || "").trim();
 
     // 선택 텍스트 매핑 (기존 코드) => 구독 신청 시 사용(월기준)
     const planTextMap = {
-      "0": "2주간(체험용)",
+      "0": "1주간(체험용)",
       "1": "1개월(10만원)",
       "6": "6개월(7만원)",
-      "12": "1년(10만원)"
+      "12": "1년(5만원)"
     };
 
     // 계좌 복사 (기존 코드)
@@ -185,9 +185,13 @@
         return;
       }
 
+      // 선택한 플랜 값 (필요 시 서버로 전달)
+      const val = (document.querySelector('input[name="plan"]:checked') || {}).value;
+
       // 클라이언트에서 6자리 코드 생성(서버로 전달하여 SMS 발송)
       authCode = String(Math.floor(100000 + Math.random() * 900000));
 
+      //alert(token);
       try {
         const resp = await fetch('/api/user/subscribe_auth', {
           method: 'POST',
@@ -196,6 +200,7 @@
             'Authorization': 'Bearer ' + token            // 인증 필요 시 포함
           },
           body: JSON.stringify({
+            plan: val,                     // 선택한 플랜 정보
             phoneNumber: phone,
             authNumber: authCode
           })
@@ -256,11 +261,9 @@
     // ===== (기존) 신청 요청 =====
     document.getElementById('btnDoSubscribe').addEventListener('click', async () => {
       const val = (document.querySelector('input[name="plan"]:checked') || {}).value;
-      alert(val);
       if (!val) { alert('구독 기간을 선택해주세요.'); return; }
 
       const chosenText = planTextMap[val] || '';
-      alert(chosenText);
       if (!confirm(`${chosenText} 선택하신 조건으로 구독하시겠습니까?`)) return;
 
       // ✅ 전화번호 포함 (기존 반영)
@@ -276,9 +279,16 @@
           body: JSON.stringify({ plan: val, phoneNumber: phoneNumber })
         });
 
+        // ✅ [ADD] 실패 시 JSON 우선 파싱 → message 표시
         if (!r.ok) {
-          const t = await r.text();
-          alert('구독 신청 실패: ' + t);
+          let msg = '';
+          try {
+            const j = await r.json();
+            msg = j.message || j.error || JSON.stringify(j);
+          } catch (e) {
+            msg = await r.text();
+          }
+          alert('구독 신청 실패: ' + msg);
           return;
         }
 

@@ -2,15 +2,15 @@
 https://www.youtube.com/watch?v=RhOLFm3XG8Y
 
 
-https://www.youtube.com/watch?v=xht7-LwT9Ro
-
-https://tech-archive.com/29
-
-아래는 네이버 부동산에서 서울시에서 매매가 9억 미만인 아파트 정보를 크롤링하는 코드입니다.
-
-
--- 네이버부동산 api작성한 깃허브 https://github.com/jissp/naver-land-crawler
-https://velog.io/@dev-lop/%ED%86%A0%EC%9D%B4%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EB%84%A4%EC%9D%B4%EB%B2%84-%EB%B6%80%EB%8F%99%EC%82%B0-%ED%81%AC%EB%A1%A4%EB%9F%AC
+# https://www.youtube.com/watch?v=xht7-LwT9Ro
+#
+# https://tech-archive.com/29
+#
+# 아래는 네이버 부동산에서 서울시에서 매매가 9억 미만인 아파트 정보를 크롤링하는 코드입니다.
+#
+#
+# -- 네이버부동산 api작성한 깃허브 https://github.com/jissp/naver-land-crawler
+# https://velog.io/@dev-lop/%ED%86%A0%EC%9D%B4%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EB%84%A4%EC%9D%B4%EB%B2%84-%EB%B6%80%EB%8F%99%EC%82%B0-%ED%81%AC%EB%A1%A4%EB%9F%AC
 
 import time
 import random

@@ -388,6 +388,54 @@ def extract_law_codes(region, sigungu, umdNm):
     return law_code
 
 
+# =========================
+# SG: entry 변환 + insert 래퍼
+# =========================
+def convert_item_to_sanga_entry(item: dict, lawdCd5: str, umdNm: str) -> dict:
+    return {
+        "article_no": item.get("article_no") or item.get("atclNo") or "",
+        "page": item.get("page") or 1,
+        "lawdCd": item.get("lawdCd") or lawdCd5,
+        "umdNm": item.get("umdNm") or umdNm,
+        "confirm_date_str": item.get("confirm_date_str") or "",
+
+        "article_name": item.get("article_name") or "",
+        "real_estate_type": item.get("real_estate_type") or "SG",
+        "real_estate_name": item.get("real_estate_name") or "상가",
+
+        # ⚠️ 네 sanga_insert_single 원본이 trade_type 자리에 trade_name을 넣는 구조면 그대로 맞추려면 아래처럼 조정 가능
+        "trade_type": item.get("trade_type") or "",
+        "trade_name": item.get("trade_name") or "",
+
+        "price": item.get("price") or "",
+        "hanPrc": item.get("hanPrc") or "",
+        "rentPrc": item.get("rentPrc") or "",
+
+        "area1": item.get("area1") or "",
+        "area2": item.get("area2") or "",
+        "exclusive_area_pyeong": item.get("exclusive_area_pyeong") or "",
+
+        "direction": item.get("direction") or "",
+        "building_name": item.get("building_name") or "",
+        "cfloor": item.get("cfloor") or "",
+        "tfloor": item.get("tfloor") or "",
+
+        "realtor_name": item.get("realtor_name") or "",
+        "company_name": item.get("company_name") or "",
+
+        "article_url": item.get("article_url") or item.get("detail_url") or "",
+        "latitude": item.get("latitude") or "",
+        "longitude": item.get("longitude") or "",
+
+        "tag_list": item.get("tag_list") or item.get("tagList") or "",
+        "feature_desc": item.get("feature_desc") or "",
+
+        "sale_deposit_price": item.get("sale_deposit_price") or "",
+        "sale_rent_price": item.get("sale_rent_price") or "",
+    }
+
+
+
 #=== WAL/체크포인트 유틸 (append-only) =====================================
 import atexit
 import signal

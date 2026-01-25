@@ -375,10 +375,8 @@
                 selectedLawdCd = lawCd;
                 selectedUmdNm = umdNm;
                 document.getElementById("locatadd_nm").value = lawName;
-                //
-                if (apiKey !== '') {
-                  localStorage.setItem("sanga_key", apiKey);
-                }
+                document.getElementById("locatadd_nm").disabled = true;
+
                 // 0.5초 후 버튼 클릭 이벤트 강제 실행
                 setTimeout(() => {
                     document.getElementById("search-btn").click();
@@ -471,6 +469,7 @@
             let sortFloorAscending = false;
             let sortBuildingAreaAscending = false;
             let sortPriceAscending = false;
+            let sortJeonseRateAscending = false;
             let sortRentPyeongPriceAscending = false;
 
             // 매물일자 정렬
@@ -548,7 +547,7 @@
                 renderTable(window.currentFilteredItems);
             });
 
-            // 평단가금액 정렬
+            // 전세금액 정렬
             $('#sortJeonsePrice').click(function () {
                 const rentCheckbox = document.getElementById("rent_checkbox");
                 // rent_checkbox가 체크된 경우 해당 조건에 맞는 항목은 제외한 새로운 배열 생성
@@ -568,6 +567,18 @@
                 sortPriceAscending = !sortPriceAscending;
                 updateSortIcons();
                 renderTable(filteredItems);
+            });
+
+            // 전세율 정렬
+            $('#sortJeonseRate').click(function () {
+                window.currentFilteredItems.sort((a, b) => {
+                    let priceA = parseFloat(a.jeonseRate) || 0;
+                    let priceB = parseFloat(b.jeonseRate) || 0;
+                    return sortJeonseRateAscending ? priceA - priceB : priceB - priceA;
+                });
+                sortJeonseRateAscending = !sortJeonseRateAscending;
+                updateSortIcons();
+                renderTable(window.currentFilteredItems);
             });
 
             // 월세 평단가(매매월세헤더)금액 정렬
@@ -600,6 +611,7 @@
                 $('#sortBuildingArea').text(sortBuildingAreaAscending ? '분양면적(평) ▲' : '분양면적(평) ▼');
                 $('#sortPrice').text(sortPriceAscending ? '금액 ▲' : '금액 ▼');
                 $('#sortJeonsePrice').text(sortPriceAscending ? '전세금액 ▲' : '전세금액 ▼');
+                $('#sortJeonseRate').text(sortJeonseRateAscending ? '전세율 ▲' : '전세율 ▼');
                 $('#sortRentPyeongPrice').text(sortRentPyeongPriceAscending ? '매매월세 ▲' : '매매월세 ▼');
             }
 
@@ -674,8 +686,8 @@
                 $('#noData').hide();
                 //$('data-container').hide();
                 const dataContainer = document.getElementById("data-container");
-                dataContainer.innerHTML = "";
-                // dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
+                //dataContainer.innerHTML = "";
+                dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
                 $('#loading').hide();
 
                 window.allFetchedItems = [];
@@ -1452,7 +1464,9 @@
             <button id="print-btn">프린트</button>
             -->
             <!-- 법정코드관리 버튼 추가 -->
+            <!--
             <button id="admin-btn">법정코드관리</button>
+            -->
         </div>
         <div class="filter-group">
             <label for="trade_type">거래유형:</label>
@@ -1522,7 +1536,7 @@
                     <th id="sortBuildingArea2" style="flex:1;">전용면적(평)</th>
                     <th id="sortPrice" style="flex:1;">가격 ▼</th>
                     <th id="sortJeonsePrice" style="flex:1;">전세금액 ▼</th>
-                    <th style="flex:1;">전세율</th>
+                    <th id="sortJeonseRate" style="flex:1;">전세율 ▼</th>
                     <!--
                     <th>중개사명</th>
                     <th style="flex:1;">상세</th>

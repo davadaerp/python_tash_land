@@ -1,5 +1,6 @@
 from selenium import webdriver
 from selenium.common import StaleElementReferenceException, TimeoutException, WebDriverException
+from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertPresentException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -96,7 +97,7 @@ def close_popups(driver):
         print("기타 팝업 없음.")
 
 # 로그인처리
-def login(driver):
+def login_old(driver):
     try:
         login_button = WebDriverWait(driver, 3).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@onclick='floating_div(400);']"))
@@ -123,6 +124,48 @@ def login(driver):
         print("로그인 시도 완료.")
     except Exception as e:
         print("로그인 오류:", e)
+
+# 로그인처리 (개선버전)
+def login(driver):
+    try:
+        # 로그인 버튼 대기
+        login_button = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@onclick='floating_div(400);']"))
+        )
+
+        # 화면 안으로 스크롤
+        driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+        time.sleep(0.5)
+
+        # 먼저 일반 클릭 시도
+        try:
+            login_button.click()
+        except WebDriverException:
+            # element click intercepted 등 나오면 JS로 강제 클릭
+            driver.execute_script("arguments[0].click();", login_button)
+
+        # 로그인 팝업이 표시될 때까지 대기
+        login_popup = WebDriverWait(driver, 5).until(
+            EC.visibility_of_element_located((By.ID, "FLOATING_CONTENT"))
+        )
+
+        username_field = login_popup.find_element(By.NAME, "client_id")
+        password_field = login_popup.find_element(By.NAME, "passwd")
+        username_field.clear()
+        password_field.clear()
+        username_field.send_keys("wfight69")
+        password_field.send_keys("ahdtpddlta_0")
+
+        submit_button = login_popup.find_element(
+            By.XPATH, ".//a[contains(@onclick, 'login();')]"
+        )
+        submit_button.click()
+
+        print("로그인 시도 완료.")
+        # 필요하면 로그인 성공 여부 체크 로직을 추가해도 됨 (예: 로그아웃 버튼 존재 여부)
+    except Exception as e:
+        print("로그인 오류:", e)
+
 
 # 메뉴처리
 def menu_search(driver):
@@ -912,6 +955,19 @@ def safe_execute_script(driver, script):
 def main():
     global json_data, saved_count, data_list  # 전역 변수 사용
     driver = init_driver()
+
+    # # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
+    # chrome_options = Options()
+    # chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--no-sandbox")
+    # chrome_options.add_argument("--disable-dev-shm-usage")
+    # chrome_options.add_argument("--remote-debugging-port=9222")  # 원격 디버깅 포트
+    # chrome_options.add_argument("--disable-background-timer-throttling")
+    # chrome_options.add_experimental_option("detach", True)  # 크롬 창을 셀레니움 종료 시 닫지 않음
+    # # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
+    #
+    # driver = webdriver.Chrome()
     try:
         # 시군구등 법정코드 json 데이타 로딩
         json_data = load_json_data()

@@ -1,7 +1,6 @@
 // ====== 공통 ======
 const SERVER = "http://127.0.0.1:5000";
-//const SERVER = "https://erp-dev.bacchuserp.com";
-// const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
+//const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
 const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
 const API_ME_URL = `${SERVER}/api/kakao/me`;
@@ -147,12 +146,13 @@ async function restoreSession() {
         const me = await r.json(); // { nickname, is_subscribed, is_recharged, plan_name, plan_date, sms_count, ... }
         // 저장 동기화
         await csSet({
-          access_token: token,
-          nickname: me.nickname,
-          sms_count: me.sms_count,
-          apt_key: me.apt_key,
-          villa_key: me.villa_key,
-          sanga_key: me.sanga_key
+            access_token: token,
+            is_subscribed: me.is_subscribed,
+            nickname: me.nickname,
+            sms_count: me.sms_count,
+            apt_key: me.apt_key,
+            villa_key: me.villa_key,
+            sanga_key: me.sanga_key
         });
 
         // ✨ 현재 팝업 DIV UI 업데이트만 수행 (닫지 않음)

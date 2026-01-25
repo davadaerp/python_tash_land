@@ -2,6 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 import json
 
+
+#https://new.land.naver.com/api/articles?cortarNo=4157010300&order=prcDesc&realEstateType=SG:SMS:GM%3ASMS&tradeType=월세&page=1
+
 def extract_next_data(url):
     headers = {
         'User-Agent': (

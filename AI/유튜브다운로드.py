@@ -107,9 +107,11 @@ if __name__ == '__main__':
     # 썸머릴레이-공장 투자: https://www.youtube.com/watch?v=rVcqpAvNun4
     # 썸머릴레이-스카 투자: https://www.youtube.com/watch?v=HispvLz4OBo
     # 썸머릴레이-오피스 투자: https://youtu.be/c3IVy4cI_X0
-    video_url = 'https://youtu.be/c3IVy4cI_X0'
+    #video_url = 'https://youtu.be/c3IVy4cI_X0'
+    #video_url = 'https://www.youtube.com/watch?v=1q_t6RNuH8c'
+    video_url = 'https://www.youtube.com/watch?v=Z26BvHOD_sg&list=RDZ26BvHOD_sg&start_radio=1'
     # 1) 동영상 다운로드
-    download_video(video_url, save_path='./', cookies='cookies.txt')
+    #download_video(video_url, save_path='./', cookies='cookies.txt')
 
     # 2) 오디오만 MP3로 추출
-    #download_audio(video_url, save_path='./', cookies='cookies.txt', bitrate='192')
+    download_audio(video_url, save_path='./', cookies='cookies.txt', bitrate='192')

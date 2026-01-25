@@ -183,6 +183,79 @@
       }
     }
 
+    // ===== 요청이력 로드 =====
+    async function loadRequests() {
+      try {
+        if (!token) {
+          alert('로그인 토큰이 없습니다. 다시 로그인 해주세요.');
+          return;
+        }
+
+        const res = await fetch('/api/user/mypage/user_hist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          credentials: 'include'
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const list = await res.json(); // [{user_id, seq, kind, request_date, start_date, end_date, unit, amount, status, memo, ...}, ...]
+
+        // 테이블 tbody 교체(기존 더미 행 삭제 후 동적 채움)
+        const tbody = document.querySelector('#requests table tbody');
+        if (!tbody) return;
+
+        // 비우기
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(list) || list.length === 0) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td colspan="7" style="text-align:center; color:#666;">요청이력이 없습니다.</td>`;
+          tbody.appendChild(tr);
+          return;
+        }
+
+        // 출력용 포맷터
+        const fmtAmount = (v) => {
+          const n = Number(v ?? 0);
+          if (Number.isNaN(n)) return (v ?? '—');
+          return n.toLocaleString('ko-KR') + '원';
+        };
+        const fmtUnit = (kind, unit) => {
+          const u = Number(unit ?? 0);
+          if ((kind || '').toUpperCase() === 'SUBSCRIPTION') return `${u}개월`;
+          if ((kind || '').toUpperCase() === 'SMS_CHARGE') return `${u}건`;
+          return `${u}`;
+        };
+        const kindLabel = (kind) => {
+          const k = (kind || '').toUpperCase();
+          if (k === 'SUBSCRIPTION') return '구독';
+          if (k === 'SMS_CHARGE') return '문자';
+          return kind || '—';
+        };
+
+        list.forEach((row) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row.seq ?? '—'}</td>
+            <td>${kindLabel(row.kind)}</td>
+            <td>${row.user_id ?? '—'}</td>
+            <td>${row.request_date ?? row.created_at ?? '—'}</td>
+            <td>${fmtUnit(row.kind, row.unit)}</td>
+            <td>${fmtAmount(row.amount)}</td>
+            <td>${row.memo ?? row.status ?? '—'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (e) {
+        console.error(e);
+        alert('요청이력을 불러오지 못했습니다.');
+      }
+    }
+
     // ===== (추가) 구독 여부 체크 =====
     function isSubscribed(member) {
       const s = (member?.subscription_status ?? '').toString().trim().toLowerCase();
@@ -363,9 +436,9 @@
 
     // ===== 탭 라우팅 =====
     const loaders = {
-      member: loadMember
+      member: loadMember,
+      requests: loadRequests
       // payment: loadPayment,
-      // requests: loadRequests,
       // etc: loadEtc
     };
 
@@ -447,18 +520,21 @@
   <div id="requests" class="panel" style="display:none;">
     <h3>요청이력</h3>
     <table>
-      <tr>
-        <th>순번</th>
-        <th>구분</th>
-        <th>요청자</th>
-        <th>요청일시</th>
-        <th>요청건수</th>
-        <th>요청금액</th>
-        <th>비고</th>
-      </tr>
-      <tr><td>1</td><td>문자</td><td>홍길동</td><td>2025-06-02 11:00</td><td>10건</td><td>1,000원</td><td>—</td></tr>
-      <tr><td>2</td><td>알림톡</td><td>홍길동</td><td>2025-06-04 12:30</td><td>5건</td><td>800원</td><td>—</td></tr>
-      <tr><td>3</td><td>등기부등본</td><td>홍길동</td><td>2025-06-10 16:35</td><td>1건</td><td>1,000원</td><td>아파트</td></tr>
+      <thead>
+        <tr>
+          <th>순번</th>
+          <th>구분</th>
+          <th>요청자</th>
+          <th>요청일시</th>
+          <th>요청건수</th>
+          <th>요청금액</th>
+          <th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- JS로 채워짐 -->
+        <tr><td colspan="7" style="text-align:center; color:#666;">불러오는 중...</td></tr>
+      </tbody>
     </table>
   </div>
 

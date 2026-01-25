@@ -297,19 +297,23 @@ def auction_read_db(lawdCd="", umdNm="", year_range="2", categories=None, dangiN
         params.extend(categories)
 
     # 날짜 범위 필터 처리
-    current_date = datetime.today().strftime("%Y-%m-%d")
+    today = datetime.today()
+    current_date = today.strftime("%Y-%m-%d")
+    end_date = current_date  # 현재일
     if year_range == "1":
-        start_date = f"{datetime.today().year}-01-01"
+        start_date = f"{today.year}-01-01"
     elif year_range == "2":
-        start_date = f"{datetime.today().year - 1}-01-01"
+        start_date = f"{today.year - 1}-01-01"
     else:
         start_date = None
+        end_date = None
 
-    if start_date:
+    if start_date and end_date:
         query += " AND sales_date BETWEEN ? AND ?"
         params.append(start_date)
-        params.append(current_date)
+        params.append(end_date)
 
+    # 단지명  필터 처리
     if dangiName:
         query += " AND dangi_name LIKE ?"
         params.append(f"%{dangiName}%")

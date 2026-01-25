@@ -9,8 +9,34 @@ search_year = 2024
 # 변경된 URL
 url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
 
+# 상가필드
+#API_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+# FIELDS = [
+#     "buildYear",
+#     "buildingAr",
+#     "buildingType",
+#     "buildingUse",
+#     "buyerGbn",
+#     "cdealDay",
+#     "cdealType",
+#     "dealAmount",
+#     "dealDay",
+#     "dealMonth",
+#     "dealYear",
+#     "dealingGbn",
+#     "estateAgentSggNm",
+#     "jibun",
+#     "landUse",
+#     "plottageAr",
+#     "sggCd",
+#     "sggNm",
+#     "shareDealingType",
+#     "slerGbn",
+#     "umdNm",
+# ]
+
 # 요청 파라미터 설정
-lawd_cd = "11110"  # 예시 법정동 코드
+lawd_cd = "1111017400"  # 예시 법정동 코드
 params = {
     "serviceKey": "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==",
     "LAWD_CD": lawd_cd,  # 검색 조건으로 법정동 코드

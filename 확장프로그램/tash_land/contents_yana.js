@@ -5,10 +5,9 @@ let isScheduled = false; // 함수 호출이 예약되었는지 여부를 나타
 //
 let tableData = []; // 테이블 만들 데이터 { key: data, key2: data2} 형식으로 저장
 let tabGubun = '';
-//let BASE_URL = "https://erp-dev.bacchuserp.com";
-// let BASE_URL = "https://www.landcore.co.kr";          // 175.106.99.143
+//let BASE_URL = "https://www.landcore.co.kr";          // 175.106.99.143
 let BASE_URL = 'http://127.0.0.1:5000';
-// let LOCAL_BASE_URL = 'https://www.landcore.co.kr';
+//let LOCAL_BASE_URL = 'https://www.landcore.co.kr';
 let LOCAL_BASE_URL = 'http://127.0.0.1:5000';
 let currSelectedType = 'all';
 let isLoggedInStatus = false;
@@ -311,7 +310,7 @@ function aptItemRowModify(item) {
             r['형태']==='매매' &&
             parseFloat(r['전용면적'])===areaNum
           )||{};
-          openRentPricePopup({
+          openPirInfoPricePopup({
             article_name: '청주개신주공1단지',
             area1:        '85',         // areaStr0, areaStr1 : 분양면적, 전용면적
             price:        saleAmt,
@@ -335,7 +334,7 @@ function aptItemRowModify(item) {
 }
 
 // PIR 팝업목록
-function openRentPricePopup(item) {
+function openPirInfoPricePopup(item) {
   const apt_name    = item.article_name;
   const size        = item.area1;        // area1: 분양면적, area2: 전용면적
   const salePrice          = item.price;
@@ -371,6 +370,137 @@ function openRentPricePopup(item) {
     }
   });
 }
+
+/**
+ * #summaryPirInfo(단지 요약 영역)에서 필요한 값을 추출해서
+ * openPirInfoPricePopup({...})에 넣을 "파라미터 객체"를 리턴한다.
+ *
+ * @returns {object|null}  예: { article_name, area1, price, jeonseMaxPrice, jeonseRate }
+ */
+function pirInfoParams() {
+  const root = document.querySelector("#summaryInfo");
+  if (!root) return null;
+
+  // -------------------------
+  // 1) 단지명
+  // -------------------------
+  const aptNm =
+    root.querySelector("#complexTitle")?.textContent?.trim() ||
+    root.querySelector(".complex_title .title")?.textContent?.trim() ||
+    "";
+
+  // -------------------------
+  // 2) 최근 매매 실거래가 (예: "5억 2,500")
+  // -------------------------
+  const recentTradeText =
+    root.querySelector(".complex_price--trade dd.data")?.textContent?.trim() || "";
+
+  // -------------------------
+  // 3) 최근 실거래 상세에서 면적 추출 (예: "2025.12.01, 11층, 131㎡")
+  // -------------------------
+  const recentTradeDetail =
+    root.querySelector(".complex_price--trade dd.date")?.textContent?.trim() || "";
+  const areaFromRecentTrade = (() => {
+    const m = recentTradeDetail.match(/(\d+(?:\.\d+)?)\s*㎡/);
+    return m ? m[1] : "";
+  })();
+
+  // -------------------------
+  // 4) 전세가 범위 텍스트 (예: "3억 8,500~5억 5,000")
+  // -------------------------
+  const jeonseRangeText = (() => {
+    const dts = Array.from(root.querySelectorAll(".complex_price dt.title"));
+    const dt = dts.find(el => el.textContent?.trim() === "전세가");
+    const dd = dt?.parentElement?.querySelector("dd.data");
+    return dd?.textContent?.trim() || "";
+  })();
+
+  // -------------------------
+  // 5) 매매가 범위 텍스트 (예: "5억 3,000~14억")
+  // -------------------------
+  const saleRangeText = (() => {
+    const dts = Array.from(root.querySelectorAll(".complex_price dt.title"));
+    const dt = dts.find(el => el.textContent?.trim() === "매매가");
+    const dd = dt?.parentElement?.querySelector("dd.data");
+    return dd?.textContent?.trim() || "";
+  })();
+
+  // -------------------------
+  // 유틸: "5억 2,500" -> 원 단위 number 변환 (대략/실무형)
+  // -------------------------
+  function krMoneyToNumber(text) {
+    if (!text) return 0;
+    const cleaned = text.replace(/\s+/g, "").replace(/,/g, "");
+
+    let total = 0;
+
+    // 억
+    const eokMatch = cleaned.match(/(\d+(?:\.\d+)?)억/);
+    if (eokMatch) total += Math.round(parseFloat(eokMatch[1]) * 100000000);
+
+    // 억 이하(보통 "만원" 단위로 표기되는 숫자)
+    const afterEok = cleaned.split("억")[1] || "";
+    if (afterEok) {
+      const num = afterEok.match(/(\d+(?:\.\d+)?)/);
+      if (num) total += Math.round(parseFloat(num[1]) * 10000);
+    } else {
+      // 억이 없고 숫자만 있으면 "만원" 단위로 가정
+      const onlyNum = cleaned.match(/^\d+(?:\.\d+)?$/);
+      if (onlyNum) total += Math.round(parseFloat(cleaned) * 10000);
+    }
+    return total;
+  }
+
+  function getRangeMax(text) {
+    if (!text) return "";
+    const parts = text.split("~").map(s => s.trim());
+    return (parts[1] || parts[0] || "").trim();
+  }
+
+  function getRangeMin(text) {
+    if (!text) return "";
+    const parts = text.split("~").map(s => s.trim());
+    return (parts[0] || "").trim();
+  }
+
+  // -------------------------
+  // price: 최근 실거래가 우선, 없으면 매매가 최소값
+  // -------------------------
+  const saleAmt = recentTradeText || getRangeMin(saleRangeText) || "";
+
+  // jeonseMaxPrice: 전세가 범위 최대
+  const jeonseMaxPrice = getRangeMax(jeonseRangeText) || "";
+
+  // -------------------------
+  // jeonseRate(%) : 전세최대 / (최근실거래 or 매매최소) * 100
+  // -------------------------
+  const saleNumber = krMoneyToNumber(saleAmt);
+  const jeonseNumber = krMoneyToNumber(jeonseMaxPrice);
+
+  const jeonseRate =
+    saleNumber > 0 && jeonseNumber > 0
+      ? Math.round((jeonseNumber / saleNumber) * 1000) / 10 // 소수 1자리
+      : "";
+
+  // -------------------------
+  // area1: 최근 실거래 상세의 131㎡ 우선, 없으면 "면적" 최소값
+  // -------------------------
+  const area1 = areaFromRecentTrade || (() => {
+    const featureText = root.querySelector(".complex_feature")?.textContent || "";
+    const m = featureText.match(/면적.*?(\d+(?:\.\d+)?)\s*㎡/);
+    return m ? m[1] : "";
+  })();
+
+  // openRentPricePopup에 넣는 파라미터 객체(= JSON 형태)
+  return {
+    article_name: aptNm,
+    area1: area1 ? String(area1) : "",
+    price: saleAmt,
+    jeonseMaxPrice: jeonseMaxPrice,
+    jeonseRate: jeonseRate
+  };
+}
+
 
 // helper: format 만원 (10,000원 단위) into 억/천만/만원
 function formatManWon(manwons) {
@@ -614,8 +744,8 @@ function sortItems() {
         }
 }
 
-// 요약목록 테이블
-function summaryTable() {
+// 요약목록 테이블(비광고용)
+function summaryTable_NonAd() {
     const mapWrap = document.querySelector('.map_wrap'); // .map_wrap 클래스를 가진 요소 선택
     if (mapWrap) {
         console.log('mapWrap Start..');
@@ -751,6 +881,151 @@ function summaryTable() {
         }
     }
 }
+
+// 광고밑에 요약목록 테이블
+function summaryTable_WithAd() {
+    // 1. iframe 아이디로 요소를 찾습니다.
+    const adIframe = document.querySelector('#land_panel_da_tgtLREC');
+
+    if (adIframe) {
+        console.log('Ad Iframe 감지됨. UI 삽입 시작');
+
+        // 2. 이미 존재하는지 확인 후 없으면 생성
+        // 부모 요소(parentElement)를 기준으로 찾습니다.
+        let newBox = adIframe.parentElement.querySelector('.new-box');
+        if (!newBox) {
+            newBox = document.createElement('div');
+            newBox.classList.add('new-box');
+
+            // [핵심] iframe 바로 뒤에 요소를 삽입합니다.
+            adIframe.insertAdjacentElement('afterend', newBox);
+        }
+        // 3. 스타일 설정 (iframe 밑에 나열되므로 absolute가 아닌 static/relative 권장)
+        newBox.style.width = '100%';
+        newBox.style.height = 'auto'; // 내용에 따라 자동 조절되도록 변경
+        newBox.style.minHeight = tabGubun === 'sanga' ? '80px' : '95px';
+        newBox.style.padding = '5px';
+        newBox.style.backgroundColor = '#ffffff';
+        newBox.style.boxSizing = 'border-box';
+        newBox.style.border = '1px solid #e0e0e0';
+        newBox.style.marginTop = '2px'; // 광고와 약간의 간격
+        newBox.style.display = 'block';
+
+        // 2. tableData에서 평당가 데이터를 이용하여 통계 계산
+        function computeStats(dataArray, isSale) {
+            if (dataArray.length === 0) return { min: '-', avg: '-', max: '-', count: 0 };
+            const min = Math.min(...dataArray);
+            const max = Math.max(...dataArray);
+            const sum = dataArray.reduce((acc, val) => acc + val, 0);
+            const avg = (sum / dataArray.length).toFixed(isSale ? 0 : 1);
+            return { min, avg, max, count: dataArray.length };
+        }
+
+        // tableData 필터링: 월세, 전세, 매매 데이터 각각
+        const 월세Data = tableData.filter(item => item["형태"] === '월세').map(item => parseFloat(item["평당가"]));
+        const 전세Data = tableData.filter(item => item["형태"] === '전세').map(item => parseFloat(item["가격"]));
+        const 매매Data = tableData.filter(item => item["형태"] === '매매').map(item => parseFloat(item["가격"]));
+        const stats월세 = computeStats(월세Data, false);
+        const stats전세 = computeStats(전세Data, true);
+        const stats매매 = computeStats(매매Data, true);
+
+        // tabGubun이 'villa' 또는 'apt'인 경우 전세 행 추가
+        let 전세RowHTML = '';
+        if (tabGubun === 'villa' || tabGubun === 'apt') {
+            전세RowHTML = `
+                          <tr>
+                              <td style="background-color: #eeffe6; text-align: center;">전세</td>
+                              <td>${formatCurrency('전세',stats전세.min)}</td>
+                              <td>${formatCurrency('전세',stats전세.avg)}</td>
+                              <td>${formatCurrency('전세',stats전세.max)}</td>
+                              <td>${stats전세.count}</td>
+                          </tr>
+            `;
+        }
+
+        // 3. 왼쪽: 통계 테이블, 오른쪽: 컨트롤(분석표 버튼, 수익율(%) 레이블, 수익율 input)을
+        //    위에서 아래로 나열하는 테이블 형식으로 배치하고, outer table 높이를 newBox 높이에 맞춤
+        const combinedHTML = `
+            <table border="0" style="width: 100%; height: 100%; border-collapse: collapse; text-align: center;">
+              <tr>
+                <!-- 왼쪽 통계 테이블 -->
+                <td style="vertical-align: top; width: 85%; padding-left: 5px;">
+                  <table border="1" style="width: 100%; height: 100%; border-collapse: collapse;">
+                      <thead style="background-color: #e0f7ff;">
+                          <tr>
+                              <th>구분</th>
+                              <th>최소</th>
+                              <th>평균</th>
+                              <th>최대</th>
+                              <th>건수</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          <tr>
+                              <td style="background-color: #ffe6e6; text-align: center;">월세</td>
+                              <td>${formatCurrency('월세', stats월세.min)}</td>
+                              <td>${formatCurrency('월세', stats월세.avg)}</td>
+                              <td>${formatCurrency('월세', stats월세.max)}</td>
+                              <td>${stats월세.count}</td>
+                          </tr>
+                          ${전세RowHTML}
+                          <tr>
+                              <td style="background-color: #ADD8E6; text-align: center;">매매</td>
+                              <td>${formatCurrency('매매', stats매매.min)}</td>
+                              <td>${formatCurrency('매매', stats매매.avg)}</td>
+                              <td>${formatCurrency('매매', stats매매.max)}</td>
+                              <td>${stats매매.count}</td>
+                          </tr>
+                      </tbody>
+                  </table>
+                </td>
+                <!-- 오른쪽 컨트롤 영역 -->
+                <td style="vertical-align: top; padding-left: 5px; width: 17%;">
+                  <table border="0" style="height: 100%; border-collapse: collapse;">
+                     <tr>
+                        <td style="padding-bottom: 5px;">
+                           <button id="summaryBtn" style="border: 1px solid #555555; border-radius:5px; padding:2px 5px;">분석표</button>
+                        </td>
+                     </tr>
+                     <tr>
+                        <td style="padding-bottom: 2px; border: 1px solid #ccc;">
+                           <label for="percentMargin">수익율</label>
+                        </td>
+                     </tr>
+                     <tr>
+                        <td style="border: 1px solid #ccc;">
+                           <input type="text" id="percentMargin" value="6%" style="width:40px; background-color:#f0f0f0; text-align: center;">
+                        </td>
+                     </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+        `;
+
+        // newBox 안에 결합된 HTML 삽입
+        newBox.innerHTML = combinedHTML;
+
+        // 4. 분석표 버튼에 클릭 이벤트 등록 (클릭 시 sangaSummaryList() 실행)
+        const summaryBtn = newBox.querySelector('#summaryBtn');
+        if (summaryBtn) {
+            summaryBtn.addEventListener('click', function() {
+                // 로그인여부 체크
+                loginValid().then(valid => {
+                    if (!valid) return;   // 로그인 실패 시 여기서 중단
+                    //
+                    summaryListShowStatus = true;
+                    if(tabGubun === 'sanga') {
+                        sangaSummaryList();
+                    } else {
+                        villaSummaryList();
+                    }
+                });
+            });
+        }
+    }
+}
+
 
 // 요약목록 리스트 헤더
 function summaryListHeader() {
@@ -1861,33 +2136,19 @@ function searchPirAnalyzeData() {
                 aptNm = el.innerText.trim();
             }
             // 공통 함수 호출 시 extraParams 객체에 담아서 전달
+            //PIR전체 데이타 검색 목록(관리자에서 확인)
             openExtensionPopup('pir_apt', {
                 aptNm: aptNm,
                 customTag: 'v1' // 필요시 다른 파라미터도 자유롭게 추가 가능
             }, "pirListPopup", 1390, 1180);
-            /*
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
 
-            // '경기도,김포시,구래동, 아파트명'
-            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
-            //alert(regions);
-
-            // 확장툴url
-            const extUrl = `${BASE_URL}/api/ext_tool?menu=pir_apt&regions=${encodeURIComponent(regions)}&tk=${encodeURIComponent(access_token)}`;
-            //
-            const popupName = "pirListPopup";
-            const popupWidth = 1390;   // 원하는 팝업 너비
-            const popupHeight = 1180;  // 원하는 팝업 높이
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            window.open(
-                extUrl,
-                popupName,
-                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-            );
-             */
-
+            // // 각 아파트별 PIR 요약정보 팝업(문제는 다양한 평형소화를 못함 ㅠ.ㅠ)
+            // const params = pirInfoParams();
+            // if (!params) {
+            //   alert("단지 요약정보(#summaryInfo)를 찾지 못했습니다.");
+            // } else {
+            //   openPirInfoPricePopup(params);
+            // }
         });
   });
 
@@ -2360,6 +2621,7 @@ function openSite() {
   // 메뉴 항목 추가
   menuDiv.appendChild(createMenuItem('인터넷등기소', 'http://www.iros.go.kr/'));
   menuDiv.appendChild(createMenuItem('정부24(민원)', 'https://www.gov.kr/'));
+  menuDiv.appendChild(createMenuItem('소상공인(365))', 'https://bigdata.sbiz.or.kr/'));
 
   // 4. 버튼 클릭 시 메뉴 토글
   openSiteBtn.addEventListener('click', function(e) {
@@ -2401,7 +2663,8 @@ function loadSangaItems() {
         });
         // loadingStack is null => 모든게 로딩이 완료되었으면 품목소트후 재정렬처리(단가순)
         if (loadingStack == null) {
-            summaryTable();
+            summaryTable_NonAd(); // 광고미포함
+            //summaryTable_WithAd();  // 광고포함
             //
             sortItems();
             // 분석표가 열려있으면
@@ -2540,9 +2803,9 @@ function topButtonCreate() {
     //login();
     // 네이버매물 팝업
     searchNaverListings();
-    // 실거래분석 처리(아파트 실거래및 경매내역) 및 PIR분석 데이타
+    // 실거래분석 처리(아파트 실거래및 경매내역)
     searchLandRealData();
-    // 실거래분석 처리(아파트 실거래및 경매내역) 및 PIR분석 데이타
+    // PIR분석 데이타
     if (tabGubun === 'apt') {
         // searchLandRealData();
         //
@@ -2578,9 +2841,10 @@ function loginValid() {
 function login() {
     return new Promise((resolve, reject) => {
         // content.js (예: new.land.naver.com에 매칭)
-        chrome.storage.local.get(["access_token", "apt_key", 'villa_key', "sanga_key"], (items) => {
+        chrome.storage.local.get(["access_token", "is_subscribed", "apt_key", 'villa_key', "sanga_key"], (items) => {
             //const { access_token, apt_key, sanga_key } = items;
             access_token = items.access_token;
+            is_subscribed = items.is_subscribed;
             apt_key = items.apt_key;
             villa_key = items.villa_key;
             sanga_key = items.sanga_key;
@@ -2590,7 +2854,12 @@ function login() {
                 isLoggedInStatus = false;
                 return resolve(false);  // reject 대신 resolve
             }
-
+            //
+            if (is_subscribed != 'active') {
+                alert('구독승인 후 사용바랍니다.');
+                isLoggedInStatus = false;
+                return resolve(false);  // reject 대신 resolve
+            }
             //==========================
             // 회원가입자(토큰이용) 구독여부 체크
             $.ajax({

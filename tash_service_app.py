@@ -11,29 +11,36 @@
 # --bind → 접속 포트 지정
 #
 import os
-import json
 import time
-
 import requests
 import secrets
+import gzip
+import json
 
 from cryptography.fernet import Fernet
 from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, send_file
 from flask_cors import CORS
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from io import BytesIO
 
 # 상가및 아파트 크롤링데이타(예전PC)
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
+from license.make_license import generate_fixed_key
+from master.user_hist_db_utils import add_subscription_hist, user_hist_read_db, count_user_trial_hist_db
 from sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
 #
 # 상가및 아파트 크롤링데이타(신규서버)
-from crawling.apt_mobile_db_utils import apt_read_db as apt_mobile_read_db, get_jeonse_min_max as get_jeonse_min_max_mobile
-from crawling.sanga_mobile_db_utils import sanga_read_db as sanga_mobile_read_db
+from crawling.apt_mobile_db_utils import apt_read_db as apt_mobile_read_db, \
+    get_jeonse_min_max as get_jeonse_min_max_mobile, apt_delete_by_lawdCd_umdNm, \
+    apt_insert_single as apt_mobile_insert_single, convert_item_to_apt_entry
+from crawling.sanga_mobile_db_utils import sanga_read_db as sanga_mobile_read_db, sanga_delete_by_lawdCd_umdNm, \
+    convert_item_to_sanga_entry, sanga_insert_single as sanga_mobile_insert_single
+#
 from crawling.crawl_lawd_codes_db_utils import search_crawl_lawd_codes, insert_crawl_lawd_code, \
-    delete_crawl_lawd_code_by_id, get_crawl_lawd_code_by_cd_type, update_batch_cycle_by_trade_type
+    delete_crawl_lawd_code_by_id, get_crawl_lawd_code_by_cd_type, update_batch_cycle_by_trade_type, \
+    acquire_crawl_lock_sqlite, release_crawl_lock_sqlite
 from crawling.lawd_code_db_utils import search_lawd_by_name
 #
 from jumpo.jumpo_db_utils import jumpo_read_info_list_db
@@ -373,7 +380,7 @@ def api_me(user_id):
     subscription_status = rows[0].get("subscription_status", 'cancelled') if rows else 'cancelled'
     is_subscribed = subscription_status
     if subscription_status == 'active' or subscription_status == 'request':
-        #is_subscribed = "active"
+        #
         subscription_start_date = rows[0].get("subscription_start_date", "")
         subscription_end_date = rows[0].get("subscription_end_date", "")
         plan_name = f"{rows[0].get('subscription_month', 1)}개월"
@@ -383,15 +390,24 @@ def api_me(user_id):
         try:
             start_date = datetime.strptime(subscription_start_date, fmt).date()
             end_date = datetime.strptime(subscription_end_date, fmt).date()
+            today = date.today()
 
-            # 남은 날짜 계산
-            remaining_days = (end_date - start_date).days
-            if remaining_days < 0:
-                remaining_days = 0
+            # ✅ [추가] 이미 만료된 경우 → 강제 미구독 처리
+            if end_date < today:
+                is_subscribed = "cancelled"
+                plan_name = "미구독"
+                plan_date = "0일"
+            else:
+                # 남은 날짜 계산 (오늘 기준)
+                remaining_days = (end_date - today).days
+                if remaining_days < 0:
+                    remaining_days = 0
+                plan_date = f"{remaining_days}일남음"
 
-            plan_date = f"{remaining_days}일남음"
         except Exception as e:
             # 날짜 파싱 실패 시 기본값
+            is_subscribed = "cancelled"
+            plan_name = "미구독"
             plan_date = "0일남음"
     else:
         plan_name = "미구독"
@@ -473,7 +489,6 @@ def ext_tool_menu(user_id):
     if menu == 'recharge':
         return render_template("extool_user_recharge.html")
 
-
 #===== 사용자(회원) 데이타 처리 =============
 @app.route('/api/user/register', methods=['GET'])
 def user_register_form():
@@ -487,6 +502,19 @@ def user_subscribe_auth(user_id):
     data = request.get_json()
     phone_number = data.get("phoneNumber")
     auth_number = data.get("authNumber")
+    # "0": 1주(체험용), "1": 1개월, "6": 6개월, "12": 1년
+    subscription_month = data.get("plan")
+    # 체험관련 2번신청을 막기
+    # ✅ [ADD] 체험(0) 재신청 차단 (구독신청 '전에' 1차 처리)
+    plan_int = int(subscription_month)
+    if plan_int == 0:
+        trial_cnt = count_user_trial_hist_db(user_id)
+        # "2번 신청"을 막는 의미라면 보통 1회라도 있으면 차단입니다.
+        if trial_cnt >= 1:
+            return jsonify({
+                "result": "Fail",
+                "message": "체험은 한번 이상 할 수 없습니다."
+            }), 409
 
     # 메니저에게 카톡으로 구독처리여부 SMS 전송요망
     to = phone_number
@@ -499,6 +527,7 @@ def user_subscribe_auth(user_id):
     else:
         return jsonify({"result": "Fail", "message": "인증번호 발송에 실패하였습니다."}), 500
 
+
 # 사용자 구독정보 저장(구독시작일, 종료일, 구독상태 등)
 @app.route('/api/user/subscribe', methods=['POST'])
 @kakao_extool_auth_required
@@ -506,9 +535,22 @@ def user_subscribe(user_id):
     data = request.get_json()
     # #print(f"🔍data: {data}")
     print(f"user_subscribe user_id: {user_id}")
+    # "0": 1주(체험용), "1": 1개월, "6": 6개월, "12": 1년
     subscription_month = data.get("plan")
     phone_number = data.get("phoneNumber") or ''
     print("📋 subscription_month:", subscription_month, "phone_number:", phone_number)
+
+    # # 체험관련 2번신청을 막기
+    # # ✅ [ADD] 체험(0) 재신청 차단 (구독신청 '전에' 1차 처리)
+    # plan_int = int(subscription_month)
+    # if plan_int == 0:
+    #     trial_cnt = count_user_trial_hist_db(user_id)
+    #     # "2번 신청"을 막는 의미라면 보통 1회라도 있으면 차단입니다.
+    #     if trial_cnt >= 1:
+    #         return jsonify({
+    #             "result": "Fail",
+    #             "message": "체험은 한번 이상 할 수 없습니다."
+    #         }), 409
 
     # =========================
     # 시작일: 오늘 일시 (YYYY-MM-DD HH:MM:SS)
@@ -525,9 +567,9 @@ def user_subscribe(user_id):
     # 구독 종료일 계산
     # =========================
     if months == 0:
-        # 🔹 체험용: 2주
-        subscription_end_date = subscription_start_date + timedelta(days=14)
-        plan_text = "2주간(체험용)"
+        # 🔹 체험용: 1주
+        subscription_end_date = subscription_start_date + timedelta(days=7)
+        plan_text = "1주간(체험용)"
     else:
         subscription_end_date = subscription_start_date + relativedelta(months=months)
         plan_text = f"{months}개월"
@@ -590,7 +632,7 @@ def user_subscribe_approval():
     approval_status = data.get("subscribe_status", "cancelled")  # Y/N
     subscription_month = data.get("subscription_month", 1)
     #
-    # "0m": "2주간(체험용)", "1m": "1개월(10만원)", "6m": "6개월(7만원)", "12m": "1년(10만원)"
+    # "0m": "1주간(체험용)", "1m": "1개월(10만원)", "6m": "6개월(7만원)", "12m": "1년(5만원)"
     print("📋 user_id:", user_id, "approval:", approval_status, "subscription_month:", subscription_month)
 
     # if approval != "Y":
@@ -623,9 +665,9 @@ def user_subscribe_approval():
         except (TypeError, ValueError):
             months = 1
 
-        # 🔹 체험용 (0개월 → 2주)
+        # 🔹 체험용 (0개월 → 1주)
         if months == 0:
-            subscription_end_date = subscription_start_date + timedelta(days=14)
+            subscription_end_date = subscription_start_date + timedelta(days=7)
         else:
             subscription_end_date = subscription_start_date + relativedelta(months=months)
 
@@ -636,6 +678,29 @@ def user_subscribe_approval():
     # DB 업데이트
     # =========================
     user_update_exist_record(update_payload)
+
+    #==========================
+    # 구독관련 이력처리
+    #==========================
+    userInfo = user_read_db(user_id)
+    user_name = userInfo[0].get("user_name")
+    months = userInfo[0].get("subscription_month", 1)
+    start_date = userInfo[0].get("subscription_start_date")
+    end_date = userInfo[0].get("subscription_end_date")
+    amount = userInfo[0].get("subscription_payment")
+    status = userInfo[0].get("subscription_status")
+
+    # 구독관련 이력 처리
+    add_subscription_hist(
+        user_id,
+        months,
+        amount,
+        status,
+        None,
+        start_date,
+        end_date,
+        "관리자 구독승인 처리"
+    )
 
     return jsonify({"success": "구독승인되었습니다."}), 200
 
@@ -737,6 +802,7 @@ def user_recharge_approval():
 
     return jsonify({"success": "충전승인되었습니다."}), 200
 
+
 #============== 확장툴 마이페이지 ====================
 # 마이페이지 회원정보 조회
 @app.route('/api/user/mypage/member', methods=['POST'])
@@ -780,6 +846,18 @@ def user_member(user_id):
         data["subscription_status"] = "—"
 
     return jsonify(data)
+
+# 마이페이지 회원이력정보 조회
+@app.route('/api/user/mypage/user_hist', methods=['POST'])
+@kakao_extool_auth_required
+def user_hist(user_id):
+    # user_id는 데코레이터에서 추출되어 주입됨
+    print(f"user_hist user_id: {user_id}")
+
+    user_hist_info = user_hist_read_db(user_id)
+    print(user_hist_info)
+
+    return jsonify(user_hist_info)
 
 #==========================================================
 # 사용자 아이디 중복체크
@@ -984,10 +1062,13 @@ def get_apt_land_data():
     #
     apt_nm = request.args.get('apt_nm', '')  # 단지명(선택)
 
-    print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
+    # 검색년수
+    years_count = request.args.get('years_count', 2)
+
+    print(f"🔍get_apt_land_data 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}, 검색기간(년): {years_count}")
 
     print("\n########## 아파트 ##########")
-    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm, verify=False)
+    all_items = run_apt(lawd_cd, lawd_nm, umd_nm, apt_nm, years_count, verify=False)
     #
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = apt_items_to_json(all_items, lawd_cd)
@@ -1115,11 +1196,13 @@ def get_villa_land_data():
     lawd_nm = res["lawd_name"]  # 서울특별시 종로구
     #lawd_nm = request.args.get('lawd_nm', '서울시')
     umd_nm = request.args.get('umd_nm', '창신동')
+    # 검색년수
+    years_count = request.args.get('years_count', 2)
 
-    print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
+    print(f"🔍get_villa_land_data 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}, 검색기간(년): {years_count}")
 
     print("\n########## 빌라(연립/다세대) ##########")
-    all_items = run_villa(lawd_cd, lawd_nm, umd_nm, verify=False)
+    all_items = run_villa(lawd_cd, lawd_nm, umd_nm, years_count, verify=False)
     #
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = villa_items_to_json(all_items, lawd_cd)
@@ -1157,17 +1240,15 @@ def get_sanga_land_data():
     lawd_cd = request.args.get('lawd_cd', '11110')
     # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
     res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
-    lawd_nm = res["lawd_name"]  # 서울특별시 종로구
-    #lawd_nm = request.args.get('lawd_nm', '서울시')
-    umd_nm = request.args.get('umd_nm', '창신동')
+    lawd_nm = res["lawd_name"]  # 경기도 김포시, 서울시 종로구
+    umd_nm = request.args.get('umd_nm', '운양동')
+    # 검색년수
+    years_count = request.args.get('years_count', 2)
 
-    print(f"🔍 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}")
-
-    # # 1) DB 초기화(테이블 생성)
-    # init_sanga_db()
+    print(f"🔍get_sanga_land_data 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}, 읍면동명: {umd_nm}, 검색기간(년): {years_count}")
 
     print("\n########## SANGA (비주거) ##########")
-    all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, verify=False)
+    all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, years_count, verify=False)
     #
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = sanga_items_to_json(all_items, lawd_cd)
@@ -1212,15 +1293,13 @@ def get_auction_data():
     # SQLite DB(auction_data.db)를 참조하여 데이터 읽기
     lawdCd = request.args.get('lawdCd', '')
     umdNm = request.args.get('umdNm', '')
-    year_range = request.args.get('yearRange', '')
+    # 검색년수(year_count, year_range)
+    year_range = request.args.get('yearRange', '3')  # 기본 3년
     # 차후 NPL에서 호출방식과  상가검색및 확장상가 검색에서 호출하는 방식 재조정 요망(상업용외,  그냥 근린상가와 근린생활시설 만 경우)
     main_category = request.args.get('mainCategory', '')
     #category = request.args.get('category')
     dangiName = request.args.get('dangiName', '')
-
-    # print(
-    #     f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}")
-
+    #
     categories = []
     if main_category != '':
         if (main_category == "근린상가"):
@@ -1229,7 +1308,7 @@ def get_auction_data():
         else:
             categories = category_mappings[main_category]
 
-    print(f"DB - 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
+    print(f"==get_auction_data() 법정동코드: {lawdCd}, 법정동명: {umdNm}, 단지명: {dangiName}, 매각 년치: {year_range}, 메인 카테고리: {main_category}, 필터 카테고리: {categories}")
 
     # 데이타 가져오기
     data = auction_read_db(lawdCd, umdNm, year_range, categories, dangiName)
@@ -1363,7 +1442,7 @@ def ext_tool(user_id):
     # 시도 매핑 딕셔너리
     region_map = {
         "서울시": "서울특별시",
-        "부산시": "부산특별시",
+        "부산시": "부산광역시",
         "대구시": "대구광역시",
         "인천시": "인천광역시",
         "광주시": "광주광역시",
@@ -1392,8 +1471,7 @@ def ext_tool(user_id):
 
     # 법정동코드.txt를 읽음.. 차후 redis 메모리DB이용
     law_cd = extract_law_codes(region, sigungu, umdNm)
-    print(regions, aptNm)
-    print(lawName, law_cd)
+    print("regions:", regions, " aptNm:", aptNm, "region: ", region, "lawName:", lawName, " law_cd:", law_cd)
 
     #= 국토부 api_key
     api_key = request.args.get("api_key", "")
@@ -1423,7 +1501,7 @@ def ext_tool(user_id):
         return render_template("realdata_apt.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 아파트 PIR 데이타 검색
     if menu == 'pir_apt':
-        return render_template("pastdata_apt.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
+        return render_template("pastdata_apt.html", law_cd=law_cd, region=region, sigungu=sigungu, umdNm=umdNm, aptNm=aptNm)
     # NPL 경매데이타 검색
     if menu == 'npl_search':
         return render_template("crawling_npl_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm)
@@ -1438,6 +1516,11 @@ def ext_tool(user_id):
     if menu == 'form_down':
         return render_template("form_download.html")
 
+# == 확장프로그램에서 중개사및 대출상담사 메시지팝업처리
+@app.route("/api/ext_tool/realtor_pop", methods=["GET"])
+@kakao_extool_auth_required
+def ext_tool_realtor_pop(user_id):
+    return render_template("crawling_realtor_message_pop.html")
 
 @app.route("/api/ext_tool/map", methods=["GET"])
 def ext_tool_map():
@@ -1988,12 +2071,15 @@ def download_listing_searcher():
 
 # ✅ Fernet 키는 반드시 "urlsafe base64 인코딩된 32바이트" 형식이어야 합니다(운영에서는 환경변수로 넣는걸 권장합니다)
 # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-FERNET_SECRET_KEY = os.environ.get("FERNET_SECRET_KEY", "aRNcrDiyuhYZQ0tMDv-sfRCEHGjoy93zXuGQKTl_kyc=")
+# 랜드코어 고정 키워드(fosemzhdj)
+SECRET_KEYWORD = "fosemzhdj"
 @app.get("/api/download/license-key")
 @kakao_extool_auth_required
 def download_license_key(user_id):
     try:
-        fernet = Fernet(FERNET_SECRET_KEY.encode("utf-8"))
+        # 키함수 생성 => "aRNcrDiyuhYZQ0tMDv-sfRCEHGjoy93zXuGQKTl_kyc=
+        fixed_secret_key = generate_fixed_key(SECRET_KEYWORD)
+        fernet = Fernet(fixed_secret_key.encode("utf-8"))
     except Exception as e:
         return jsonify({"message": f"서버 라이센스 키 설정 오류: {str(e)}"}), 500
 
@@ -2022,6 +2108,7 @@ def download_license_key(user_id):
     except Exception as e:
         return jsonify({"message": f"날짜 정보 형식이 잘못되었습니다: {str(e)}"}), 500
 
+    #=============================
     # ✅ 라이센스 발급 정보 설정
     issued_at = datetime.now(timezone.utc)
     # 만료일은 DB의 종료일(end_str)을 그대로 따르는 것이 정확합니다.
@@ -2052,8 +2139,155 @@ def download_license_key(user_id):
         mimetype="application/octet-stream"
     )
 
+# ===============================
+# 클라이언트 크롤링 데이타 수신후 저장처리
+# ===============================
+def _get_json_maybe_gzip(req) -> dict:
+    raw = req.get_data()
+    if (req.headers.get("Content-Encoding") or "").lower() == "gzip":
+        raw = gzip.decompress(raw)
+    return json.loads(raw.decode("utf-8"))
+
+@app.route("/api/sync/check-lock", methods=["POST"])
+def api_sync_check_lock():
+    data = request.get_json(force=True)
+    sync_id = data.get("sync_id")
+    type_code = (data.get("type") or "").upper()
+    lawd_cd = (data.get("lawdCd") or "")
+
+    #
+    LOCK_TTL_SEC = 3 * 60 * 60  # 3시간 (필요 시 조정)
+
+    print(f"api_sync_check_lock sync_id:{sync_id}, type_code:{type_code}, lawd_cd:{lawd_cd}")
+
+    if not sync_id or not type_code or not lawd_cd:
+        return jsonify({"ok": False, "error": "missing params or lock already held by another sync_id"}), 400
+
+    # 락 획득 시도
+    ok, payload, http_status = acquire_crawl_lock_sqlite(
+        lawd_cd=lawd_cd,
+        trade_type=type_code,
+        sync_id=sync_id,
+        ttl_sec=LOCK_TTL_SEC
+    )
+    print(f"락 획득 결과: ok={ok}, payload={payload}, http_status={http_status}")
+    #return jsonify(payload), http_status
+    return jsonify({"ok": ok, "reason": payload.get("reason", "")})
+
+
+@app.route("/api/sync/upload-items", methods=["POST"])
+def api_sync_upload_items():
+    data = _get_json_maybe_gzip(request)
+
+    sync_id = data.get("sync_id")
+    type_code = (data.get("type") or "").upper()
+    lawd_cd = (data.get("lawdCd") or "")
+    items = data.get("items") or []
+
+    print(f"api_sync_upload_items sync_id:{sync_id}, type_code:{type_code}, lawd_cd:{lawd_cd}, items_count:{len(items)}")
+
+    # # ===============================
+    # # 🔍 수신 items 출력 (디버그용)
+    # # ===============================
+    # print("=" * 80)
+    # # 앞 3건만 상세 출력
+    # for idx, it in enumerate(items[:3], start=1):
+    #     print(f"\n--- item #{idx} ---")
+    #     print(f"article_no   : {it.get('article_no')}")
+    #     print(f"article_name : {it.get('article_name')}")
+    #     print(f"trade_type   : {it.get('trade_type')} ({it.get('trade_name')})")
+    #     print(f"price        : {it.get('price')}")
+    #     print(f"hanPrc       : {it.get('hanPrc')}")
+    #     print(f"rentPrc      : {it.get('rentPrc')}")
+    #     print(f"area2(py)    : {it.get('exclusive_area_pyeong')}")
+    #     print(f"realtor      : {it.get('realtor_name')}")
+    #     print(f"keyword      : {it.get('keyword')}")
+    #
+    # if len(items) > 3:
+    #     print(f"... (총 {len(items)}건 중 앞 3건만 출력)")
+    # print("=" * 80)
+    #
+    # if not sync_id or not type_code or not lawd_cd:
+    #     return jsonify({"ok": False, "error": "missing params"}), 400
+
+    # ===============================
+    # 1) type별 기존 데이터 삭제
+    # ===============================
+    chunk_index = int(data.get("chunk_index") or 1)  # 없으면 1로 간주(하위호환)
+    is_first_chunk = (chunk_index == 1)
+    #
+    lawdCd5 = lawd_cd[:5]
+    umdNm = items[0].get("umdNm", "") if items else ""
+    #
+    deleted = 0
+    if is_first_chunk:
+        if type_code == "APT":
+            deleted = apt_delete_by_lawdCd_umdNm(lawdCd5, umdNm)
+        else:
+            deleted = sanga_delete_by_lawdCd_umdNm(lawdCd5, umdNm)
+    else:
+        # 첫 chunk가 아니면 삭제 스킵
+        print(f"[DELETE-SKIP] chunk_index={chunk_index} lawdCd={lawdCd5} umdNm={umdNm}")
+
+    # ===============================
+    # 2) type별 insert
+    # ===============================
+    inserted_ok = 0
+    inserted_fail = 0
+
+    for it in items:
+        if not isinstance(it, dict):
+            inserted_fail += 1
+            continue
+
+        try:
+            if type_code == "APT":
+                entry = convert_item_to_apt_entry(it, lawdCd5=lawdCd5, umdNm=umdNm)
+                apt_mobile_insert_single(entry)
+            else:
+                entry = convert_item_to_sanga_entry(it, lawdCd5=lawdCd5, umdNm=umdNm)
+                sanga_mobile_insert_single(entry)
+            #
+            inserted_ok += 1
+        except Exception as e:
+            inserted_fail += 1
+            print(f"[INSERT-ERR] type={type_code} article_no={it.get('article_no')} err={e}")
+
+    return jsonify({
+        "ok": True,
+        "type": type_code,
+        "lawdCd": lawdCd5,
+        "umdNm": umdNm,
+        "deleted": deleted,
+        "inserted_ok": inserted_ok,
+        "inserted_fail": inserted_fail
+    }), 200
+
+@app.route("/api/sync/release-lock", methods=["POST"])
+def api_sync_release_lock():
+    data = request.get_json(force=True)
+    sync_id = data.get("sync_id")
+    type_code = (data.get("type") or "").upper()
+    lawd_cd = (data.get("lawdCd") or "")
+
+    print(f"api_sync_release_lock sync_id:{sync_id}, type_code:{type_code}, lawd_cd:{lawd_cd}")
+
+    if not sync_id or not type_code or not lawd_cd:
+        return jsonify({"ok": False, "error": "missing params"}), 400
+
+    # 락 해제 시도
+    ok, payload, http_status =release_crawl_lock_sqlite(
+        lawd_cd=lawd_cd,
+        trade_type=type_code,
+        sync_id=sync_id,
+        final_status=data.get("final_status") or "COMPLETED"
+    )
+    return jsonify({"ok": ok, "reason": payload.get("reason", "")})
+
+
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
     # app.run(host='0.0.0.0', port=8081)
     # app.run(host='localhost', port=8080, debug=True)
     app.run(host='127.0.0.1', port=5000, debug=True)
+    #app.run(host='0.0.0.0', port=5001, debug=True)

@@ -455,6 +455,10 @@
     //
     const validFiles = [];          // 서버전송전 변환파일들
 
+    // 현재 URL 기준으로 파라미터 파싱
+    const urlParams = new URLSearchParams(window.location.search);
+    const access_token = (urlParams.get("tk") || urlParams.get("access_token") || "").trim();
+
     // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
     window.onload = function() {
         var lawName = "{{ lawName }}";
@@ -523,6 +527,23 @@
       });
     }
 
+    // 휴대전화 번호 마스킹 함수
+    function maskMobile(phone) {
+        if (!phone) return '';
+        // 숫자만 추출
+        const num = phone.replace(/[^0-9]/g, '');
+
+        // 휴대폰 번호 유효성 체크
+        if (num.length !== 10 && num.length !== 11) return phone;
+
+        const first = num.slice(0, 3);        // 010
+        const middle = num.slice(3, 7);       // 2300 (고정 4자리)
+        const oneDigit = num.slice(7, 8);     // 0
+        const masked = '***';
+
+        return `${first}-${middle}-${oneDigit}${masked}`;
+    }
+
     function renderTable(data) {
       let sel_type = document.getElementById("sel_type").value; // .value로 값 가져오기
       let tableBody = $('#dataBody');
@@ -532,6 +553,8 @@
         const address = sel_type === 'realtor' ? item.address1 : item.address1 + (address2 ? '-' + address2 : '');
         // 차후검색시 적용할 데이타
         item.address = address;
+        // 보안마스킹.. 그러나 메시지 넘긴후 실제 전송시에는 원본번호로 전송해야 함
+        const maskedMobile = maskMobile(item.mobile_phone);
         tableBody.append(`
           <tr>
             <td class="center-align"><input type="checkbox" class="row-checkbox"></td>
@@ -540,10 +563,12 @@
             <td class="center-align">${item.representative.replace(/\s/g, "")}</td>
             <td class="left-align">${address.length > 25 ? address.substring(0, 25) + '...' : address}</td>
             <td class="center-align">${item.landline_phone}</td>
-            <td class="center-align">${item.mobile_phone}</td>
+            <td class="center-align" data-raw-phone="${item.mobile_phone}">
+                ${maskedMobile}
+            </td>
             <td><button class="map-btn" data-map="${item.address1}">위치</button></td>
           </tr>
-        `);
+        `); // end append
       });
       document.querySelectorAll('.map-btn').forEach(button => {
         button.addEventListener('click', function () {
@@ -727,7 +752,8 @@
           let tds = row.querySelectorAll('td');
           let seq = tds[1].textContent;
           let name = tds[3].textContent;
-          let phone = tds[6].textContent.trim();
+          //let phone = tds[6].textContent.trim();      // ❌ 마스킹된 번호(010-2200-00**)
+          let phone = tds[6].dataset.rawPhone?.trim(); // ✅ 원본 번호(010-2200-0011) 사용
           if (phone.startsWith("010")) {
             selectedItems.push({seq: seq, name: name, phone: phone});
           }
@@ -743,7 +769,14 @@
         var height = 925;
         var left = (window.screen.width - width) / 2;
         var top = (window.screen.height - height) / 2;
-        window.open('/api/menu?menu=realtor_pop', 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
+        // alert(access_token);
+        let realtor_url = '';
+        if (access_token && access_token !== '') {
+          realtor_url = '/api/ext_tool/realtor_pop?tk=' + encodeURIComponent(access_token);
+        } else {
+          realtor_url = '/api/menu?menu=realtor_pop';
+        }
+        window.open(realtor_url, 'msgPopup', 'width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes,left=' + left + ',top=' + top);
       });
 
       // #excel-btn 클릭 시 CSV 생성 및 다운로드 (전화번호 건수 표시 및 줄바꿈 해결)

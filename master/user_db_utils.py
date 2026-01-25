@@ -5,7 +5,7 @@ from typing import Optional, Dict
 from config import MASTER_DB_PATH
 
 # 공통 변수 설정
-DB_FILENAME = os.path.join(MASTER_DB_PATH, "tash_data.db")
+DB_FILENAME = os.path.join(MASTER_DB_PATH, "master_data.db")
 TABLE_NAME = "user_data"
 
 def _now_iso():

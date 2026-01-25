@@ -385,6 +385,7 @@
                 selectedLawdCd = lawCd;
                 selectedUmdNm = umdNm;
                 document.getElementById("locatadd_nm").value = lawName;
+                document.getElementById("locatadd_nm").disabled = true;
                 // 0.5초 후 버튼 클릭 이벤트 강제 실행
                 setTimeout(() => {
                     document.getElementById("search-btn").click();
@@ -694,8 +695,8 @@
                 $('#noData').hide();
                 //$('data-container').hide();
                 const dataContainer = document.getElementById("data-container");
-                dataContainer.innerHTML = "";
-                // dataContainer.innerHTML = `<div class="loading-overlay">실거래 데이터를 불러오는 중입니다...</div>`;
+                //dataContainer.innerHTML = "";
+                dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
                 $('#loading').hide();
 
                 window.allFetchedItems = [];
@@ -2344,7 +2345,7 @@
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">실거래 데이터를 불러오는 중입니다...</div>`;
                 //
-                alert(lawdCd + ',' +  lawdNm + ',' +  umdNm);
+                //alert(lawdCd + ',' +  lawdNm + ',' +  umdNm);
                 $.ajax({
                     url: "/api/sanga/land_data",
                     method: "GET",
@@ -2813,7 +2814,9 @@
             <!-- 평형분석 추가 -->
             <button id="pyeon-btn">평형분석</button>
             <!-- 법정코드관리 버튼 추가 -->
+            <!--
             <button id="admin-btn">법정코드관리</button>
+            -->
         </div>
         <div class="filter-group">
             <label for="trade_type">거래유형:</label>

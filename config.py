@@ -63,3 +63,7 @@ SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
 
 # JWT 서명에 사용할 비밀키
 SECRET_KEY = '7987f7cb05cb1992'
+
+# 위경도 MAP_API_KEY(개발키-2026-07-31만료.. 운영키로 전환
+MAP_API_KEY = "FE0621F8-7474-3AAB-AED8-5300A6B0C7F3"
+VWORLD_URL = "https://api.vworld.kr/req/address"

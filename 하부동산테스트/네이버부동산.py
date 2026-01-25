@@ -30,42 +30,70 @@ headers = {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'same-origin',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'master-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 }
 
-# CSV 파일 설정
 csv_file = 'real_estate_data.csv'
-fieldnames = ['articleNo', 'articleName', 'tradeTypeName', 'dealOrWarrantPrc', 'floorInfo', 'area1', 'area2',
-              'direction', 'articleConfirmYmd', 'articleFeatureDesc']
+fieldnames = [
+    'articleNo', 'articleName', 'tradeTypeName', 'dealOrWarrantPrc',
+    'floorInfo', 'area1', 'area2', 'direction',
+    'articleConfirmYmd', 'articleFeatureDesc'
+]
 
-# CSV 파일 생성 및 데이터 수집
 with open(csv_file, mode='w', encoding='utf-8-sig', newline='') as file:
     writer = csv.DictWriter(file, fieldnames=fieldnames)
     writer.writeheader()
 
-    for page in range(1, 11):  # 1부터 10페이지까지 순회
-        url = f'https://new.land.naver.com/api/articles/complex/111515?realEstateType=APT%3AABYG%3AJGC%3APRE&tradeType=A1&tag=%3A%3A%3A%3A%3A%3A%3A%3A&rentPriceMin=0&rentPriceMax=900000000&priceMin=0&priceMax=900000000&areaMin=0&areaMax=900000000&oldBuildYears&recentlyBuildYears&minHouseHoldCount&maxHouseHoldCount&showArticle=false&sameAddressGroup=false&minMaintenanceCost&maxMaintenanceCost&priceType=RETAIL&directions=&page={page}&complexNo=111515&buildingNos=&areaNos=&type=list&order=prc'
+    for page in range(1, 11):
+        url = (
+            'https://new.land.naver.com/api/articles/complex/111515'
+            '?realEstateType=APT%3AABYG%3AJGC%3APRE&tradeType=A1'
+            '&tag=%3A%3A%3A%3A%3A%3A%3A%3A'
+            '&rentPriceMin=0&rentPriceMax=900000000'
+            '&priceMin=0&priceMax=900000000'
+            '&areaMin=0&areaMax=900000000'
+            '&oldBuildYears&recentlyBuildYears'
+            '&minHouseHoldCount&maxHouseHoldCount'
+            '&showArticle=false&sameAddressGroup=false'
+            '&minMaintenanceCost&maxMaintenanceCost'
+            '&priceType=RETAIL&directions='
+            f'&page={page}&complexNo=111515'
+            '&buildingNos=&areaNos=&type=list&order=prc'
+        )
 
         response = requests.get(url, cookies=cookies, headers=headers)
 
-        # 데이터 확인 및 저장
-        if response.status_code == 200:
+        if response.status_code != 200:
+            print(f"{page}페이지 요청 실패: HTTP {response.status_code}")
+            continue
+
+        # JSON 파싱 시도
+        try:
             data = response.json()
-            for article in data.get('articleList', []):
-                writer.writerow({
-                    'articleNo': article.get('articleNo'),
-                    'articleName': article.get('articleName'),
-                    'tradeTypeName': article.get('tradeTypeName'),
-                    'dealOrWarrantPrc': article.get('dealOrWarrantPrc'),
-                    'floorInfo': article.get('floorInfo'),
-                    'area1': article.get('area1'),
-                    'area2': article.get('area2'),
-                    'direction': article.get('direction'),
-                    'articleConfirmYmd': article.get('articleConfirmYmd'),
-                    'articleFeatureDesc': article.get('articleFeatureDesc'),
-                })
-            print(f"{page}페이지 데이터 저장 완료")
-        else:
-            print(f"{page}페이지 요청 실패: {response.status_code}")
+        except ValueError:
+            print(f"{page}페이지 JSON 파싱 오류, 응답 텍스트:\n{response.text[:200]}...\n")
+            continue
+
+        # articleList가 없으면 스킵
+        articles = data.get('articleList')
+        if not articles:
+            print(f"{page}페이지에 articleList가 비어있거나 없습니다.")
+            continue
+
+        # 정상 데이터 쓰기
+        for article in articles:
+            writer.writerow({
+                'articleNo': article.get('articleNo'),
+                'articleName': article.get('articleName'),
+                'tradeTypeName': article.get('tradeTypeName'),
+                'dealOrWarrantPrc': article.get('dealOrWarrantPrc'),
+                'floorInfo': article.get('floorInfo'),
+                'area1': article.get('area1'),
+                'area2': article.get('area2'),
+                'direction': article.get('direction'),
+                'articleConfirmYmd': article.get('articleConfirmYmd'),
+                'articleFeatureDesc': article.get('articleFeatureDesc'),
+            })
+        print(f"{page}페이지 데이터 저장 완료")
 
 print(f"모든 데이터가 {csv_file} 파일에 저장되었습니다.")

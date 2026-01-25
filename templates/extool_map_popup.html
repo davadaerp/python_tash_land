@@ -375,7 +375,7 @@
                       <th>구분</th>
                       <th>거래일자</th>
                       <th>층</th>
-                      <th class="area-col">평수</th>
+                      <th class="area-col">평수(계약)</th>
                       <th class="price-per">평당가</th>
                       <th style="text-align:right;">금액</th>
                     </tr>
@@ -710,6 +710,7 @@
       if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
     });
 
+    // popup.postMessage(payload, window.location.origin); 데이타 받음
     window.addEventListener('message', function(event) {
       // if (event.origin !== window.location.origin) return;
       const data = event.data;
@@ -719,7 +720,7 @@
         const formatted = data.options.map(opt => {
           const yearText  = opt.year ? `${opt.year}년` : '';
           const floorText = opt.floor || '';
-          const areaText  = opt.area || '';
+          const areaText  = opt.area || '';   // 전용면적
           return `${opt.region}(${[yearText, floorText, areaText].filter(Boolean).join('/')})`;
         }).join(' / ');
         optionDiv.textContent = formatted || '지역';
