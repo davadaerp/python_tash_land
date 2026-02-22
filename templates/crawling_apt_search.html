@@ -720,7 +720,7 @@
                                 dangiName: dangiName
                             },
                             dataType: 'json',
-                            timeout: 5000
+                            timeout: 15000
                         });
                         if (data.length === 0) {
                             $('#noData').show();
@@ -852,12 +852,14 @@
                     //
                     tableBody.append(`<tr data-link="${item.originalIndex}">
                         <td class="center-align">
+                        <!--
                           <img src="${item.fav === 'on' ? '/static/img/star_on.png' : '/static/img/star_off.png'}"
                                class="favorite-star"
                                data-fav="${item.fav === 'on' ? 'on' : 'off'}"
                                data-article-no="${item.article_no}"
                                style="cursor:pointer; width:17px; height:18px;"
                                onclick="toggleFavorite(this)">
+                         -->
                                ${item.confirm_date_str}
                         </td>
                         <!--

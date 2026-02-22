@@ -454,6 +454,46 @@
                 tableRowsHtml += floorRows;
               });
 
+              // --- 추가 부문: 차트 데이터 계산 (innerHTML 방식 적용) ---
+              const areaCounts = { '10': 0, '20': 0, '30': 0, '40': 0, '50': 0, '60': 0, '70': 0, '80': 0, '90': 0, '100+': 0 };
+              filteredItems.forEach(item => {
+                const area = parseFloat(item.exclusive_area_pyeong) || 0;
+                if (area < 20) areaCounts['10']++;
+                else if (area < 30) areaCounts['20']++;
+                else if (area < 40) areaCounts['30']++;
+                else if (area < 50) areaCounts['40']++;
+                else if (area < 60) areaCounts['50']++;
+                else if (area < 70) areaCounts['60']++;
+                else if (area < 80) areaCounts['70']++;
+                else if (area < 90) areaCounts['80']++;
+                else if (area < 100) areaCounts['90']++;
+                else areaCounts['100+']++;
+              });
+
+              const maxVal = Math.max(...Object.values(areaCounts), 1);
+              let chartBarsHtml = "";
+              Object.entries(areaCounts).forEach(([range, count]) => {
+                const h = Math.max((count / maxVal) * 80, 2);
+                const label = range === '100+' ? '100+' : range;
+                chartBarsHtml += `
+                  <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+                    <div style="font-size: 11px; margin-bottom: 4px; font-weight: bold; color: #007bff;">${count > 0 ? count : ''}</div>
+                    <div style="width: 20px; height: ${h}px; background-color: #007bff; opacity: ${count > 0 ? 1 : 0.15}; border-radius: 3px 3px 0 0;"></div>
+                    <div style="font-size: 10px; margin-top: 6px; color: #666; white-space: nowrap;">${label}평</div>
+                  </div>
+                `;
+              });
+
+              const chartSectionHtml = `
+                <div style="margin-top: 25px; padding: 15px; border-top: 1px solid #eee; text-align: center;">
+                  <div style="font-weight: bold; margin-bottom: 15px; color: #333;">📊 면적별 매물 분포 (평수 구간)</div>
+                  <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 120px; padding-top: 20px;">
+                    ${chartBarsHtml}
+                  </div>
+                </div>
+              `;
+              // --- 차트 영역 끝 ---
+
               // 팝업 HTML 구성 (헤더 및 테이블 생성)
               let popupHtml = `
                 <div id="pyengRentPopup" style="
@@ -484,6 +524,7 @@
                       ${tableRowsHtml}
                     </tbody>
                   </table>
+                  ${chartSectionHtml}
                   <button id="pyengRentPopupClose" style="
                       display: block;
                       margin: 10px auto;

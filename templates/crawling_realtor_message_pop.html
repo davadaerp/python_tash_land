@@ -588,6 +588,9 @@
 
     // 실제 전송 (확인)  — 기존 핸들러 전체 교체
     document.getElementById('confirmSend').addEventListener('click', () => {
+        alert('준비중입니다.');
+        return;
+
       // 제목/메시지/파일/대상 체크(미리보기 전에 이미 했겠지만 안전 차원에서 한 번 더)
       const titleEl = document.getElementById('message-title');
       const contentEl = document.getElementById('message-content');

@@ -37,7 +37,10 @@
   .btn-danger{background:var(--danger);color:#fff}
   .btn-ghost{background:#fff;border:1px solid var(--border);color:#333}
   .list-head, .list-row{
-    display:grid;grid-template-columns: 36px 60px 160px 1fr 110px 90px;gap:8px;align-items:center
+      display:grid;
+      grid-template-columns: 30px 40px 100px 250px 80px 90px 80px; /* ✅ 7칸으로 수정 */
+      gap:8px;
+      align-items:center
   }
   .list-head{
     padding:10px;border-bottom:1px solid var(--border);color:#333;font-weight:800;background:#fafbff;border-radius:10px
@@ -116,6 +119,10 @@
       </select>
       <button id="btnBatchCycle" class="btn btn-ghost">주기저장</button>
       <div class="right"></div>
+      <!-- ✅ [ADD] 검색조건에 따른 건수 표시 -->
+      <div id="countInfo" class="muted" style="margin-left:auto; font-weight:800;">
+        건수: 0건
+      </div>
     </div>
 
     <div class="list">
@@ -125,6 +132,7 @@
         <div>법정코드</div>
         <div>법정코드명</div>
         <div>구분</div>
+        <div>최종일자</div>
         <div class="row-actions">삭제</div>
       </div>
       <div id="listBody" class="list-body">
@@ -194,6 +202,9 @@
   const locatadd_nm  = document.getElementById('locatadd_nm'); // 추가
   const btnSave      = document.getElementById('btnSave');
 
+  // ✅ [ADD] 건수 표시 영역
+  const countInfo = document.getElementById('countInfo');
+
   // ===== 상태 =====
   let allItems = [];    // 전체 목록 보관(클라이언트 필터용)
   let currentItems = []; // [{id, lawd_cd, lawd_name, trade_type}]
@@ -235,12 +246,21 @@
     currentItems = items;
     listBody.innerHTML = '';
 
+    // ✅ [ADD] 현재 목록 건수 표시
+    if (countInfo) {
+      const n = (items && items.length) ? items.length : 0;
+      countInfo.textContent = `건수: ${n}건`;
+    }
+
     if (!items || items.length === 0){
       listBody.innerHTML = `<div class="empty">검색 결과가 없습니다.</div>`;
       return;
     }
 
     items.forEach((it, idx) => {
+      // [FIX] batch_end_date → "YYYY-MM-DD HH:mm:ss" → "YYYY-MM-DD"
+      const batch_end_date = String(it.batch_end_date || '');
+      const formattedDate = batch_end_date.length >= 10 ? batch_end_date.slice(0, 10) : batch_end_date;
       const row = document.createElement('div');
       row.className = 'list-row';
       row.innerHTML = `
@@ -253,6 +273,7 @@
             ${it.trade_type==='APT'?'아파트':'상가'}
           </span>
         </div>
+        <div>${formattedDate}</div>
         <div class="row-actions">
           <button class="btn btn-danger btn-del-row"
                   data-id="${String(it.id)}"

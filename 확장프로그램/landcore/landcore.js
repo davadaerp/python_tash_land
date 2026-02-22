@@ -1831,6 +1831,55 @@ function sangaPyeongPopup() {
   table.appendChild(tbody);
   popupDiv.appendChild(table);
 
+  // --- 추가 부문: 평수 분포 차트 영역 ---
+  const chartSection = document.createElement("div");
+  chartSection.style.cssText = "margin-top: 25px; padding: 15px; border-top: 1px solid #eee; text-align: center;";
+
+  const chartTitle = document.createElement("div");
+  chartTitle.style.cssText = "font-weight: bold; margin-bottom: 15px; color: #333;";
+  chartTitle.textContent = "📊 면적별 매물 분포 (평수 구간)";
+  chartSection.appendChild(chartTitle);
+
+  // 차트 데이터 계산 (filteredData 활용)
+  const areaGroups = { '10': 0, '20': 0, '30': 0, '40': 0, '50': 0, '60': 0, '70': 0, '80': 0, '90': 0, '100+': 0 };
+  filteredData.forEach(item => {
+    const area = parseFloat(item["전용면적"]) || 0;
+    if (area < 20) areaGroups['10']++;
+    else if (area < 30) areaGroups['20']++;
+    else if (area < 40) areaGroups['30']++;
+    else if (area < 50) areaGroups['40']++;
+    else if (area < 60) areaGroups['50']++;
+    else if (area < 70) areaGroups['60']++;
+    else if (area < 80) areaGroups['70']++;
+    else if (area < 90) areaGroups['80']++;
+    else if (area < 100) areaGroups['90']++;
+    else areaGroups['100+']++;
+  });
+
+  const maxCount = Math.max(...Object.values(areaGroups), 1);
+  const chartContainer = document.createElement("div");
+  chartContainer.style.cssText = "display: flex; align-items: flex-end; justify-content: space-around; height: 120px; padding-top: 20px;";
+
+  Object.entries(areaGroups).forEach(([range, count]) => {
+    const heightPx = (count / maxCount) * 80;
+    const barHeight = Math.max(heightPx, 2);
+    const label = range === '100+' ? '100+' : range;
+
+    const barWrapper = document.createElement("div");
+    barWrapper.style.cssText = "display: flex; flex-direction: column; align-items: center; flex: 1;";
+
+    barWrapper.innerHTML = `
+      <div style="font-size: 11px; margin-bottom: 4px; font-weight: bold; color: #007bff;">${count > 0 ? count : ''}</div>
+      <div style="width: 25px; height: ${barHeight}px; background-color: #007bff; opacity: ${count > 0 ? 1 : 0.15}; border-radius: 3px 3px 0 0;"></div>
+      <div style="font-size: 10px; margin-top: 6px; color: #666; white-space: nowrap;">${label}평</div>
+    `;
+    chartContainer.appendChild(barWrapper);
+  });
+
+  chartSection.appendChild(chartContainer);
+  popupDiv.appendChild(chartSection);
+  // --- 차트 영역 끝 ---
+
   // 6. 팝업 하단 중앙에 닫기 버튼 생성
   const closeDiv = document.createElement("div");
   closeDiv.style.textAlign = "center";

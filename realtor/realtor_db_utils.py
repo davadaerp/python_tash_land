@@ -17,7 +17,6 @@ CSV_FILENAME = "realtor_data.csv"
 DB_FILENAME = os.path.join(REALTOR_DB_PATH, "realtor_data.db")
 TABLE_NAME = "realtor_data"
 
-
 def realtor_create_table():
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
@@ -214,6 +213,32 @@ def realtor_drop_table():
     conn.close()
     print(f"테이블 '{TABLE_NAME}' 삭제 완료.")
 
+# mobile_phone 기준으로 레코드 존재 여부 확인
+def realtor_exists_by_mobile(mobile_phone: str) -> bool:
+    """
+    mobile_phone 기준으로 레코드 존재 여부를 확인합니다.
+
+    Returns:
+        True  -> 이미 존재
+        False -> 없음
+    """
+    if not mobile_phone:
+        return False
+
+    realtor_create_table()
+
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"SELECT 1 FROM {TABLE_NAME} WHERE mobile_phone = ? LIMIT 1",
+        (mobile_phone,)
+    )
+    exists = cursor.fetchone() is not None
+
+    conn.close()
+    return exists
+
 
 def realtor_read_db(lawdCd="", selType="", searchTitle="", dangiName=""):
     """
@@ -235,7 +260,7 @@ def realtor_read_db(lawdCd="", selType="", searchTitle="", dangiName=""):
     if dangiName:
         query += " AND address2 LIKE ?"
         params.append(f"%{dangiName}%")
-    query += " LIMIT 130"
+    query += " LIMIT 500"
     # lawdCd는 사용하지 않는 예시 조건입니다.
     cur.execute(query, params)
     rows = cur.fetchall()
@@ -258,16 +283,6 @@ def realtor_save_to_csv(data_list):
         for row in data_list:
             writer.writerow(row)
     print(f"CSV 파일 '{CSV_FILENAME}'에 데이터가 저장되었습니다.")
-
-def realtor_read_csv(lawdCd="", umdNm="", dangiName=""):
-    df = pd.read_csv(CSV_FILENAME, dtype=str)
-    df.fillna("", inplace=True)
-    # 예시) umdNm이나 dangiName 필터링 조건을 아래와 같이 적용할 수 있습니다.
-    # if umdNm:
-    #     df = df[df['address1'].str.contains(umdNm, na=False)]
-    # if dangiName:
-    #     df = df[df['address2'].str.contains(dangiName, na=False)]
-    return df.to_dict(orient='records')
 
 
 

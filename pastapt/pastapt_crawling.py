@@ -72,7 +72,7 @@ def login(driver):
         # 로그인 정보 입력
         username_field.clear()
         username_field.send_keys("wfight69")
-        password_field.send_keys("ahdtpddl69")
+        password_field.send_keys("ahdtpddl0")
 
         # 로그인 버튼 클릭
         submit_button = driver.find_element(By.XPATH, "//input[@type='image' and contains(@src, 'btn_login01.gif')]")
@@ -270,11 +270,16 @@ def parse_value(val):
 def parse_detail_market_price_selenium(driver):
 
     try:
+        # 1. 특정 ID 요소가 실제 '화면'에 보일 때까지 대기
         WebDriverWait(driver, 1).until(
             EC.presence_of_element_located((By.ID, "divMarketPriceList"))
         )
+        # 2. 아주 짧은 추가 대기 (JS 렌더링 완성을 위함)
         time.sleep(0.3)  # 약간의 안정성 대기
-        soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        # 3. BeautifulSoup으로 파싱 시점의 소스 캡처
+        html_source = driver.page_source
+        soup = BeautifulSoup(html_source, "html.parser")
 
         # 상세 시세 정보 파싱
         detail_data = []
@@ -330,7 +335,9 @@ def parse_detail_market_price_selenium(driver):
         }
 
     except Exception as e:
-        print(f"[페이지 파싱 오류] {e}")
+        # 에러 발생 시 현재 URL과 에러 메시지 출력
+        print(f"❌ [페이지 파싱 오류] URL: {driver.current_url}")
+        print(f"에러 내용: {str(e)}")
         return None
 
 
@@ -339,6 +346,8 @@ def analyze_from_json(driver):
     try:
         # database & table 생성
         past_apt_create_table()
+
+        print("📂 지역 계층구조 JSON 파일에서 분석 시작...")
 
         filename = "region_hierarchy.json"
         with open(filename, encoding="utf-8-sig") as f:
@@ -458,8 +467,8 @@ def main():
 
     # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--disable-gpu")
     # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
 
     driver = webdriver.Chrome(options=chrome_options)

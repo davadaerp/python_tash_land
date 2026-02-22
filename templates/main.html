@@ -200,7 +200,10 @@
       <a href="#" data-src="/api/menu?menu=npl">NPL</a>
       <a href="#" data-src="/api/menu?menu=past_apt">연복리분석</a>
       <a href="#" data-src="/api/menu?menu=realtor">중개사</a>
+      <!--
       <a href="#" data-src="/api/menu?menu=jumpo">점포</a>
+      -->
+      <a href="#" id="btn-lawd-admin">법정코드관리</a>
     </div>
 
     <!-- 오른쪽 로그아웃 -->
@@ -269,6 +272,30 @@
       userInfoBox.style.display = (hasNickname || hasSms) ? 'flex' : 'none';
     }
 
+    // 법정코드관리 화면메뉴
+    function adminLawdCdsPop() {
+        const width  = 820;
+        const height = 720;
+
+        const left = Math.max(0, (window.screen.width  - width)  / 2);
+        const top  = Math.max(0, (window.screen.height - height) / 2);
+
+        const features = `
+          width=${width},
+          height=${height},
+          left=${left},
+          top=${top},
+          scrollbars=yes,
+          resizable=yes
+        `.replace(/\s+/g, '');
+
+        window.open(
+          '/api/crawl_lawd_codes/admin',
+          '법정코드관리',
+          features
+        );
+    }
+
     // 중앙 메뉴 링크 요소들 (드롭다운 버튼 제외)
     const mainMenuLinks = document.querySelectorAll('.menu-center > a:not(.dropdown a)');
     // 드롭다운 버튼
@@ -283,6 +310,11 @@
     mainMenuLinks.forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
+        if (this.id === 'btn-lawd-admin') {
+          // 법정코드관리 버튼 클릭 시 새 창으로 열기
+          adminLawdCdsPop();
+          return;
+        }
         mainMenuLinks.forEach(item => item.classList.remove('active'));
         dropdownLinks.forEach(item => item.classList.remove('active'));
         dropdown.classList.remove('active');

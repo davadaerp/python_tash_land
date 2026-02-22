@@ -19,7 +19,7 @@ def past_apt_create_table():
     cur.execute(f'''
            CREATE TABLE IF NOT EXISTS {PAST_APT_TABLE} (
                id INTEGER PRIMARY KEY AUTOINCREMENT,
-               stdg_cd TEXT,            # 법정동코드(청주시: 4311000000)
+               stdg_cd TEXT,            -- 법정동코드(청주시: 4311000000)
                region_name TEXT,
                mcode_name TEXT,
                sname TEXT,

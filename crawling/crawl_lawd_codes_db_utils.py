@@ -16,9 +16,16 @@ TABLE_NAME = "crawl_lawd_codes"
 # 공용: DB 커넥션
 # ==========================
 def get_conn(db_path: str = DB_PATH) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
+    # timeout을 30초로 설정하여 DB 잠금 시 대기하도록 함
+    conn = sqlite3.connect(db_path, timeout=30)
+    try:
+        # WAL 모드 설정 시 발생할 수 있는 I/O 에러를 catch
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except sqlite3.OperationalError as e:
+        if "disk I/O error" in str(e):
+            print(f"⚠️ Disk I/O Error 감지: {db_path}. 잠시 후 재시도 권장.")
+        # 에러가 발생해도 커넥션은 유지하거나, 필요 시 다시 생성 로직 추가
     return conn
 
 
@@ -244,7 +251,7 @@ def search_crawl_lawd_codes(
             print("⚠️ 검색 결과가 없습니다.")
             return None
 
-        results = [{"id": r[0], "lawd_cd": r[1], "lawd_name": r[2], "batch_count": r[6], "trade_type": r[7]} for r in rows]
+        results = [{"id": r[0], "lawd_cd": r[1], "lawd_name": r[2], "batch_end_date": r[4], "batch_count": r[6], "trade_type": r[7]} for r in rows]
 
         print(f"\n=== 검색 결과 ({len(results)}건) ===")
         for row in results:

@@ -11,12 +11,14 @@
 # --bind → 접속 포트 지정
 #
 import os
+import threading
 import time
 import requests
 import secrets
 import gzip
 import json
 
+from apscheduler.schedulers.blocking import BlockingScheduler
 from cryptography.fernet import Fernet
 from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, send_file
 from flask_cors import CORS
@@ -239,7 +241,8 @@ def kakao_auth_callback():
 
     # 2) DB에서 user_id로 사용자 조회
     rows = user_read_db(user_id=kakao_id)
-    sms_count = rows[0].get("recharge_sms_count", 0) if rows else 0
+    user_data = rows[0] if rows else {}
+    sms_count = user_data.get("recharge_sms_count", 0) if rows else 0
     if not rows:
         print("user not found. insert new user.")
         user_insert_record({
@@ -264,12 +267,19 @@ def kakao_auth_callback():
             "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         })
 
+    # 구독관련 공통 함수 호출
+    status = get_user_status_info(user_data)
+
     print("== kakao_callback() 사용자 정보:", {
         "kakao_id": kakao_id,
         "email": email,
         "nickname": nickname,
         "profile_img": profile_img,
-        "sms_count": sms_count,
+        "is_subscribed": status['is_subscribed'],
+        "plan_name": status['plan_name'],
+        "plan_date": status['plan_date'],
+        "is_recharged": status['is_recharged'],
+        "sms_count": status['sms_count'],
     })
 
     # 우리 서비스용 JWT 발급(user_id 기반)
@@ -288,6 +298,10 @@ def kakao_auth_callback():
         token: {repr(app_token)},
         nickname: {repr(nickname)},
         sms_count: {sms_count},
+        is_subscribed: {repr( status['is_subscribed'])},
+        plan_name: {repr( status['plan_name'])},  
+        plan_date: {repr( status['plan_date'])},  
+        is_recharged: {repr( status['is_recharged'])},
         apt_key: {repr(APT_KEY)},
         villa_key: {repr(VILLA_KEY)},
         sanga_key: {repr(SANGA_KEY)}
@@ -371,54 +385,19 @@ def api_me(user_id):
         return jsonify({"error": "사용자가 존재하지 않습니다."}), 401
     #print(rows)
     #
-    nick_name = rows[0].get("nick_name")
-    sms_count = rows[0].get("recharge_sms_count", 0) if rows else 0
-    #  구독상태 (active, canceled 등) : 차후 관리자 페이지에서 on/off 처리용
-    plan_name = "0개월"
-    plan_date = '0일남음'
-    # 구독상태 체크(request-요청, active-구독, cancelled-구독취소)
-    subscription_status = rows[0].get("subscription_status", 'cancelled') if rows else 'cancelled'
-    is_subscribed = subscription_status
-    if subscription_status == 'active' or subscription_status == 'request':
-        #
-        subscription_start_date = rows[0].get("subscription_start_date", "")
-        subscription_end_date = rows[0].get("subscription_end_date", "")
-        plan_name = f"{rows[0].get('subscription_month', 1)}개월"
-        #
-        # 날짜 포맷: "2025-09-30 07:54:28"
-        fmt = "%Y-%m-%d %H:%M:%S"
-        try:
-            start_date = datetime.strptime(subscription_start_date, fmt).date()
-            end_date = datetime.strptime(subscription_end_date, fmt).date()
-            today = date.today()
+    user_data = rows[0]
 
-            # ✅ [추가] 이미 만료된 경우 → 강제 미구독 처리
-            if end_date < today:
-                is_subscribed = "cancelled"
-                plan_name = "미구독"
-                plan_date = "0일"
-            else:
-                # 남은 날짜 계산 (오늘 기준)
-                remaining_days = (end_date - today).days
-                if remaining_days < 0:
-                    remaining_days = 0
-                plan_date = f"{remaining_days}일남음"
-
-        except Exception as e:
-            # 날짜 파싱 실패 시 기본값
-            is_subscribed = "cancelled"
-            plan_name = "미구독"
-            plan_date = "0일남음"
-    else:
-        plan_name = "미구독"
-        plan_date = "0일"
+    # 구독관련 공통 함수 호출
+    status = get_user_status_info(user_data)
     #
-    # 문자충전상태 체크
-    is_recharged = rows[0].get("recharge_status", 'active') if rows else 'active'
-    # if is_recharged != 'active':
-    #     sms_count = 0
+    nick_name = status["nick_name"]
+    is_subscribed = status["is_subscribed"]
+    plan_name = status["plan_name"]
+    plan_date = status["plan_date"]
+    is_recharged = status["is_recharged"]
+    sms_count = status["sms_count"]
 
-    print(is_subscribed , plan_name, plan_date, is_recharged, sms_count)
+    print("=== api_me : ", is_subscribed , plan_name, plan_date, is_recharged, sms_count)
 
     return jsonify({
         "nickname": nick_name,
@@ -428,6 +407,58 @@ def api_me(user_id):
         "plan_date": plan_date,
         "sms_count": sms_count, "apt_key": APT_KEY, "villa_key": VILLA_KEY, "sanga_key": SANGA_KEY
     })
+
+# 공통 함수: 사용자 구독 상태 정보 계산(callback, api_me 등에서 사용)
+# DB 레코드를 바탕으로 구독 상태, 플랜명, 남은 날짜, 충전 상태를 계산하는 공통 함수
+def get_user_status_info(user_data: dict):
+    """
+    DB 레코드를 바탕으로 구독 상태, 플랜명, 남은 날짜, 충전 상태를 계산하는 공통 함수
+    """
+    nick_name = user_data["nick_name"]
+    # 문자충전상태 체크, 기본값 설정
+    is_recharged = user_data.get("recharge_status", 'active') if user_data else 'active'
+    sms_count = user_data.get("recharge_sms_count", 0)
+    #
+    subscription_status = user_data.get("subscription_status", 'cancelled')
+    is_subscribed = subscription_status
+    plan_name = "미구독"
+    plan_date = "0일"
+    # 구독 상태가 활성화(active) 또는 요청(request)인 경우 날짜 계산
+    if subscription_status in ['active', 'request']:
+        sub_start = user_data.get("subscription_start_date", "")
+        sub_end = user_data.get("subscription_end_date", "")
+        plan_name = f"{user_data.get('subscription_month', 1)}개월"
+
+        fmt = "%Y-%m-%d %H:%M:%S"
+        try:
+            # 날짜 파싱 및 오늘 날짜 비교
+            end_date_obj = datetime.strptime(sub_end, fmt).date()
+            today = date.today()
+
+            if end_date_obj < today:
+                is_subscribed = "cancelled"
+                plan_name = "미구독"
+                plan_date = "0일"
+            else:
+                remaining_days = (end_date_obj - today).days
+                plan_date = f"{max(0, remaining_days)}일남음"
+
+                # 'request' 상태인 경우 이름 뒤에 표시 (선택 사항)
+                if subscription_status == 'request':
+                    plan_name = f"{plan_name}(요청중)"
+        except Exception:
+            is_subscribed = "cancelled"
+            plan_name = "미구독"
+            plan_date = "0일남음"
+
+    return {
+        "nick_name": nick_name,
+        "is_subscribed": is_subscribed,
+        "plan_name": plan_name,
+        "plan_date": plan_date,
+        "is_recharged": is_recharged,
+        "sms_count": sms_count
+    }
 
 #=====================================================
 # ===== PC접속 메인 페이지 및 메뉴 =========================
@@ -2284,10 +2315,95 @@ def api_sync_release_lock():
     )
     return jsonify({"ok": ok, "reason": payload.get("reason", "")})
 
+# ===============================
+# 자동구독신청 승인 배치처리 (10분마다)
+def auto_approve_subscription_requests():
+    """
+    ✅ 10분마다 실행:
+      - user 테이블에서 subscription_status == 'request' 인 사용자 찾기
+      - 1개월로 active 처리
+      - user_hist 기록도 남김(기존 add_subscription_hist 재사용)
+    """
+    try:
+        # 전체 유저를 가져온 후 request만 필터링 (유저 수가 많으면 DB단 쿼리 함수로 개선 권장)
+        rows = user_read_db(user_id="", userName="", nickName="") or []
+        targets = [u for u in rows if (u.get("subscription_status") == "request")]
+
+        if not targets:
+            print("[AUTO-SUBSCRIBE] no request users")
+            return
+
+        now = datetime.now()
+        for u in targets:
+            user_id = u.get("user_id")
+            user_name = u.get("user_name")
+            #months = u.get("subscription_month", 1)
+            months = 1
+            if not user_id:
+                continue
+
+            # ✅ 1개월 고정
+            start_dt = now
+            end_dt = start_dt + relativedelta(months=months)
+
+            start_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+            end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+            # DB 업데이트
+            user_update_exist_record({
+                "user_id": user_id,
+                "subscription_month": months,
+                "subscription_status": "active",
+                "subscription_start_date": start_str,
+                "subscription_end_date": end_str,
+                "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+            # 구독이력 기록(기존 로직과 동일한 형태로 남김)
+            # amount는 기존 DB 필드가 있으면 가져오고 없으면 None/0 처리
+            amount = u.get("subscription_payment")
+            add_subscription_hist(
+                user_id,
+                months,
+                amount,
+                "active",
+                None,
+                start_str,
+                end_str,
+                "자동배치(10분) 구독요청 승인(1개월 고정)"
+            )
+
+            print(f"[AUTO-SUBSCRIBE] approved user_id={user_id} user_name={user_name} months={months} {start_str}~{end_str}")
+
+    except Exception as e:
+        print(f"[AUTO-SUBSCRIBE][ERROR] {e}")
+
+# 자동구독신청 승인 쓰레드 스케줄러 시작
+def _start_auto_subscribe_scheduler_threaded():
+    scheduler = BlockingScheduler(timezone="Asia/Seoul")
+
+    scheduler.add_job(
+        id="auto_approve_subscription_requests",
+        func=auto_approve_subscription_requests,
+        replace_existing=True,
+        trigger="interval",
+        minutes=5,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=60
+    )
+
+    t = threading.Thread(target=scheduler.start, daemon=True)
+    t.start()
+    print("[AUTO-SUBSCRIBE] BlockingScheduler started in thread")
+
 
 if __name__ == '__main__':
+    # 구독 쓰레드 스케쥴러 시작
+    _start_auto_subscribe_scheduler_threaded()
+
     #app.run(host='0.0.0.0', port=5002)
     # app.run(host='0.0.0.0', port=8081)
     # app.run(host='localhost', port=8080, debug=True)
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=False)
     #app.run(host='0.0.0.0', port=5001, debug=True)

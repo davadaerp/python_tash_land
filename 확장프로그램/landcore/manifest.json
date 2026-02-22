@@ -6,10 +6,12 @@
   "permissions":[
       "activeTab",
       "storage",
-      "history"
+      "history",
+      "sidePanel"
   ],
   "host_permissions": [
-    "https://www.landcore.co.kr/"
+    "https://www.landcore.co.kr/",
+    "https://new.land.naver.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -24,7 +26,9 @@
         "16": "/img/tash_16.png"
     }
   },
-  // 확장 프로그램 관리 페이지(chrome://extensions)에 표시될 아이콘 설정
+  "side_panel": {
+    "default_path": "/sidepanel/panel.html"
+  },
   "icons": {
     "16": "/img/landcore_16.png",
     "48": "/img/landcore_48.png",
@@ -47,7 +51,10 @@
 		"js": [
             "/libs/jquery-3.6.4.min.js",
             "/login/popup_kakao.js",
-			"landcore.js"
+            "/sidepanel/panel.js",
+            "/tools/memo.js",
+			"landcore.js",
+            "landcore_panel.js"
         ],
        "run_at": "document_start",
        "type": "module"

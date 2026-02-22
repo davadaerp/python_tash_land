@@ -1,0 +1,409 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>랜드코어 - 사용가이드</title>
+    <style>
+        :root {
+            --primary-green: #03C75A;
+            --primary-dark: #029443;
+            --text-primary: #222222;
+            --text-secondary: #666666;
+            --bg-surface: #FFFFFF;
+            --bg-subtle: #F8F9FA;
+            --border-color: #E5E5E5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+            background: var(--bg-subtle);
+            color: var(--text-primary);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* 헤더 */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--primary-green);
+            margin-bottom: 12px;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+
+        /* 섹션 */
+        .section {
+            background: var(--bg-surface);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-color);
+        }
+
+        .section h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h2 .emoji {
+            font-size: 24px;
+        }
+
+        .section h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 24px 0 12px;
+        }
+
+        .section p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        /* 스텝 리스트 */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+        }
+
+        .steps li {
+            position: relative;
+            padding-left: 48px;
+            margin-bottom: 20px;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .steps li::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 32px;
+            height: 32px;
+            background: var(--primary-green);
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .steps li strong {
+            color: var(--primary-green);
+        }
+
+        /* 팁 박스 */
+        .tip-box {
+            background: #E8F5E9;
+            border-left: 4px solid var(--primary-green);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+
+        .tip-box p {
+            margin: 0;
+            font-size: 14px;
+            color: #2E7D32;
+        }
+
+        .tip-box strong {
+            color: #1B5E20;
+        }
+
+        /* 경고 박스 */
+        .warning-box {
+            background: #FFF3E0;
+            border-left: 4px solid #FF9800;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+
+        .warning-box p {
+            margin: 0;
+            font-size: 14px;
+            color: #E65100;
+        }
+
+        /* 기능 카드 그리드 */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: var(--bg-subtle);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .feature-card h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* 푸터 */
+        .footer {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .footer a {
+            color: var(--primary-green);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* 키보드 키 스타일 */
+        kbd {
+            background: #EEEEEE;
+            border: 1px solid #CCCCCC;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        /* 이미지 예시 (향후 스크린샷 추가 가능) */
+        .screenshot {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin: 16px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        /* 버전 뱃지 */
+        .version-badge {
+            display: inline-block;
+            background: var(--primary-green);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <h1>📊 랜드코어 <span class="version-badge">사용가이드</span></h1>
+            <p>랜드코어 부동산 투자 분석 도구 사용법을 알아보세요</p>
+        </header>
+
+        <!-- 시작하기 -->
+        <section class="section">
+            <h2><span class="emoji">🚀</span> 시작하기</h2>
+            <p>랜드코어 분석기는 네이버 부동산에서 아파트/빌라/상가 매물을 분석하는 크롬 확장 프로그램입니다.</p>
+
+            <ol class="steps">
+                <li><strong>네이버 부동산</strong> 버튼을 클릭하여 네이버 부동산 상가 페이지로 이동합니다.</li>
+                <li>원하는 지역으로 <strong>지도를 이동</strong>하고, 필터(아파트/빌라/상가/점포, 매매/월세)를 설정합니다.</li>
+                <li>매물 목록을 <strong>직접 스크롤(자동)</strong>하여 원하는 매물들을 화면에 표시합니다.</li>
+                <li>지도상에 동그란 원매물을 클릭하면 <strong>사이드패널</strong>에서 자동으로 인식되어 실시간 분석이 시작됩니다!</li>
+            </ol>
+
+            <div class="tip-box">
+                <p><strong>💡 팁:</strong> 스크롤은 자동으로 이루어지며 많은 매물이 분석됩니다(로딩하면서 분석). 실시간으로 사이드패널에 결과가 업데이트됩니다!</p>
+            </div>
+        </section>
+
+        <!-- 주요 기능 -->
+        <section class="section">
+            <h2><span class="emoji">✨</span> 주요 기능</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>📈 실시간 분석</h4>
+                    <p>지도를 이동하면 자동으로 매물을 분석합니다. 버튼을 누를 필요 없이 실시간 업데이트!</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 평당가 계산</h4>
+                    <p>매매/월세 매물의 평당가를 자동 계산하여 층별로 정리해 보여줍니다.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🏷️ 배지 표시</h4>
+                    <p>매물 목록에 평당가와 평수 배지가 자동으로 표시되어 한눈에 비교 가능!</p>
+                </div>
+                <div class="feature-card">
+                    <h4>💰 수익률 계산기</h4>
+                    <p>매물 상세정보를 자동으로 불러와 수익률을 계산합니다.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 배후분석</h4>
+                    <p>분석하고자 하는 법정동에 대한 배후(세대수/인구/직장등)를 분석합니다.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📍 최저가 매물</h4>
+                    <p>평당가 기준 가장 저렴한 매매 매물 정보를 한눈에 확인!</p>
+                </div>
+                <!--
+                <div class="feature-card">
+                    <h4>📝 매물 메모장</h4>
+                    <p>관심 매물 정보를 저장하고 평당가 자동 계산! 검색/불러오기/삭제 지원</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🏆 부동산 TOP 3</h4>
+                    <p>해당 지역에서 가장 많은 매물을 보유한 중개사를 순위로 보여줍니다.</p>
+                </div>
+                 -->
+            </div>
+        </section>
+
+        <!-- 수익률 계산기 사용법 -->
+        <section class="section">
+            <h2><span class="emoji">💵</span> 수익률 계산기 사용법</h2>
+
+            <ol class="steps">
+                <li>네이버 부동산에서 원하는 <strong>매물을 클릭</strong>하여 상세정보 팝업을 엽니다.</li>
+                <li>사이드패널의 <strong>📊 수익률 계산기</strong> 버튼을 클릭합니다.</li>
+                <li>매매가, 면적, 보증금/월세 정보가 <strong>자동으로 입력</strong>됩니다.</li>
+                <li>추가 비용(취득세, 대출 등)을 입력하고 수익률을 확인하세요!</li>
+            </ol>
+
+            <div class="tip-box">
+                <p><strong>💡 팁:</strong> 매물 상세정보 팝업이 열린 상태에서 계산기 버튼을 눌러야 정보가 자동으로 채워집니다.</p>
+            </div>
+
+            <h3>📄 저장하기</h3>
+            <p>수익률 계산 결과를 이미지 저장하여 보관하거나 공유할 수 있습니다:</p>
+            <ol class="steps">
+                <li>수익률 계산기에서 <strong>💾 저장</strong> 버튼을 클릭합니다.</li>
+                <li><strong>저장</strong> 버튼을 클릭하면 법정동이름으로 이미지 파일이 다운로드됩니다!</li>
+            </ol>
+
+            <div class="tip-box">
+                <p><strong>💡 팁:</strong> 세로 A4 2페이지로 출력됩니다 (1페이지: 분석 결과, 2페이지: 현금흐름표)</p>
+            </div>
+        </section>
+
+        <!-- 매물 메모장 사용법
+        <section class="section">
+            <h2><span class="emoji">📝</span> 매물 메모장 사용법</h2>
+
+            <ol class="steps">
+                <li>네이버 부동산에서 관심 <strong>매물의 상세정보 팝업</strong>을 엽니다.</li>
+                <li>사이드패널의 <strong>📝 매물 메모장</strong> 버튼을 클릭합니다.</li>
+                <li>매물 정보(가격, 면적, 소재지, 중개사 등)가 <strong>자동으로 입력</strong>됩니다.</li>
+                <li>"내 메모" 칸에 메모를 작성하고 <strong>💾 저장</strong> 버튼을 클릭!</li>
+            </ol>
+
+            <div class="tip-box">
+                <p><strong>💡 팁:</strong> 면적은 자동으로 평으로 변환되고, 매매/월세 평당가가 빨간색으로 표시됩니다.</p>
+            </div>
+
+            <h3>🔍 저장된 메모 관리</h3>
+            <p>저장된 메모는 오른쪽 목록에서 관리할 수 있습니다:</p>
+            <ol class="steps">
+                <li><strong>검색:</strong> 가격, 평수, 소재지, 메모 내용으로 검색</li>
+                <li><strong>불러오기:</strong> 저장된 메모 클릭하여 다시 확인</li>
+                <li><strong>삭제:</strong> 개별 메모 삭제 또는 전체 초기화</li>
+            </ol>
+
+            <div class="warning-box">
+                <p><strong>⚠️ 주의:</strong> 메모는 브라우저에 저장됩니다. 확장프로그램을 삭제하면 메모도 함께 삭제됩니다.</p>
+            </div>
+        </section>
+        -->
+
+        <!-- 분석 결과 이해하기 -->
+        <section class="section">
+            <h2><span class="emoji">📖</span> 분석 결과 이해하기</h2>
+
+            <h3>층별 평당가 표</h3>
+            <p>매매와 월세 매물의 평당가를 1층, 2층, 상층(3층 이상), 지하로 구분하여 보여줍니다. 숫자는 <strong>절사평균</strong>(상하위 10% 제외)으로 계산됩니다.</p>
+
+            <h3>평수 분포 차트</h3>
+            <p>월세 매물의 평수 분포를 10평 단위로 시각화합니다. 어떤 크기의 매물이 많은지 한눈에 파악할 수 있습니다.</p>
+
+            <h3>부동산 TOP 3</h3>
+            <p>가장 많은 매물을 보유한 중개사 3곳을 보여줍니다. 월세와 매매 매물 수가 각각 표시됩니다.</p>
+
+            <div class="warning-box">
+                <p><strong>⚠️ 참고:</strong> "중개사 N곳" 형태의 매물은 특정 중개사로 집계되지 않습니다.</p>
+            </div>
+        </section>
+
+        <!-- 법적 안내 -->
+        <section class="section">
+            <h2><span class="emoji">⚖️</span> 법적 안내</h2>
+            <p>랜드코어는 다음 원칙을 준수합니다:</p>
+            <ul style="padding-left: 20px; margin-top: 16px;">
+                <li style="margin-bottom: 8px;"><strong>자동 스크롤 없음</strong> - 사용자가 직접 스크롤한 매물만 분석</li>
+                <li style="margin-bottom: 8px;"><strong>서버 전송 없음</strong> - 모든 데이터는 브라우저 내에서만 처리</li>
+                <li style="margin-bottom: 8px;"><strong>개인정보 수집 없음</strong> - 전화번호 등 개인정보를 수집하지 않음</li>
+                <li style="margin-bottom: 8px;"><strong>읽기 전용</strong> - 네이버 부동산 페이지를 수정하지 않음 (배지 표시 제외)</li>
+            </ul>
+        </section>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+<!--            <p style="margin-top: 8px;">문의: <a href="#">유튜브 채널</a> | <a href="#">오픈채팅방</a></p>-->
+            <p class="copyright">Copyright © 2025 <strong>랜드코어</strong> All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

@@ -88,6 +88,7 @@ if __name__ == "__main__":
     # insert_income_record(2022, 6452108, "근로자가구 소득")
     # insert_income_record(2023, 6804310, "근로자가구 소득")
     # insert_income_record(2024, 7093331, "근로자가구 소득")
+    insert_income_record(2025, 7334500, "근로자가구 소득")
 
     data = fetch_all_income_data()
     for row in data:

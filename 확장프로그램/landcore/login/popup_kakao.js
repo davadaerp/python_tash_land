@@ -1,6 +1,7 @@
 // ====== 공통 ======
 //const SERVER = "http://127.0.0.1:5000";
 const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
+//const SERVER = 'http://127.0.0.1:5000';
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
 const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
 const API_ME_URL = `${SERVER}/api/kakao/me`;
@@ -169,7 +170,7 @@ async function restoreSession() {
 
 // ====== 로그인 버튼 ======
 let loginWin = null;
-function handleLoginMessage(ev) {
+async function handleLoginMessage(ev) {
       // 필요시 출처 체크를 엄격히 적용하세요.
       // if (!ev.origin.startsWith(SERVER)) return;
 
@@ -180,21 +181,24 @@ function handleLoginMessage(ev) {
       const { token, nickname, sms_count, apt_key, villa_key, sanga_key } = data;
 
       // 저장-chrome.storage.local을 Promise로 감싸서 정확히 저장 후 UI 갱신
-      csSet({
+      // 1. 토큰 우선 저장
+      await csSet({
         access_token: token,
         nickname,
         sms_count,
         apt_key,
         villa_key,
         sanga_key
-      }).then(() => {
-
-        // ✨ 현재 팝업 DIV UI 갱신
-        setLoggedInUI({ nickname, sms_count });
-
-        // 안내
-        showToast("로그인 완료");
       });
+
+      // ✨ 현재 팝업 DIV UI 갱신
+      //setLoggedInUI({ nickname, sms_count });
+
+      showToast("카카오 로그인 완료");
+
+      // 2. ✨ 핵심: 로그인 성공 직후 바로 restoreSession을 호출하여
+      // 서버의 최신 구독 상태(api_me)를 가져와 UI를 완벽하게 갱신합니다.
+      await restoreSession();
 
       // 메시지 리스너는 유지해도 무방하지만, 한번만 받도록 제거하고 싶다면 아래 주석 해제
       window.removeEventListener("message", handleLoginMessage);
@@ -233,6 +237,18 @@ btnLogin.addEventListener("click", () => {
       // 메시지 리스너 (한 번만 등록)
       window.removeEventListener("message", handleLoginMessage);
       window.addEventListener("message", handleLoginMessage);
+
+      // 로그인후에 상가페이지로 이동
+      const NAVER_LAND_URL = 'https://new.land.naver.com/offices?a=SG:SMS&b=A1:B2&e=RETAIL&ad=true';
+
+      // 현재 활성화된 탭의 URL을 변경
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+            chrome.tabs.update(tabs[0].id, { url: NAVER_LAND_URL });
+            // 팝업창을 닫고 싶다면 추가
+            // window.close();
+        }
+      });
 });
 
 // ====== 로그아웃 버튼 ======
@@ -367,6 +383,20 @@ btnCharge.addEventListener("click", async () => {
         return;
       }
       pop.focus?.();
+});
+
+
+// popup_kakao.html 내의 사이드패널 관련 특정 버튼 클릭 시
+document.getElementById('btn-panel').addEventListener('click', () => {
+  // 현재 활성화된 탭에 사이드패널 열기 명령 전달
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0];
+    if (currentTab) {
+      chrome.sidePanel.open({ tabId: currentTab.id });
+      // 패널을 열고 나서 팝업창을 닫고 싶다면:
+      // window.close();
+    }
+  });
 });
 
 // ====== 초기 구동 ======

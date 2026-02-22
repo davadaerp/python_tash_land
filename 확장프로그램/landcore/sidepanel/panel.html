@@ -1,0 +1,129 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>랜드코어</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+
+<body>
+  <div class="panel-container">
+    <!-- 헤더 -->
+    <!--
+    <header class="panel-header">
+      <div class="header-content">
+        <div class="header-top-row">
+          <h1 class="logo">부동산 분석기</h1>
+          <div class="header-btn-group">
+            <button id="naver-land-btn" class="naver-land-btn">🏠 네이버부동산</button>
+            <button id="guide-btn" class="guide-btn">📖 사용가이드</button>
+          </div>
+        </div>
+        <p class="subtitle">made by 랜드코어</p>
+        <div class="link-buttons">
+          <a href="#" class="link-btn">홈페이지</a>
+          <a href="#" class="link-btn">유튜브채널</a>
+          <a href="#" class="link-btn">오픈채팅방</a>
+        </div>
+      </div>
+    </header>
+    -->
+    <header class="panel-header">
+      <div class="header-content centered">
+        <div class="header-top-row">
+          <h1 class="logo">랜드코어 분석기</h1>
+          <div class="header-btn-group">
+            <button id="guide-btn" class="guide-btn">📖 사용가이드</button>
+          </div>
+        </div>
+
+        <div class="link-buttons">
+          <a href="#"  id="naver-land-btn" class="link-btn">네이버부동산</a>
+          <a href="https://www.youtube.com/@landcore" target="_blank" class="link-btn">유튜브채널</a>
+          <a href="https://open.kakao.com/o/go3wU1ei" target="_blank" class="link-btn">오픈채팅방</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- 도구 섹션 -->
+    <div class="tools-section">
+      <div class="tools-header">🛠️ 도구</div>
+      <div class="tools-buttons">
+        <button id="real-auction-btn" class="tool-btn">
+          📝 실거래분석
+        </button>
+        <button id="calculator-btn" class="tool-btn">
+          📊 수익률분석
+        </button>
+        <button id="baehu-btn" class="tool-btn">
+          📝 배후분석
+        </button>
+<!--        <button id="memo-btn" class="tool-btn">-->
+<!--          📝 메모-->
+<!--        </button>-->
+      </div>
+    </div>
+
+    <!-- 분석 버튼 영역 -->
+    <div class="action-section">
+      <div class="btn-group">
+        <button id="analyze-btn" class="analyze-btn">
+          매물 분석하기
+        </button>
+        <button id="reset-btn" class="reset-btn" title="초기화">
+          ↺
+        </button>
+      </div>
+      <div id="status-bar" class="status-bar hidden"></div>
+      <div id="analysis-count" class="analysis-count hidden"></div>
+    </div>
+
+    <!-- 결과 테이블 영역 -->
+    <div id="results-container" class="results-container">
+      <!-- 초기 안내 문구 -->
+      <div class="empty-state">
+        <p>💡 모든 매물을 보려면<br><strong>직접 스크롤 후</strong> 분석 버튼을 눌러주세요</p>
+      </div>
+    </div>
+
+    <!-- 엑셀 스타일 테이블 (동적 생성됨) -> results-container 내부에 삽입될 예정 -->
+
+    <!-- 평수 분포 섹션 -->
+    <div class="chart-section">
+      <div class="section-header">
+        <span>✏️ 월세 평수 분포</span>
+      </div>
+      <div id="area-chart" class="area-chart-container">
+        <!-- 차트바 -->
+      </div>
+    </div>
+
+    <!-- 부동산 TOP 3 섹션 -->
+    <div class="top-agencies-section">
+      <div class="section-header">
+        <span>🏆 부동산 TOP 3</span>
+      </div>
+      <div id="top-agencies" class="top-agencies-list">
+        <!-- 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 히스토리 (숨김 처리하거나 하단에 배치) -->
+    <div class="history-section hidden">
+      <div id="history-list"></div>
+    </div>
+
+    <!-- 푸터 -->
+    <footer class="panel-footer">
+      <p class="copyright">Copyright © 2025 <strong>랜드코어</strong> All rights reserved.</p>
+      <p class="legal-note">(DOM 수정 없음 · 서버 저장 없음 · 개인정보 수집 없음)</p>
+    </footer>
+  </div>
+
+  <script src="panel.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,620 @@
+/* landcore - Premium Excel Style */
+
+/* --- 기존 변수 및 공통 스타일 유지 --- */
+:root {
+  --primary-green: #03C75A;
+  --primary-dark: #02b652;
+  --maemae-blue: #326CF9;
+  --maemae-bg: #EBF3FF;
+  --maemae-border: #D2E1FF;
+  --wolse-orange: #FF7E36;
+  --wolse-bg: #FFF4EB;
+  --wolse-border: #FFDCC2;
+  --text-primary: #222222;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --border-color: #ECECEC;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --font-main: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: var(--font-main);
+  background: #FFFFFF;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.panel-container {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Header Section --- */
+.panel-header {
+  margin: -20px -20px 24px -20px;
+  padding: 24px 20px;
+  background: linear-gradient(135deg, #03C75A 0%, #029443 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(3, 199, 90, 0.25);
+}
+
+.header-content.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* 가로 중앙 */
+  text-align: center;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* 로고와 버튼 묶음을 중앙으로 */
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* �ㅼ씠踰꾨��숈궛 諛붾줈媛�湲� 踰꾪듉 */
+.naver-land-btn {
+  background: #FFFFFF;
+  color: var(--primary-green);
+  border: none;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.naver-land-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #F0FFF4;
+}
+
+.naver-land-btn:active {
+  transform: translateY(0);
+}
+
+/* �ㅻ뜑 踰꾪듉 洹몃９ */
+.header-btn-group {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* �ъ슜媛��대뱶 踰꾪듉 */
+.guide-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.guide-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+/* .logo::after removed as per user request */
+
+.subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 12px 0;
+}
+
+.link-buttons {
+  display: flex;
+  justify-content: center; /* 링크 버튼 중앙 정렬 */
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.link-btn {
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-green);
+  background: #FFFFFF;
+  padding: 6px 14px;
+  border-radius: 20px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.link-btn:hover {
+  transform: translateY(-2px);
+  background: #F0FFF4;
+}
+
+.link-btn:active {
+  transform: translateY(0);
+}
+
+/* --- Tools Section --- */
+.tools-section {
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.tools-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.tools-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center; /* 도구 버튼도 정돈되게 중앙/좌측 선택 가능 */
+}
+
+.tool-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 1; /* 동일 너비 부여 */
+  max-width: 120px;
+}
+
+.tool-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.tool-btn:active {
+  transform: translateY(0);
+}
+
+/* --- Action Section --- */
+.action-section {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.analyze-btn {
+  background: #222222;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFFFFF;
+  cursor: pointer;
+  flex: 1;
+}
+
+/* Button Group */
+.btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.reset-btn {
+  background: #F0F0F0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reset-btn:hover {
+  background: #E0E0E0;
+  color: #333;
+}
+
+.reset-btn:active {
+  transform: scale(0.95);
+}
+
+.analyze-btn:hover {
+  background: #000000;
+  transform: translateY(-1px);
+}
+
+.analyze-btn:active {
+  transform: translateY(1px);
+}
+
+.analyze-btn:disabled {
+  background: #E0E0E0;
+  color: #999;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Analysis Count Message */
+.analysis-count {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  padding: 4px 0;
+}
+
+.status-bar {
+  display: none !important;
+}
+
+/* --- Results Table --- */
+.results-container {
+  margin-bottom: 24px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.excel-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.excel-table th,
+.excel-table td {
+  padding: 10px 4px;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.excel-table tr:last-child td {
+  border-bottom: none;
+}
+
+.excel-table td:last-child {
+  border-right: none;
+}
+
+/* Row Headers */
+.row-header {
+  font-weight: 800;
+  font-size: 13px;
+  width: 52px;
+  background: #FAFAFA;
+}
+
+.row-maemae .row-header {
+  color: var(--maemae-blue);
+  background: var(--maemae-bg);
+  border-bottom: 1px solid var(--maemae-border);
+}
+
+.row-wolse .row-header {
+  color: var(--wolse-orange);
+  background: var(--wolse-bg);
+}
+
+/* Data Cells */
+.data-cell {
+  background: #FFFFFF;
+  transition: background 0.2s;
+}
+
+.data-cell:hover {
+  background: #FAFAFA;
+}
+
+.cell-header {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.cell-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+/* Table Footer Note */
+.table-note {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 10px;
+  color: var(--text-muted);
+}
+
+/* --- Cheapest Listing Section --- */
+.cheapest-section {
+  margin-top: 16px;
+  background: #FFFFFF;
+  border: 1px solid var(--maemae-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.cheapest-header {
+  background: var(--maemae-bg);
+  color: var(--maemae-blue);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--maemae-border);
+}
+
+.cheapest-details {
+  padding: 12px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed #EEEEEE;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.detail-value.highlight {
+  color: var(--maemae-blue);
+  font-size: 14px;
+}
+
+/* --- Chart Section --- */
+.chart-section {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.section-header {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.area-chart-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 120px;
+  padding: 0 4px;
+}
+
+.chart-bar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.bar-count {
+  font-size: 10px;
+  color: var(--primary-green);
+  font-weight: 700;
+  margin-bottom: 4px;
+  opacity: 0;
+  transform: translateY(5px);
+  animation: slideUp 0.3s forwards;
+}
+
+@keyframes slideUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bar {
+  width: 14px;
+  background: #E8F5E9;
+  /* Light Green */
+  border-radius: 6px;
+  min-height: 4px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0%;
+  background: var(--primary-green);
+  transition: height 1s ease-out;
+  border-radius: 6px;
+}
+
+/* JS will set height of ::after or direct style, using simpler approach here */
+.bar.filled {
+  background: var(--primary-green);
+}
+
+.bar:hover {
+  background: var(--primary-dark);
+  transform: scaleY(1.05);
+}
+
+.bar-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+/* --- Top Agencies Section --- */
+.top-agencies-section {
+  margin-top: 16px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.top-agencies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agency-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #F8F9FA;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.agency-item:hover {
+  background: #EEEEEE;
+}
+
+.agency-rank {
+  font-size: 16px;
+}
+
+.agency-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agency-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-green);
+  background: #E8F5E9;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.empty-hint {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- Footer --- */
+.panel-footer {
+  margin-top: 40px;
+  padding: 20px 0;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.legal-note {
+  font-size: 10px;
+  color: #999999;
+  margin-bottom: 5px;
+}
+
+.copyright {
+  font-size: 11px;
+  color: #666666;
+  margin: 0;
+}
+
+.copyright strong {
+  color: var(--primary-green);
+}
+
+/* Utils */
+.hidden {
+  display: none !important;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  background: #F9FAFB;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  font-size: 13px;
+}

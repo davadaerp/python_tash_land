@@ -700,7 +700,7 @@
            send_message += "7.주차: 1대무료\n";
            send_message += "8.관리비: 5만원\n";
            send_message += "9.금액: 2.5억\n";
-           send_message += "10.번호: 010-2270-9085\n";
+           send_message += "10.번호: 010-2200-90**\n";
            send_message += "11.비고: 지하철5분거리, 초.중.고 2개존재함.";
            document.getElementById('message-title').value = "주택매매 의뢰";
            document.getElementById('message-content').value = send_message;
@@ -713,7 +713,7 @@
            send_message += "6.주차: 1대무료(총50대),고객 2시간무료\n";
            send_message += "6.관리비: 전용 1만원\n";
            send_message += "7.금액: 3.5억\n";
-           send_message += "8.번호: 010-2270-9085\n";
+           send_message += "8.번호: 010-2200-90**\n";
            send_message += "9.비고: 에어컨및 데코타일";
            document.getElementById('message-title').value = "상가임대(매매)의뢰";
            document.getElementById('message-content').value = send_message;
@@ -813,7 +813,8 @@
               var rep = $(tds[3]).text();
               var addr = $(tds[4]).text();
               var phone = $(tds[5]).text();
-              var mobile = $(tds[6]).text().trim();
+              //var mobile = $(tds[6]).text().trim();
+              var mobile = tds[6].dataset.rawPhone?.trim(); // ✅ 원본 번호(010-2200-0011) 사용
 
               if(mobile.startsWith("010")) {
                   phoneList.push(mobile);
