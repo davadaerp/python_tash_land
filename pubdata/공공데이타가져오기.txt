@@ -33,14 +33,20 @@
    - 방식3: 행자부접속 - https://jumin.mois.go.kr/index.jsp#
     : 엑셀자료다운후 처리
 
-5. 국토부 지도(지오코더이용)
+ 5. 상가관련 상권정보 가져오기(소상공인시장진흥공단_상가(상권)정보_API - 2026-03-22 ~ 2028-03-22)
+    1. api이용한 가져오기
+    : https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInDong => 행정동 단위 상가업소 조회
+    : 인증키 -> B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA==
+    2. csv 파일 다운로드후 업로드처리
+      : 소상공인시장진흥공당_상가(상권정보) 파일데이타 이용
+
+6. 국토부 지도(지오코더이용)
    - 국토교통부 디지털트윈국토 사이트에서 인증키를 발급받아야 함
      : https://www.vworld.kr/dev/v4dv_geocoderguide2_s001.do
    - 간편인증, 개발키 받음.(MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F")
      : https://api.vworld.kr/req/address
    - 요청URL을 전송하면 지오코딩 서비스를 사용하실 수 있으며 일일 지오코딩 요청건수는 최대 40,000건 입니다.
 
-
- 6. 위 데이타를 가져오기위한 공공라이브러리 존재함 => 작동안됨 ㅠ.ㅠ
+ 7. 위 데이타를 가져오기위한 공공라이브러리 존재함 => 작동안됨 ㅠ.ㅠ
    - https://github.com/WooilJeong/PublicDataReader
     : pip install PublicDataReader --upgrade

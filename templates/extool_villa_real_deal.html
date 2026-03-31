@@ -221,6 +221,9 @@
         window.currentDealFilteredItems = [];
         window.currentAuctionFetchedItems = [];
 
+        // 토큰
+        const access_token = "{{ access_token }}";
+
         // 상가,아파트,빌라키 처리
         let existingKey = null;
 
@@ -306,6 +309,41 @@
                 if (newTab) {
                     newTab.focus();
                 }
+            }
+
+            // 2. 통계분석 전용 함수 호출 (유형은 'deal' 또는 'stat'으로 지정)
+            function openStatisticsPopup() {
+                // 1. 공통 지역 선택 정보 가져오기
+                //const regions = `경기도,김포시,운양동`;
+                const regions = `{{region}},{{sigungu}},{{umdNm}}`;
+
+                //alert(regions);
+
+                // 2. 파라미터 구성 (기본 정보 + 통계용 플래그)
+                const finalParams = {
+                    menu: 'statistics',        // 메뉴 식별자
+                    type: 'villa',
+                    regions: regions,
+                    tk: access_token || ''      // 기존 키값이 있으면 사용, 없으면 빈 문자열
+                };
+
+                // 3. URL 생성
+                const urlParams = new URLSearchParams(finalParams);
+                const extUrl = `${BASE_URL}/api/trade/statistics?${urlParams.toString()}`;
+
+                // 4. 팝업 창 설정 (제공해주신 규격 참조)
+                const popupWidth = 1390;
+                const popupHeight = 1180;
+                const left = (screen.width - popupWidth) / 2;
+                const top = (screen.height - popupHeight) / 2;
+                const popupName = "statisticsAnalysisPopup";
+
+                // 5. 창 열기
+                window.open(
+                    extUrl,
+                    popupName,
+                    `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+                );
             }
 
             // 현재 월세조회및 실거래로 필터되어진 화면에 평수별 그룹을 보여줌..
@@ -635,6 +673,7 @@
 
                 const lawdCd = selectedLawdCd.slice(0,5);
                 const umdNm = selectedUmdNm;
+                const years_count = 3; // 최근 3년치
                 let allItems = [];
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
@@ -642,7 +681,7 @@
                 $.ajax({
                     url: "/api/villa/land_data",
                     method: "GET",
-                    data: { lawd_cd: lawdCd, umd_nm: umdNm },
+                    data: { lawd_cd: lawdCd, umd_nm: umdNm, years_count: years_count },
                     dataType: "json"
                   })
                   .done(function(data) {
@@ -687,8 +726,9 @@
                 //
                 // 10. "통계분석" button click event
                 $("#sum-pyeng-btn").on("click", function () {
-                    //pyengRentRealPopupView(filteredItems, 'deal');
-                    alert('통계분석은 준비중입니다. 다음 업데이트를 기대해주세요!');
+                    // alert('통계분석은 준비중입니다. 다음 업데이트를 기대해주세요!');
+                    // 2. 통계분석 전용 함수 호출 (유형은 'deal' 또는 'stat'으로 지정)
+                    openStatisticsPopup();
                 });
 
                 // 10. "평형분석" button click event
@@ -1393,7 +1433,9 @@
     </h2>
     <!-- 버튼 둘을 감싸는 wrapper 추가 -->
     <div style="display: flex; gap: 8px;">
+        <!--
         <button id="sum-pyeng-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">통계분석</button>
+        -->
         <!-- 평형분석 버튼: Header 오른쪽에 배치 -->
         <button id="real-pyeng-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">평형분석</button>
         <button id="extool-map-btn"
