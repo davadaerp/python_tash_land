@@ -327,40 +327,49 @@ def auction_read_db(lawdCd="", umdNm="", year_range="2", categories=None, dangiN
     conn.close()
     return result
 
+# region과 sigungu_name 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
+# 경기도, 김포시 조건으로 해당 동목록을 가져옴
+def auction_read_by_region(region="", sigungu_name="", categories=None):
+    """
+    region, sigungu_name 및 category(멀티 선택 가능) 조건을 사용하여
+    SQLite DB에서 데이터를 조회합니다.
 
-def auction_save_to_csv(data, filename=CSV_FILENAME):
+    :param categories: ['아파트', '빌라'] 와 같은 형태의 리스트
     """
-    주어진 data (리스트 내의 dict들)를 CSV 파일에 저장하는 함수.
-    :param data: 각 항목이 dict 형태인 데이터 리스트
-    :param filename: 저장할 CSV 파일 이름 (기본값: CSV_FILENAME)
-    """
-    if not data:
-        print("저장할 데이터가 없습니다.")
-        return
-    keys = data[0].keys()
-    with open(filename, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=keys)
-        writer.writeheader()
-        writer.writerows(data)
-    print(f"CSV 파일({filename}) 저장 완료.")
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
+    query = f"SELECT * FROM {TABLE_NAME} WHERE 1=1"
+    params = []
 
-def auction_read_csv(lawdCd="", umdNm="", sale_year="", sale_month="", categories=None, dangiName=""):
-    """
-    CSV 파일(CSV_FILENAME)을 읽어오며, 필터링 조건에 따라 데이터를 반환합니다.
-    """
-    df = pd.read_csv(CSV_FILENAME, dtype=str)
-    df.fillna("", inplace=True)
-    if lawdCd:
-        df = df[df['sigungu_code'].str.contains(lawdCd, na=False)]
-    if umdNm:
-        df = df[df['eub_myeon_dong'].str.contains(umdNm, na=False)]
-    if categories:
-        df = df[df['category'].isin(categories)]
-    if sale_year:
-        df = df[df['sales_date'].str.startswith(sale_year)]
-    if sale_month:
-        df = df[df['sales_date'].str[5:7] == sale_month]
-    if dangiName:
-        df = df[df['dangi_name'].str.contains(dangiName, na=False)]
-    return df.to_dict(orient='records')
+    # 1. region 필터
+    if region:
+        query += " AND region LIKE ?"
+        params.append(f"%{region}%")
+
+    # 2. sigungu_name 필터
+    if sigungu_name:
+        query += " AND sigungu_name LIKE ?"
+        params.append(f"%{sigungu_name}%")
+
+    # 3. category 멀티 필터 처리
+    if categories and isinstance(categories, list):
+        # 리스트 개수만큼 '?' 생성 (예: ?,?,?)
+        placeholders = ', '.join(['?'] * len(categories))
+        query += f" AND category IN ({placeholders})"
+        params.extend(categories)
+
+    # 최신순 정렬
+    query += " ORDER BY sales_date DESC"
+
+    try:
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        result = [dict(row) for row in rows]
+        return result
+    except Exception as e:
+        print(f"조회 중 오류 발생: {e}")
+        return []
+    finally:
+        conn.close()

@@ -31,6 +31,9 @@ from io import BytesIO
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from license.make_license import generate_fixed_key
 from master.user_hist_db_utils import add_subscription_hist, user_hist_read_db, count_user_trial_hist_db
+from pubdata.public_land_commerical_area_info_db_utils import search_by_ldong
+from pubdata.public_land_sanga_db_utils import public_read_sanga_by_region
+from pubdata.public_land_villa_db_utils import public_read_villa_by_region
 from sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
 #
 # 상가및 아파트 크롤링데이타(신규서버)
@@ -49,10 +52,10 @@ from jumpo.jumpo_db_utils import jumpo_read_info_list_db
 from npl.npl_db_utils import npl_read_db, query_npl_region_hierarchy
 from pubdata.public_land_db_search import run_sanga, sanga_items_to_json, run_villa, villa_items_to_json, run_apt, \
     apt_items_to_json
-from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code, get_lawd_by_name
 #from naver.naver_login import naver_authorization, naver_callback
 #
-from auction.auction_db_utils import auction_read_db
+from auction.auction_db_utils import auction_read_db, auction_read_by_region
 from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
     user_delete_record, user_cancel_record, user_update_exist_record
@@ -90,6 +93,27 @@ active_tokens = {}
 APT_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
 VILLA_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
 SANGA_KEY = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
+
+# 시도 매핑 딕셔너리
+region_map = {
+    "서울시": "서울특별시",
+    "부산시": "부산광역시",
+    "대구시": "대구광역시",
+    "인천시": "인천광역시",
+    "광주시": "광주광역시",
+    "대전시": "대전광역시",
+    "세종시": "세종특별자치시",
+    "울산시": "울산광역시",
+    "경기도": "경기도",
+    "강원도": "강원특별자치도",
+    "충청북도": "충청북도",
+    "충청남도": "충청남도",
+    "전라북도": "전라북도",
+    "전라남도": "전라남도",
+    "경상북도": "경상북도",
+    "경상남도": "경상남도",
+    "제주도": "제주특별자치도"
+}
 
 # 아마존 로드발라서 헬스체크처리
 @app.route('/q/health/ready')
@@ -244,8 +268,16 @@ def kakao_auth_callback():
     user_data = rows[0] if rows else {}
     sms_count = user_data.get("recharge_sms_count", 0) if rows else 0
     if not rows:
-        print("user not found. insert new user.")
-        user_insert_record({
+        print("user not found. insert new user. nickname:", nickname)
+
+        # =========================
+        # 신규 가입자 기본 3주 구독 설정
+        # =========================
+        subscription_start_date = datetime.now()
+        subscription_end_date = subscription_start_date + timedelta(days=30)
+
+        # 밑에 구독함수 사용위함 => get_user_status_info()
+        user_data = {
             "user_id": kakao_id,
             "kakao_id": kakao_id,
             "user_name": nickname,
@@ -254,8 +286,17 @@ def kakao_auth_callback():
             "profile_image": profile_img,
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "token_expires_at": str(datetime.utcnow() + timedelta(seconds=expires_in))
-        })
+            "token_expires_at": str(datetime.utcnow() + timedelta(seconds=expires_in)),
+            # 신규 사용자 기본 3주 구독
+            "subscription_start_date": subscription_start_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "subscription_end_date": subscription_end_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "subscription_month": 0,
+            "subscription_status": "active",
+            "recharge_status": "",
+            "recharge_sms_count": 0
+        }
+        # DB 저장
+        user_insert_record(user_data)
     else:
         print("user found. update user info.")
         # 3) DB 저장/갱신 처리 (예: user_update_record 또는 insert)
@@ -1300,6 +1341,83 @@ def update_fav():
 
     return jsonify(result)
 
+
+#===== 소상공인 상권정보 데이타 검색
+@app.route('/api/sanga/commerical_area_info', methods=['GET'])
+#@kakao_extool_auth_required
+def get_commerical_area_info_data():
+
+    # 종로구, 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+    lawd_cd = request.args.get('lawd_cd', '')
+    lawd_name = request.args.get('lawd_name', '')   #경기도 김포시 운양동(4157010300)
+
+    # 2. 앞 5자리 추출 + 00000 (시군구 상위 코드 생성)
+    # [핵심] [:5]는 0번부터 4번 인덱스까지 자르라는 의미입니다.
+    #sigungu_code = lawd_cd[:5] + "00000"  # 결과: 4157000000
+
+    # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
+    # 법정동코드 또는 법정동명 기준 조회 분기 처리
+    if lawd_cd:
+        res = get_lawd_by_code(lawd_cd)
+    elif lawd_name:
+        res = get_lawd_by_name(lawd_name)
+    else:
+        return jsonify({"status": "fail", "message": "lawd_cd 또는 lawd_name 필요"}), 400
+
+    if not res:
+        return jsonify({"status": "fail", "message": "법정동 정보를 찾을 수 없습니다."}), 404
+
+    # 최종 코드/이름 재세팅 (name으로 찾았을 경우 대비)
+    lawd_cd = res["lawd_cd"]
+    lawd_nm = res["lawd_name"] # 경기도 김포시 운양동
+
+    print(f"🔍get_commerical_area_info_data 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}")
+
+    # 3. DB 조회 함수 호출 (이미 JSON 형태의 리스트를 반환함)
+    json_records = search_by_ldong(lawd_cd, limit=5000)
+
+    # =========================
+    # 고정폭 형태로 업종분류만 저장
+    # =========================
+    # txt_file = f"commercial_area_{lawd_cd}.txt"
+    #
+    # # 컬럼 폭 지정
+    # WIDTH_L = 15  # 대분류명
+    # WIDTH_M = 20  # 중분류명
+    # WIDTH_S = 25  # 소분류명
+    #
+    # with open(txt_file, mode="w", encoding="utf-8-sig") as f:
+    #     # 헤더
+    #     header = (
+    #         f"{'indsLclsNm':<{WIDTH_L}} | "
+    #         f"{'indsMclsNm':<{WIDTH_M}} | "
+    #         f"{'indsSclsNm':<{WIDTH_S}}"
+    #     )
+    #     f.write(header + "\n")
+    #     f.write("-" * len(header) + "\n")
+    #
+    #     for r in json_records:
+    #         indsLclsNm = str(r.get("indsLclsNm", "") or "")
+    #         indsMclsNm = str(r.get("indsMclsNm", "") or "")
+    #         indsSclsNm = str(r.get("indsSclsNm", "") or "")
+    #
+    #         line = (
+    #             f"{indsLclsNm:<{WIDTH_L}.{WIDTH_L}} | "
+    #             f"{indsMclsNm:<{WIDTH_M}.{WIDTH_M}} | "
+    #             f"{indsSclsNm:<{WIDTH_S}.{WIDTH_S}}"
+    #         )
+    #         f.write(line + "\n")
+    #
+    # print(f"TXT 저장 완료: {os.path.abspath(txt_file)}")
+
+    # search_by_ldong이 빈 리스트([])를 반환하더라도 jsonify가 안전하게 처리합니다.
+    return jsonify({
+        "status": "success",
+        "total_found": len(json_records),
+        "records": json_records
+    })
+
+
 #===== 경매 데이타 처리 =============
 category_mappings = {
     "아파트": ["아파트"],
@@ -1471,25 +1589,25 @@ def ext_tool(user_id):
     print(menu, user_id)
 
     # 시도 매핑 딕셔너리
-    region_map = {
-        "서울시": "서울특별시",
-        "부산시": "부산광역시",
-        "대구시": "대구광역시",
-        "인천시": "인천광역시",
-        "광주시": "광주광역시",
-        "대전시": "대전광역시",
-        "세종시": "세종특별자치시",
-        "울산시": "울산광역시",
-        "경기도": "경기도",
-        "강원도": "강원특별자치도",
-        "충청북도": "충청북도",
-        "충청남도": "충청남도",
-        "전라북도": "전라북도",
-        "전라남도": "전라남도",
-        "경상북도": "경상북도",
-        "경상남도": "경상남도",
-        "제주도": "제주특별자치도"
-    }
+    # region_map = {
+    #     "서울시": "서울특별시",
+    #     "부산시": "부산광역시",
+    #     "대구시": "대구광역시",
+    #     "인천시": "인천광역시",
+    #     "광주시": "광주광역시",
+    #     "대전시": "대전광역시",
+    #     "세종시": "세종특별자치시",
+    #     "울산시": "울산광역시",
+    #     "경기도": "경기도",
+    #     "강원도": "강원특별자치도",
+    #     "충청북도": "충청북도",
+    #     "충청남도": "충청남도",
+    #     "전라북도": "전라북도",
+    #     "전라남도": "전라남도",
+    #     "경상북도": "경상북도",
+    #     "경상남도": "경상남도",
+    #     "제주도": "제주특별자치도"
+    # }
 
     # "경기도,김포시,구래동"
     regions = request.args.get("regions", "").split(",")
@@ -1508,16 +1626,20 @@ def ext_tool(user_id):
     api_key = request.args.get("api_key", "")
     print('api_key: ' + api_key)
 
+    #= 토큰키
+    access_token = request.args.get("tk", "")
+    print('access_token: ' + access_token)
+
     #===== 확장툴 접근
     # 아파트 국토부 실거래(내부 확장툴 접근)
     if menu == 'apt_real_deal':
         return render_template("extool_apt_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
     # 빌라 국토부 실거래(내부 확장툴 접근)
     if menu == 'villa_real_deal':
-        return render_template("extool_villa_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+        return render_template("extool_villa_real_deal.html", law_cd=law_cd, lawName=lawName, region=region, sigungu=sigungu, umdNm=umdNm, access_token=access_token)
     # 상가 국토부 실거래(내부 확장툴 접근)
     if menu == 'sanga_real_deal':
-        return render_template("extool_sanga_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+        return render_template("extool_sanga_real_deal.html", law_cd=law_cd, lawName=lawName, region=region, sigungu=sigungu, umdNm=umdNm, access_token=access_token)
     # 아파트 네이버 매물 데이타 검색
     if menu == 'apt_search':
         return render_template("crawling_apt_search.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
@@ -1968,6 +2090,168 @@ def get_pastapt_property_download():
 
     # 파일이 존재하면 첨부파일로 전송
     return send_from_directory(LEGAL_DIRECTORY, filename, as_attachment=True)
+
+
+#==================================
+# 확장프로그램에서 실거래 빌라/상가 통계분석자료처리
+@app.route("/api/trade/statistics", methods=["GET"])
+def ext_tool_statistics_pop():
+    # 메뉴유형(menu): villa, sanga
+    menu = request.args.get("menu", "sanga")
+    # 초기 탭유형(type): public, auction
+    type = request.args.get("type", "public")
+
+    # "경기도,김포시,구래동"
+    regions = request.args.get("regions", "").split(",")
+    region = region_map.get(regions[0], regions[0]) if len(regions) > 0 else ""
+    sigungu = regions[1] if len(regions) > 1 else ""
+    umdNm = regions[2] if len(regions) > 2 else ""
+
+    print("=== ext_tool_statistics_pop:", menu, type, region, sigungu, umdNm)
+
+    # ✅ 이제는 공통 탭 메인 html만 호출
+    return render_template(
+        "statistics_trade_main_popup.html",
+        menu=menu,
+        type=type,
+        region=region,
+        sigungu=sigungu,
+        umdNm=umdNm
+    )
+
+@app.route("/templates_proxy/<template_name>", methods=["GET"])
+def templates_proxy(template_name):
+    menu = request.args.get("menu", "sanga")
+    type = request.args.get("type", "public")
+    region = request.args.get("region", "")
+    sigungu = request.args.get("sigungu", "")
+    umdNm = request.args.get("umdNm", "")
+
+    allow_list = {
+        "statistics_villa_public_popup.html",
+        "statistics_villa_auction_popup.html",
+        "statistics_sanga_public_popup.html",
+        "statistics_sanga_auction_popup.html",
+    }
+
+    if template_name not in allow_list:
+        abort(404)
+
+    return render_template(
+        template_name,
+        menu=menu,
+        type=type,
+        region=region,
+        sigungu=sigungu,
+        umdNm=umdNm
+    )
+
+#===================================================
+# 빌라/상가 실거래 통계분석자료처리(경기도-김포시)
+#===================================================
+@app.route("/api/trade/real_statistics", methods=["GET"])
+def get_public_real_statistics():
+    """
+    빌라 실거래 데이터를 기반으로 통계를 조회하는 API
+
+    Query Params:
+        - type: 통계 유형 (예: villa, sanga)
+        - sigungu_name: 시/군/구 (예: 경기도, 김포시)
+        - umd_nm: 읍/면/동 (선택 사항)
+        - house_type: 주택유형 (다중 선택 가능, 예: ?house_type=다세대&house_type=연립)
+    """
+    #
+    type = request.args.get("type", "")  # 통계 유형 (기본값: villa)
+    # 1. 파라미터 추출
+    region_arg = request.args.get("region", "")
+    region = region_map.get(region_arg, region_arg)  # 시/도 매핑 적용
+    #
+    sigungu_name = request.args.get("sigungu_name", "")
+    umd_nm = request.args.get("umd_nm", "")
+    print("===get_public_real_statistics: " + type, region, sigungu_name, umd_nm)
+    #
+    sgg_nm = region + " " + sigungu_name
+    categorys = request.args.getlist("category")  # 여러 개의 house_type 값을 리스트로 가져옴
+
+    # 2. 실거래 조회 함수 호출 (이전에 작성한 read_villa_by_region 사용)
+    if type == "villa":
+        data = public_read_villa_by_region(
+            sgg_nm=sgg_nm,
+            umd_nm=umd_nm,
+            house_types=categorys
+        )
+    else:
+        data = public_read_sanga_by_region(
+            sgg_nm=sgg_nm,
+            umd_nm=umd_nm,
+            building_types=categorys
+        )
+
+    print(json.dumps(data))
+
+    # 3. 결과 반환
+    return jsonify({
+        "status": "success",
+        "search_count": len(data),
+        "results": data
+    })
+
+#===================================================
+# 빌라/상가 경매자료 통계분석자료처리(경기도-김포시)
+#===================================================
+@app.route("/api/trade/auction_statistics", methods=["GET"])
+def get_auction_statistics():
+    """
+    지역(region, sigungu_name) 및 물건종별(category)을 기반으로
+    실거래/경매 통계 데이터를 조회하는 API
+
+    Query Params:
+        - type: 통계 유형 (예: villa, sanga)
+        - region: 시/도 (예: 경기도)
+        - sigungu_name: 시/군/구 (예: 수원시)
+        - category: 물건종별 (다중 선택 가능, 예: ?category=아파트&category=빌라)
+    """
+    # 1. 파라미터 추출
+    type = request.args.get("type", "")  # 통계 유형 (기본값: sanga/villa)
+    #
+    region_arg = request.args.get("region", "")
+    region = region_map.get(region_arg, region_arg)  # 시/도 매핑 적용
+    #
+    sigungu_name = request.args.get("sigungu_name", "")
+    umd_nm = request.args.get("umd_nm", "")
+    print("===get_auction_statistics: " + type, region, sigungu_name, umd_nm)
+
+    # -------------------------------
+    # ✅ category 매핑 처리
+    # -------------------------------
+    category_mappings = {
+        "sanga": ["근린상가", "근린생활시설", "상가주택"],
+        "villa": ["연립주택", "도시형생활주택", "다세대주택", "단독주택", "오피스텔(주거)"]
+    }
+
+    # 1순위: 직접 category 파라미터
+    categories = request.args.getlist("category")
+
+    # 2순위: type 기반 자동 매핑
+    if not categories and type in category_mappings:
+        categories = category_mappings[type]
+
+    # 2. 앞서 만든 DB 조회 함수 호출
+    # (이미 작성한 auction_read_by_region 함수를 사용합니다)
+    data = auction_read_by_region(
+        region=region,
+        sigungu_name=sigungu_name,
+        categories=categories
+    )
+
+    #print(json.dumps(data))
+
+    # 3. 결과 반환
+    return jsonify({
+        "status": "success",
+        "search_count": len(data),
+        "results": data
+    })
 
 
 #===================================================

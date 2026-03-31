@@ -219,9 +219,20 @@
         let sortAuctionBuildNameAscending = false;
         window.currentDealFilteredItems = [];
         window.currentAuctionFetchedItems = [];
+        // 상권정보처리
+        window.currentCommercialAreaItems = [];
+        window.currentCommercialAreaGrouped = [];
+        window.currentCommercialAreaSelectedLcls = "전체";
+        // 상권상세목록 정보
+        window.currentCommercialAreaSelectedMcls = "";
+        window.currentCommercialAreaDetailItems = [];
+        window.currentCommercialAreaDetailSearch = "";
 
         // 상가,아파트,빌라키 처리
         let existingKey = null;
+
+        // 토큰
+        const access_token = "{{ access_token }}";
 
         // 확장(extension)에서 로컬데이타 보내오는 응답을 수신
         window.addEventListener("message", (event) => {
@@ -305,6 +316,604 @@
                 if (newTab) {
                     newTab.focus();
                 }
+            }
+
+            //  통계분석 전용 함수 호출
+            function openStatisticsPopup() {
+                // 1. 공통 지역 선택 정보 가져오기
+                //const regions = `경기도,김포시,운양동`;
+                const regions = `{{region}},{{sigungu}},{{umdNm}}`;
+
+                //alert(regions);
+
+                // 2. 파라미터 구성 (기본 정보 + 통계용 플래그)
+                const finalParams = {
+                    type: 'sanga',
+                    regions: regions,
+                    tk: access_token || ''      // 기존 키값이 있으면 사용, 없으면 빈 문자열
+                };
+
+                // 3. URL 생성
+                const urlParams = new URLSearchParams(finalParams);
+                const extUrl = `${BASE_URL}/api/trade/statistics?${urlParams.toString()}`;
+
+                // 4. 팝업 창 설정 (제공해주신 규격 참조)
+                const popupWidth = 1390;
+                const popupHeight = 1180;
+                const left = (screen.width - popupWidth) / 2;
+                const top = (screen.height - popupHeight) / 2;
+                const popupName = "statisticsAnalysisPopup";
+
+                // 5. 창 열기
+                window.open(
+                    extUrl,
+                    popupName,
+                    `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+                );
+            }
+
+            // 상권정보 API 백그라운드 호출
+            function fetchCommercialAreaInfo() {
+                const lawdCd = selectedLawdCd || "";
+
+                if (!lawdCd) {
+                    console.warn("법정동코드가 없어 상권정보 조회를 건너뜁니다.");
+                    window.currentCommercialAreaItems = [];
+                    window.currentCommercialAreaGrouped = [];
+                    return;
+                }
+
+                $.ajax({
+                    url: "/api/sanga/commerical_area_info",
+                    method: "GET",
+                    data: { lawd_cd: lawdCd },
+                    dataType: "json"
+                })
+                .done(function(res) {
+                    const records = Array.isArray(res?.records) ? res.records : [];
+                    window.currentCommercialAreaItems = records;
+                    window.currentCommercialAreaGrouped = groupCommercialAreaItems(records);
+
+                    console.log("상권정보 조회 완료:", {
+                        total_found: res?.total_found || 0,
+                        records: window.currentCommercialAreaItems,
+                        grouped: window.currentCommercialAreaGrouped
+                    });
+                })
+                .fail(function(xhr, status, error) {
+                    console.error("상권정보 호출 실패:", status, error);
+                    window.currentCommercialAreaItems = [];
+                    window.currentCommercialAreaGrouped = [];
+                });
+            }
+
+            // 상권정보 업종별 그룹화
+            function groupCommercialAreaItems(items) {
+                const safeItems = Array.isArray(items) ? items : [];
+
+                const lclsMap = {};
+                const totalCount = safeItems.length;
+
+                safeItems.forEach(item => {
+                    const lclsName = (item.indsLclsNm || "기타").trim() || "기타";
+                    const mclsName = (item.indsMclsNm || "기타").trim() || "기타";
+
+                    if (!lclsMap[lclsName]) {
+                        lclsMap[lclsName] = {
+                            groupName: lclsName,   // 대분류명
+                            count: 0,
+                            items: [],
+                            mclsMap: {}
+                        };
+                    }
+
+                    lclsMap[lclsName].count += 1;
+                    lclsMap[lclsName].items.push(item);
+
+                    if (!lclsMap[lclsName].mclsMap[mclsName]) {
+                        lclsMap[lclsName].mclsMap[mclsName] = {
+                            groupName: mclsName,   // 중분류명
+                            count: 0,
+                            items: []
+                        };
+                    }
+
+                    lclsMap[lclsName].mclsMap[mclsName].count += 1;
+                    lclsMap[lclsName].mclsMap[mclsName].items.push(item);
+                });
+
+                const lclsGroups = Object.values(lclsMap)
+                    .map(group => {
+                        const mclsGroups = Object.values(group.mclsMap)
+                            .sort((a, b) => {
+                                if (b.count !== a.count) return b.count - a.count;
+                                return a.groupName.localeCompare(b.groupName, "ko");
+                            });
+
+                        return {
+                            groupName: group.groupName,
+                            count: group.count,
+                            items: group.items,
+                            mclsGroups: mclsGroups
+                        };
+                    })
+                    .sort((a, b) => {
+                        if (b.count !== a.count) return b.count - a.count;
+                        return a.groupName.localeCompare(b.groupName, "ko");
+                    });
+
+                return {
+                    totalCount: totalCount,
+                    lclsGroups: lclsGroups
+                };
+            }
+
+            // 중분류 상세목록 렌더링
+            function renderCommercialAreaDetailModal(mclsName, items) {
+                const safeItems = Array.isArray(items) ? items : [];
+                const keyword = (window.currentCommercialAreaDetailSearch || "").trim().toLowerCase();
+
+                const filteredItems = !keyword
+                    ? safeItems
+                    : safeItems.filter(item => {
+                        const name = (item.bizesNm || "").toLowerCase();
+                        const branch = (item.brchNm || "").toLowerCase();
+                        const scls = (item.indsSclsNm || "").toLowerCase();
+                        return (
+                            name.includes(keyword) ||
+                            branch.includes(keyword) ||
+                            scls.includes(keyword)
+                        );
+                    });
+
+                const listHtml = filteredItems.length
+                    ? filteredItems.map((item, idx) => {
+                        const name = item.bizesNm || "-";
+                        const branch = item.brchNm ? ` (${item.brchNm})` : "";
+                        const scls = item.indsSclsNm || "";
+                        const lineRight = scls ? `${mclsName} / ${scls}` : `${mclsName}`;
+
+                        return `
+                            <div style="
+                                padding:10px 14px;
+                                border-bottom:${idx === filteredItems.length - 1 ? "none" : "1px solid #eef2f7"};
+                                line-height:1.4;
+                                display:flex;
+                                align-items:center;
+                                justify-content:space-between;
+                                gap:12px;
+                                white-space:nowrap;
+                                overflow:hidden;
+                            ">
+                                <div style="
+                                    flex:1;
+                                    min-width:0;
+                                    font-weight:700;
+                                    color:#111827;
+                                    overflow:hidden;
+                                    text-overflow:ellipsis;
+                                ">
+                                    ${name}${branch}
+                                </div>
+                                <div style="
+                                    flex:0 0 auto;
+                                    font-size:12px;
+                                    color:#2563eb;
+                                    font-weight:700;
+                                    overflow:hidden;
+                                    text-overflow:ellipsis;
+                                ">
+                                    ${lineRight}
+                                </div>
+                            </div>
+                        `;
+                    }).join("")
+                    : `
+                        <div style="
+                            padding:24px 14px;
+                            text-align:center;
+                            color:#6b7280;
+                            font-size:13px;
+                        ">
+                            검색 결과가 없습니다.
+                        </div>
+                    `;
+
+                return `
+                    <div id="commercialAreaDetailModal" style="
+                        position:fixed;
+                        top:50%;
+                        left:50%;
+                        transform:translate(-50%, -50%);
+                        width:520px;
+                        max-width:90vw;
+                        z-index:5001;
+                        background:#fff;
+                        border:1px solid #bfdbfe;
+                        border-radius:18px;
+                        box-shadow:0 22px 48px rgba(15,23,42,0.24);
+                        overflow:hidden;
+                    ">
+                        <div style="
+                            display:flex;
+                            align-items:center;
+                            justify-content:space-between;
+                            padding:14px 16px;
+                            background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);
+                            border-bottom:1px solid #bfdbfe;
+                            gap:8px;
+                        ">
+                            <div style="
+                                font-weight:800;
+                                color:#1d4ed8;
+                                font-size:15px;
+                                min-width:0;
+                                overflow:hidden;
+                                text-overflow:ellipsis;
+                                white-space:nowrap;
+                            ">
+                                ${mclsName} 상세목록 (${filteredItems.length}/${safeItems.length})
+                            </div>
+
+                            <div style="display:flex; align-items:center; gap:8px; flex:0 0 auto;">
+                                <input id="commercialAreaDetailSearchInput" type="text"
+                                       value="${window.currentCommercialAreaDetailSearch || ""}"
+                                       placeholder="제목 검색"
+                                       style="
+                                           width:150px;
+                                           height:32px;
+                                           padding:0 10px;
+                                           border:1px solid #93c5fd;
+                                           border-radius:10px;
+                                           outline:none;
+                                           font-size:13px;
+                                       " />
+
+                                <button id="commercialAreaDetailModalClose" style="
+                                    width:30px;
+                                    height:30px;
+                                    border:none;
+                                    border-radius:50%;
+                                    background:#dbeafe;
+                                    color:#1d4ed8;
+                                    font-size:17px;
+                                    font-weight:800;
+                                    cursor:pointer;
+                                ">×</button>
+                            </div>
+                        </div>
+
+                        <div style="
+                            max-height:330px;
+                            overflow-y:auto;
+                            background:#fff;
+                        ">
+                            ${listHtml}
+                        </div>
+                    </div>
+
+                    <div id="commercialAreaDetailModalDim" style="
+                        position:fixed;
+                        inset:0;
+                        background:rgba(15,23,42,0.32);
+                        z-index:5000;
+                    "></div>
+                `;
+            }
+
+            // 상권분석 팝업 호출
+            function commericalAreaPopupView() {
+                const groupedData = window.currentCommercialAreaGrouped || {};
+                const lclsGroups = groupedData.lclsGroups || [];
+                const totalCount = groupedData.totalCount || 0;
+
+                if (!lclsGroups.length) {
+                    alert("상권분석 데이터가 없습니다.");
+                    return;
+                }
+
+                if (!window.currentCommercialAreaSelectedLcls) {
+                    window.currentCommercialAreaSelectedLcls = "전체";
+                }
+
+                const selectedLcls = window.currentCommercialAreaSelectedLcls;
+                const selectedMcls = window.currentCommercialAreaSelectedMcls || "";
+
+                // 좌측 대분류 목록 HTML
+                let lclsListHtml = `
+                    <div class="commercial-lcls-item ${selectedLcls === "전체" ? "active" : ""}"
+                         data-lcls-name="전체"
+                         style="
+                            padding:8px 10px;
+                            border-bottom:1px solid #e5e5e5;
+                            cursor:pointer;
+                            font-weight:${selectedLcls === "전체" ? "bold" : "normal"};
+                            background:${selectedLcls === "전체" ? "#eaf3ff" : "#fff"};
+                            color:${selectedLcls === "전체" ? "#007bff" : "#222"};
+                         ">
+                        전체(${totalCount})
+                    </div>
+                `;
+
+                lclsGroups.forEach(group => {
+                    const isActive = selectedLcls === group.groupName;
+
+                    lclsListHtml += `
+                        <div class="commercial-lcls-item ${isActive ? "active" : ""}"
+                             data-lcls-name="${group.groupName}"
+                             style="
+                                padding:8px 10px;
+                                border-bottom:1px solid #e5e5e5;
+                                cursor:pointer;
+                                font-weight:${isActive ? "bold" : "normal"};
+                                background:${isActive ? "#eaf3ff" : "#fff"};
+                                color:${isActive ? "#007bff" : "#222"};
+                             ">
+                            ${group.groupName}(${group.count})
+                        </div>
+                    `;
+                });
+
+                let detailGroups = [];
+                let detailTitle = "";
+                let totalRowHtml = "";
+
+                if (selectedLcls === "전체") {
+                    detailTitle = "전체 업종별 대분류 현황";
+                    detailGroups = lclsGroups.map(group => ({
+                        groupName: group.groupName,
+                        count: group.count,
+                        items: group.items || []
+                    }));
+
+                    totalRowHtml = `
+                        <tr style="background:linear-gradient(90deg,#f8fafc 0%,#e0f2fe 100%);">
+                            <td style="border:1px solid #ddd; padding:8px; font-weight:900; color:#0f172a;">
+                                총계
+                            </td>
+                            <td style="border:1px solid #ddd; padding:8px; text-align:center; color:#64748b; font-weight:700;">
+                                -
+                            </td>
+                            <td style="border:1px solid #ddd; padding:8px; text-align:center; font-weight:900; color:#0369a1;">
+                                전체 ${totalCount}건
+                            </td>
+                            <td style="border:1px solid #ddd; padding:8px; text-align:center; color:#94a3b8;">
+                                -
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    const selectedGroup = lclsGroups.find(g => g.groupName === selectedLcls);
+                    if (selectedGroup) {
+                        detailTitle = `${selectedGroup.groupName} 중분류 현황`;
+                        detailGroups = selectedGroup.mclsGroups || [];
+
+                        totalRowHtml = `
+                            <tr style="background:linear-gradient(90deg,#eff6ff 0%,#dbeafe 100%);">
+                                <td style="border:1px solid #ddd; padding:8px; font-weight:900; color:#1e3a8a;">
+                                    총계
+                                </td>
+                                <td style="border:1px solid #ddd; padding:8px; text-align:center; color:#64748b; font-weight:700;">
+                                    -
+                                </td>
+                                <td style="border:1px solid #ddd; padding:8px; text-align:center; font-weight:900; color:#1d4ed8;">
+                                    ${selectedGroup.groupName} ${selectedGroup.count}건
+                                </td>
+                                <td style="border:1px solid #ddd; padding:8px; text-align:center; color:#94a3b8;">
+                                    -
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+
+                const maxCount = Math.max(...detailGroups.map(item => item.count), 1);
+
+                let detailRowsHtml = "";
+                detailGroups.forEach(item => {
+                    const barWidth = Math.max((item.count / maxCount) * 220, 8);
+
+                    detailRowsHtml += `
+                        <tr>
+                            <td style="border:1px solid #ddd; padding:6px; text-align:left; font-weight:bold;">
+                                ${item.groupName}
+                            </td>
+                            <td style="border:1px solid #ddd; padding:6px; width:260px;">
+                                ${
+                                    selectedLcls === "전체"
+                                    ? `<span style="color:#94a3b8; font-weight:700;">-</span>`
+                                    : `
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <div style="
+                                            height:18px;
+                                            width:${barWidth}px;
+                                            background:linear-gradient(90deg,#3b82f6 0%,#60a5fa 100%);
+                                            border-radius:4px;
+                                        "></div>
+                                    </div>
+                                    `
+                                }
+                            </td>
+                            <td style="border:1px solid #ddd; padding:6px; text-align:center; font-weight:800; color:#2563eb;">
+                                ${item.count}
+                            </td>
+                            <td style="border:1px solid #ddd; padding:6px; text-align:center;">
+                                ${
+                                    selectedLcls !== "전체"
+                                    ? `
+                                    <button class="commercial-mcls-detail-btn"
+                                            data-mcls-name="${item.groupName}"
+                                            style="
+                                                padding:3px 10px;
+                                                border:none;
+                                                border-radius:999px;
+                                                background:#eff6ff;
+                                                color:#1d4ed8;
+                                                font-size:11px;
+                                                font-weight:700;
+                                                cursor:pointer;
+                                            ">
+                                        상세
+                                    </button>
+                                    `
+                                    : `<span style="color:#94a3b8;">-</span>`
+                                }
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                if (!detailRowsHtml) {
+                    detailRowsHtml = `
+                        <tr>
+                            <td colspan="4" style="border:1px solid #ddd; padding:12px; text-align:center; color:#777;">
+                                상세 데이터가 없습니다.
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                const detailModalHtml = selectedMcls
+                    ? (() => {
+                        const selectedGroup = lclsGroups.find(g => g.groupName === selectedLcls);
+                        const selectedMclsGroup = selectedGroup?.mclsGroups?.find(g => g.groupName === selectedMcls);
+                        return selectedMclsGroup
+                            ? renderCommercialAreaDetailModal(selectedMcls, selectedMclsGroup.items || [])
+                            : "";
+                    })()
+                    : "";
+
+                const popupHtml = `
+                    <div id="commercialAreaPopup" style="
+                        position: fixed;
+                        top: 50%; left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: #fff;
+                        padding: 20px;
+                        border: 2px solid #007bff;
+                        border-radius: 8px;
+                        z-index: 4000;
+                        width: 860px;
+                        max-height: 82vh;
+                        overflow: hidden;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+                    ">
+                        <div style="
+                            display:flex;
+                            align-items:center;
+                            justify-content:space-between;
+                            margin-bottom:15px;
+                        ">
+                            <h3 style="
+                                margin:0;
+                                font-size:20px;
+                                font-weight:800;
+                                color:#1e3a8a;
+                            ">상권분석-업종별 분포</h3>
+
+                            <button id="commercialAreaPopupClose" style="
+                                width:34px;
+                                height:34px;
+                                border:none;
+                                border-radius:50%;
+                                background:#eff6ff;
+                                color:#1d4ed8;
+                                font-size:18px;
+                                font-weight:900;
+                                cursor:pointer;
+                                box-shadow:0 2px 8px rgba(37,99,235,0.12);
+                            ">×</button>
+                        </div>
+
+                        <div style="display:flex; gap:14px; min-height:520px;">
+
+                            <!-- 좌측 대분류 목록 -->
+                            <div style="
+                                width:220px;
+                                border:1px solid #ddd;
+                                border-radius:6px;
+                                overflow-y:auto;
+                                background:#fafafa;
+                            ">
+                                <div style="
+                                    padding:10px;
+                                    font-weight:bold;
+                                    border-bottom:1px solid #ddd;
+                                    background:#f2f2f2;
+                                ">
+                                    대분류 목록
+                                </div>
+                                ${lclsListHtml}
+                            </div>
+
+                            <!-- 우측 상세 그래프 -->
+                            <div style="flex:1; overflow-y:auto;">
+                                <div style="
+                                    margin-bottom:10px;
+                                    font-weight:bold;
+                                    color:#333;
+                                ">
+                                    ${detailTitle}
+                                </div>
+
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="background:#f2f2f2;">
+                                            <th style="border:1px solid #ddd; padding:6px;">업종</th>
+                                            <th style="border:1px solid #ddd; padding:6px;">그래프</th>
+                                            <th style="border:1px solid #ddd; padding:6px;">건수</th>
+                                            <th style="border:1px solid #ddd; padding:6px;">상세</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${detailRowsHtml}
+                                        ${totalRowHtml}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${detailModalHtml}
+                `;
+
+                $("#commercialAreaPopup").remove();
+                $("#commercialAreaDetailModal").remove();
+                $("#commercialAreaDetailModalDim").remove();
+                $("body").append(popupHtml);
+
+                $(document)
+                    .off("click", "#commercialAreaPopupClose")
+                    .on("click", "#commercialAreaPopupClose", function () {
+                        $("#commercialAreaPopup").remove();
+                        $("#commercialAreaDetailModal").remove();
+                        $("#commercialAreaDetailModalDim").remove();
+                    });
+
+                $(document)
+                    .off("click", ".commercial-lcls-item")
+                    .on("click", ".commercial-lcls-item", function () {
+                        const lclsName = $(this).data("lcls-name") || "전체";
+                        window.currentCommercialAreaSelectedLcls = lclsName;
+                        window.currentCommercialAreaSelectedMcls = "";
+                        commericalAreaPopupView();
+                    });
+
+                $(document)
+                    .off("click", ".commercial-mcls-detail-btn")
+                    .on("click", ".commercial-mcls-detail-btn", function () {
+                        const mclsName = $(this).data("mcls-name") || "";
+                        window.currentCommercialAreaSelectedMcls = mclsName;
+                        commericalAreaPopupView();
+                    });
+
+                $(document)
+                    .off("click", "#commercialAreaDetailModalClose, #commercialAreaDetailModalDim")
+                    .on("click", "#commercialAreaDetailModalClose, #commercialAreaDetailModalDim", function () {
+                        window.currentCommercialAreaSelectedMcls = "";
+                        $("#commercialAreaDetailModal").remove();
+                        $("#commercialAreaDetailModalDim").remove();
+                    });
             }
 
             // 현재 월세조회및 실거래로 필터되어진 화면에 평수별 그룹을 보여줌..
@@ -637,6 +1246,7 @@
                 //
                 let lawdCd = selectedLawdCd.slice(0,5);     // 종로구 예시(차후 찾을때는 지번으로 찾음됨
                 let umdNm = selectedUmdNm;  // 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+                let years_count = 3; // 최근 3년치
                 let allItems = [];
                 const dataContainer = document.getElementById("data-container-deal");
                 dataContainer.innerHTML = `<div class="loading-overlay">데이터를 불러오는 중입니다...</div>`;
@@ -645,7 +1255,7 @@
                 $.ajax({
                     url: "/api/sanga/land_data",
                     method: "GET",
-                    data: { lawd_cd: lawdCd, lawd_nm: lawdNm, umd_nm: umdNm },
+                    data: { lawd_cd: lawdCd, lawd_nm: lawdNm, umd_nm: umdNm, years_count: years_count },
                     dataType: "json"
                   })
                   .done(function(data) {
@@ -682,21 +1292,36 @@
                     set_rent_deal_auction_area(allItems, 'deal');
                     //
                     renderDealTable(allItems); // ✅ API 데이터 가져온 후 렌더링
+                    //
+                    // 실거래 렌더링 후 상권정보는 백그라운드로 별도 조회
+                    fetchCommercialAreaInfo();
                   })
                   .fail(function(xhr, status, error) {
                     console.error("호출 실패:", status, error);
                     dataContainer.innerHTML = `<p>오류 발생: ${error.message}</p>`;
                 });
 
+                // 09. "통계분석" button click event
+                $("#sum-pyeng-btn").on("click", function () {
+                    // 2. 통계분석 전용 함수 호출 (유형은 'deal' 또는 'stat'으로 지정)
+                    openStatisticsPopup();
+                });
+
+                // 10. "상권분석" button click event
+                $("#commerical-area-btn").on("click", function () {
+                    // 상권지역정보 분석처리
+                    commericalAreaPopupView();
+                });
+
                 //
-                // 10. "평형분석" button click event
+                // 11. "평형분석" button click event
                 $("#real-pyeng-btn").on("click", function () {
                     // 층,평형필터 처리
                     let filteredItems = getFloorAreaFilters(allItems, 'deal');
                     pyengRentRealPopupView(filteredItems, 'deal');
                 });
 
-                // 11. "엑셀저장" button click event
+                // 12. "엑셀저장" button click event
                 $("#real-xls-btn").on("click", function () {
                     // 층,평형필터 처리
                     let filteredItems = getFloorAreaFilters(allItems, 'deal');
@@ -1189,6 +1814,8 @@
                 const lawName = document.getElementById("popup-lawName").textContent;
                 const dealItems = window.currentDealFilteredItems || [];
                 const aucItems  = window.currentAuctionFetchedItems || [];
+                // 상권분석정보
+                const commercialItems = window.currentCommercialAreaItems || [];
 
                 // 1) 실거래 JSON 생성 (비동기로 위/경도 가져오기)
                 const realAddrs = await Promise.all(dealItems.map(async item => {
@@ -1259,7 +1886,12 @@
                     floor:  selectedFloor,
                     area:   selectedArea
                   }],
-                  addresses: [...realAddrs, ...aucAddrs]
+                  addresses: [...realAddrs, ...aucAddrs],
+                  // =========================
+                  // [추가] 상권 업종정보 원본 데이터
+                  // map_popup.html 에서 받아서 상권분석 팝업에 사용
+                  // =========================
+                  commercialAreaItems: commercialItems
                 };
                 console.log("Payload for popup:", payload);
 
@@ -1459,6 +2091,11 @@
         </h2>
         <!-- 버튼 둘을 감싸는 wrapper 추가 -->
         <div style="display: flex; gap: 8px;">
+            <!--
+            <button id="sum-pyeng-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">통계분석</button>
+            -->
+            <!-- 상권분석 버튼: Header 오른쪽에 배치 -->
+            <button id="commerical-area-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">상권분석</button>
             <!-- 평형분석 버튼: Header 오른쪽에 배치 -->
             <button id="real-pyeng-btn" style="padding:5px; border:1px solid black; cursor:pointer; font-size:15px; margin-right: 10px;">평형분석</button>
             <button id="extool-map-btn"

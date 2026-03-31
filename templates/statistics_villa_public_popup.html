@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부동산 실거래 통계 대시보드</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary-color: #4361ee; --success-color: #2ec4b6; --bg-color: #f1f3f9; --card-bg: #ffffff; --border-color: #dee2e6; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--bg-color); padding: 20px; margin: 0; color: #333; }
+        .container { max-width: 100%; margin: 0 auto; }
+
+        header h1 { font-size: 1.5rem; color: #1e293b; margin-bottom: 20px; }
+
+        /* 검색 영역 */
+        .search-section { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .search-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .input-group label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+        input[type="text"] { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; font-size: 0.9rem; }
+        #dongSearchInput { background-color: #eef2ff; border: 1px solid var(--primary-color); }
+
+        .btn-group { display: flex; gap: 8px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+        .btn-search { background: var(--primary-color); color: white; }
+        .btn-excel { background: var(--success-color); color: white; }
+
+        .main-content { display: flex; gap: 20px; align-items: flex-start; }
+        .grid-box { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .table-wrapper { overflow: auto; max-height: 800px; position: relative; }
+
+        /* 기존 flex: 6 / 4 에서 5.5 / 4.5 로 변경 및 최소폭 지정 */
+        .stats-panel { flex: 5.5; }
+        .detail-panel { flex: 4.5; min-width: 650px; display: none; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; white-space: nowrap; }
+        th { background-color: #f8fafc; color: #475569; padding: 10px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10; }
+
+        /* 공통 소팅 가능 헤더 */
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background-color: #edf2f7 !important; }
+        .sort-icon { font-size: 0.7rem; margin-left: 3px; color: #cbd5e1; }
+
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+        tr:hover { background-color: #f8fafc; }
+
+        .dong-link { color: var(--primary-color); text-decoration: underline; cursor: pointer; font-weight: 700; }
+        .detail-header { background: #1e293b; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .detail-table { font-size: 0.8rem; }
+        .detail-table td { padding: 6px 8px; }
+
+        .badge-count { background: #eff6ff; color: var(--primary-color); padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; }
+        .price-stats { color: #94a3b8; font-size: 0.75rem; }
+        .loading { padding: 50px; text-align: center; color: var(--primary-color); }
+
+        /* 평형분석 버튼 스타일 */
+        .btn-analysis {
+            background: var(--success-color);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-right: 10px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-analysis:hover { opacity: 0.9; }
+
+        /* 중앙 팝업용 오버레이 */
+        #popupOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>
+            <i class="fa-solid fa-chart-column"></i>
+            빌라-실거래 통계 및 상세 내역({% if sigungu %} {{ sigungu }}{% endif %}{% if umdNm %} {{ umdNm }}{% endif %} )
+        </h1>
+    </header>
+
+    <section class="search-section">
+        <div class="search-row">
+            <div class="input-group">
+                <label>시도</label>
+                <input type="text" id="regionInput" value="{{ region if region else '' }}">
+            </div>
+            <div class="input-group">
+                <label>시군구</label>
+                <input type="text" id="sigunguInput" value="{{ sigungu if sigungu else '' }}">
+            </div>
+            <div class="input-group">
+                <label>읍면동 필터</label>
+                <input type="text" id="dongSearchInput" placeholder="결과 내 검색..." onkeyup="filterByDong()">
+            </div>
+            <div class="input-group">
+                <label>물건종별</label>
+                <div style="display:flex; gap:10px; padding: 5px 0;">
+                    <label><input type="checkbox" name="category" value="아파트"> 아파트</label>
+                    <label><input type="checkbox" name="category" value="다세대" checked> 다세대</label>
+                    <label><input type="checkbox" name="category" value="연립" checked> 연립</label>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-search" onclick="fetchStatistics()">
+                    <i class="fa-solid fa-magnifying-glass"></i> 조회
+                </button>
+                <button class="btn btn-excel" onclick="downloadExcel()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <main class="main-content">
+        <div class="stats-panel grid-box">
+            <div class="table-wrapper">
+                <table id="statsTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="toggleStatsSort()">읍면동 <i id="statsSortIcon" class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>거래건수</th>
+                            <th>평균금액</th>
+                            <th>평균전용</th>
+                            <th>평균건축</th>
+                            <th>1억↓</th>
+                            <th>1~2억</th>
+                            <th>2~3억</th>
+                            <th>3~5억</th>
+                            <th>5~10억</th>
+                            <th>10억↑</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsBody">
+                        <tr><td colspan="11" class="loading">데이터를 조회해 주세요.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="detailPanel" class="detail-panel grid-box">
+            <div class="detail-header">
+                <span id="detailTitle"><i class="fa-solid fa-list-check"></i> 상세 내역</span>
+                <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="closeDetail()"></i>
+            </div>
+            <div class="table-wrapper">
+                <table class="detail-table" id="detailTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortDetail('name')">건물명 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>전용(㎡)</th>
+                            <th class="sortable" onclick="sortDetail('py')">평형 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th class="sortable" onclick="sortDetail('price')">금액/평단가 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>연식</th>
+                            <th>차이</th>
+                            <th class="sortable" onclick="sortDetail('date')">계약일 <i class="fa-solid fa-sort sort-icon"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let currentData = [];
+    let processedStats = [];
+    let currentDetailList = []; // 현재 우측에 표시중인 동의 상세 목록
+    let isStatsAsc = true;
+    let detailSortState = { key: '', asc: true }; // 상세 리스트 정렬 상태
+
+    window.onload = function() {
+        const region = document.getElementById('regionInput').value;
+        const sigungu = document.getElementById('sigunguInput').value;
+
+        // Flask에서 전달된 umdNm 값이 있는지 확인 (템플릿 문법 사용)
+        const targetDong = "{{ umdNm if umdNm else '' }}";
+
+        if (region && sigungu) {
+            // fetchStatistics가 비동기이므로 완료 후 자동 선택 로직 실행
+            fetchStatistics().then(() => {
+                if (targetDong && targetDong !== "") {
+                    selectDongByName(targetDong);
+                }
+            });
+        }
+    };
+
+    // 2. 동 이름으로 해당 행을 찾아 상세 보기를 실행하는 함수
+    function selectDongByName(dongName) {
+        // 읍면동 통계 데이터(processedStats)에서 일치하는 이름의 인덱스 찾기
+        const targetIndex = processedStats.findIndex(s => s.name === dongName);
+
+        if (targetIndex !== -1) {
+            // 해당 동의 상세 보기 함수 호출 (기존에 정의된 showDetail 사용)
+            showDetail(dongName, targetIndex);
+
+            // 시각적으로 해당 행이 잘 보이도록 스크롤 이동
+            setTimeout(() => {
+                const rowElement = document.getElementById(`stats-row-${targetIndex}`);
+                if (rowElement) {
+                    rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300); // 렌더링 시간을 고려한 약간의 지연
+        } else {
+            console.warn(`입력된 동 [${dongName}]을 목록에서 찾을 수 없습니다.`);
+        }
+    }
+
+    async function fetchStatistics() {
+        const region = document.getElementById('regionInput').value;
+        const sigungu = document.getElementById('sigunguInput').value;
+        const categories = Array.from(document.querySelectorAll('input[name="category"]:checked')).map(cb => cb.value);
+        document.getElementById('dongSearchInput').value = '';
+        closeDetail();
+
+        let url = new URL('/api/trade/real_statistics', window.location.origin);
+        url.searchParams.append('type', 'villa');
+        url.searchParams.append('region', region);
+        url.searchParams.append('sigungu_name', sigungu);
+        categories.forEach(cat => url.searchParams.append('category', cat));
+
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '<tr><td colspan="11" class="loading"><i class="fa-solid fa-spinner fa-spin"></i> 분석 중...</td></tr>';
+
+        try {
+            const response = await fetch(url);
+            const json = await response.json();
+            if (json.status === "success" && json.results.length > 0) {
+                currentData = json.results;
+                groupByDong(json.results);
+                renderTable(processedStats);
+                return true;
+            } else {
+                tbody.innerHTML = '<tr><td colspan="11" class="loading">데이터가 없습니다.</td></tr>';
+                return false;
+            }
+        } catch (error) {
+            tbody.innerHTML = `<td colspan="11" class="loading">${error.message}</td>`;
+            return false;
+        }
+    }
+
+    function groupByDong(results) {
+        const groups = {};
+        results.forEach(item => {
+            const dong = item.umdNm || '기타';
+            if (!groups[dong]) {
+                groups[dong] = { name: dong, count: 0, totalPrice: 0, totalM2: 0, totalBuildYear: 0, buildYearCount: 0, r1: 0, r2: 0, r3: 0, r4: 0, r5: 0, r6: 0 };
+            }
+            const g = groups[dong];
+            const price = item.dealAmount ? parseInt(item.dealAmount.replace(/,/g, '')) : 0;
+            if (price > 0) {
+                g.count++; g.totalPrice += price; g.totalM2 += parseFloat(item.excluUseAr || 0);
+                const year = parseInt(item.buildYear || 0);
+                if(year > 1900) { g.totalBuildYear += year; g.buildYearCount++; }
+                if (price <= 10000) g.r1++; else if (price <= 20000) g.r2++; else if (price <= 30000) g.r3++;
+                else if (price <= 50000) g.r4++; else if (price <= 100000) g.r5++; else g.r6++;
+            }
+        });
+        processedStats = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    }
+
+     // 1, 2번 조건 반영: 행 선택 시 하이라이트 처리 로직이 포함된 renderTable
+    function renderTable(dataList) {
+        const tbody = document.getElementById('statsBody');
+        const curYear = new Date().getFullYear();
+        tbody.innerHTML = '';
+        dataList.forEach((s, index) => {
+            const avgPrice = Math.round(s.totalPrice / s.count);
+            const avgM2 = (s.totalM2 / s.count).toFixed(1);
+            const avgAge = s.buildYearCount > 0 ? curYear - Math.round(s.totalBuildYear / s.buildYearCount) : '-';
+
+            // 각 행에 고유 ID 부여 (highlight 처리를 위함)
+            tbody.insertAdjacentHTML('beforeend', `
+               <tr id="stats-row-${index}">
+                    <td><span class="dong-link" onclick="showDetail('${s.name}', ${index})">${s.name}</span></td>
+                    <td><span class="badge-count">${s.count}</span></td>
+                    <td><strong>${avgPrice.toLocaleString()}</strong></td>
+                    <td>${avgM2}㎡</td>
+                    <td>${avgAge}년</td>
+                    <td>${s.r1}</td><td>${s.r2}</td><td>${s.r3}</td><td>${s.r4}</td><td>${s.r5}</td><td>${s.r6}</td>
+                </tr>
+            `);
+        });
+    }
+
+    // 전역 변수 추가
+    let originalDetailList = [];
+
+    // 1. showDetail 함수 수정: 동적 필터 생성 로직 추가
+    function showDetail(dongName, rowIndex) {
+        // 행 하이라이트 (기존 동일)
+        const allRows = document.querySelectorAll('#statsBody tr');
+        allRows.forEach(row => { row.style.backgroundColor = ''; row.style.fontWeight = 'normal'; });
+        const selectedRow = document.getElementById(`stats-row-${rowIndex}`);
+        if (selectedRow) { selectedRow.style.backgroundColor = '#eef2ff'; selectedRow.style.fontWeight = 'bold'; }
+
+        const sigungu = document.getElementById('sigunguInput').value;
+        document.getElementById('detailPanel').style.display = 'block';
+
+        // 데이터 가공 및 거래년도(Year) 추출
+        const filtered = currentData.filter(item => (item.umdNm || '기타') === dongName);
+        const yearsSet = new Set();
+
+        originalDetailList = filtered.map(item => {
+            const price = parseInt((item.dealAmount || '0').replace(/,/g, ''));
+            const m2 = parseFloat(item.excluUseAr || 0);
+            const py = parseFloat((m2/3.305).toFixed(1));
+            const dealYear = item.dealYear.toString();
+            yearsSet.add(dealYear);
+
+            return {
+                name: item.mhouseNm || item.aptNm || '건물명없음',
+                m2: m2,
+                py: py,
+                price: price,
+                dealYear: dealYear,
+                bYear: parseInt(item.buildYear || 0),
+                date: `${item.dealYear}.${String(item.dealMonth).padStart(2,'0')}.${String(item.dealDay).padStart(2,'0')}`,
+                cfloor: item.floor || "0",
+                exclusive_area_pyeong: py,
+                sortPyeongPrice: py > 0 ? (price / py) : 0,
+                lat: item.lat || 0,
+                lon: item.lon || 0,
+                address: `${document.getElementById('regionInput').value} ${document.getElementById('sigunguInput').value} ${item.umdNm || ''} ${item.jibun || ''}`.trim()
+            };
+        });
+
+        // 거래년도 필터 생성
+        const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+        let yearSelectHtml = `<select id="yearFilter" onchange="filterCombined(true)" style="padding:2px 5px; font-size:0.75rem; border-radius:4px; border:1px solid #ccc; margin-left:10px;">`;
+        yearSelectHtml += `<option value="all">전체 년도 (${originalDetailList.length})</option>`;
+        sortedYears.forEach(y => {
+            const count = originalDetailList.filter(item => item.dealYear === y).length;
+            yearSelectHtml += `<option value="${y}">${y}년 (${count})</option>`;
+        });
+        yearSelectHtml += `</select>`;
+
+        // 평형 필터 생성
+        const pyeongGroups = new Set();
+        originalDetailList.forEach(item => {
+            const py = item.py;
+            if (py < 10) pyeongGroups.add(0);
+            else pyeongGroups.add(Math.floor(py / 10) * 10);
+        });
+        const sortedGroups = Array.from(pyeongGroups).sort((a, b) => a - b);
+
+        let pyeongSelectHtml = `<select id="pyeongFilter" onchange="filterCombined(false)" style="padding:2px 5px; font-size:0.75rem; border-radius:4px; border:1px solid #ccc; margin-left:5px;">`;
+        pyeongSelectHtml += `<option value="all">전체 평형</option>`;
+        sortedGroups.forEach(g => {
+            pyeongSelectHtml += `<option value="${g}">${g === 0 ? "9평 이하" : g + "평대"}</option>`;
+        });
+        pyeongSelectHtml += `</select>`;
+
+        // UI 헤더 반영
+        const headerContainer = document.querySelector('.detail-header');
+        headerContainer.innerHTML = `
+            <div style="display:flex; align-items:center;">
+                <span id="detailTitle" style="font-size:0.9rem; font-weight:bold;">
+                    <i class="fa-solid fa-location-dot"></i> ${sigungu}-${dongName}
+                </span>
+                ${yearSelectHtml}
+                ${pyeongSelectHtml}
+            </div>
+            <div style="display:flex; align-items:center;">
+                <button class="btn-analysis" onclick="openMapAnalysis()" style="background-color: #ffca28; color: #000;"><i class="fa-solid fa-map"></i> 지도분석</button>
+                <button class="btn-analysis" onclick="openPyengAnalysis()"><i class="fa-solid fa-chart-pie"></i> 평형분석</button>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.2rem;" onclick="closeDetail()"></i>
+            </div>
+        `;
+
+        currentDetailList = [...originalDetailList];
+        currentDetailList.sort((a, b) => b.date.localeCompare(a.date));
+        renderDetailBody();
+    }
+
+    // 년도와 평형 필터를 동시에 적용하는 통합 함수
+    function filterCombined(isYearChanged = false) {
+        const yearVal = document.getElementById('yearFilter').value;
+
+        // 1. 년도에 따라 1차 필터링된 리스트 생성
+        let yearFiltered = [...originalDetailList];
+        if (yearVal !== "all") {
+            yearFiltered = yearFiltered.filter(item => item.dealYear === yearVal);
+        }
+
+        // 2. 년도가 변경되었다면 평형 필터를 초기화하고 새로 그림
+        if (isYearChanged) {
+            renderPyeongOptions(yearFiltered); // 이 안에서 value를 "all"로 고정
+        }
+
+        // 3. 현재 평형 필터의 값 가져오기 (년도가 바뀌었다면 무조건 "all" 상태임)
+        const pyeongVal = document.getElementById('pyeongFilter').value;
+
+        // 4. 최종 필터링 적용
+        let finalFiltered = yearFiltered;
+        if (pyeongVal !== "all") {
+            const target = parseInt(pyeongVal);
+            finalFiltered = yearFiltered.filter(item => {
+                const py = item.py;
+                if (target === 0) return py < 10;
+                return py >= target && py < target + 10;
+            });
+        }
+
+        currentDetailList = finalFiltered;
+        currentDetailList.sort((a, b) => b.date.localeCompare(a.date));
+        renderDetailBody();
+    }
+
+    // 년도 선택에 따라 평형 옵션을 재구성하고 '전체'로 초기화하는 함수
+    function renderPyeongOptions(dataList) {
+        const pyeongFilter = document.getElementById('pyeongFilter');
+
+        // 1. 해당 데이터셋(선택된 년도)에서 존재하는 평형대 추출
+        const pyeongGroups = new Set();
+        dataList.forEach(item => {
+            const py = item.py;
+            if (py < 10) pyeongGroups.add(0);
+            else pyeongGroups.add(Math.floor(py / 10) * 10);
+        });
+        const sortedGroups = Array.from(pyeongGroups).sort((a, b) => a - b);
+
+        // 2. HTML 옵션 생성 (해당 년도 기준 건수 표시)
+        let html = `<option value="all">전체 평형 (${dataList.length})</option>`;
+        sortedGroups.forEach(g => {
+            const groupText = g === 0 ? "9평 이하" : `${g}평대`;
+            const count = dataList.filter(item => {
+                if (g === 0) return item.py < 10;
+                return item.py >= g && item.py < g + 10;
+            }).length;
+            html += `<option value="${g}">${groupText} (${count})</option>`;
+        });
+
+        // 3. 필터 UI 반영 및 무조건 '전체'로 설정
+        pyeongFilter.innerHTML = html;
+        pyeongFilter.value = "all";
+    }
+
+    // [조건 2] 평형분석 실행 함수
+    function openPyengAnalysis() {
+        if (currentDetailList.length === 0) return alert("분석할 데이터가 없습니다.");
+        pyengRentRealPopupView(currentDetailList, 'real');
+    }
+
+    // 제공된 로직을 기반으로 한 팝업 생성 함수
+    function pyengRentRealPopupView(filteredItems, type) {
+        // 기존 팝업 제거
+        const oldPopup = document.getElementById('pyengRentPopup');
+        if (oldPopup) oldPopup.remove();
+        const oldOverlay = document.getElementById('popupOverlay');
+        if (oldOverlay) oldOverlay.remove();
+
+        const headerText = type === 'rent' ? `월세-평형분석` : '실거래-평형분석';
+
+        let groups = {};
+        let floorTotals = {};
+
+        filteredItems.forEach(item => {
+            if (!item.cfloor || item.cfloor == "0") return;
+            let floorNum = Number(item.cfloor);
+            let floorGroup = floorNum === 1 ? "1층" : (floorNum === 2 ? "2층" : (floorNum >= 3 ? "상층" : "기타"));
+
+            let areaVal = parseFloat(item.exclusive_area_pyeong);
+            let areaGroup = isNaN(areaVal) ? "미정" : (areaVal < 10 ? "9평대" : `${Math.floor(areaVal / 10) * 10}평대`);
+
+            if (!groups[floorGroup]) {
+                groups[floorGroup] = {};
+                floorTotals[floorGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+            if (!groups[floorGroup][areaGroup]) {
+                groups[floorGroup][areaGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+
+            let unitPrice = parseFloat(item.sortPyeongPrice);
+            if (!isNaN(unitPrice) && unitPrice > 0) {
+                groups[floorGroup][areaGroup].count += 1;
+                groups[floorGroup][areaGroup].sum += unitPrice;
+                if (groups[floorGroup][areaGroup].min === null || unitPrice < groups[floorGroup][areaGroup].min) groups[floorGroup][areaGroup].min = unitPrice;
+                if (groups[floorGroup][areaGroup].max === null || unitPrice > groups[floorGroup][areaGroup].max) groups[floorGroup][areaGroup].max = unitPrice;
+
+                floorTotals[floorGroup].count += 1;
+                floorTotals[floorGroup].sum += unitPrice;
+                if (floorTotals[floorGroup].min === null || unitPrice < floorTotals[floorGroup].min) floorTotals[floorGroup].min = unitPrice;
+                if (floorTotals[floorGroup].max === null || unitPrice > floorTotals[floorGroup].max) floorTotals[floorGroup].max = unitPrice;
+            }
+        });
+
+        const floorOrderMap = {"1층": 1, "2층": 2, "상층": 3};
+        let floorGroupKeys = Object.keys(groups).sort((a, b) => (floorOrderMap[a] || 99) - (floorOrderMap[b] || 99));
+
+        let tableRowsHtml = "";
+        const floorColors = { "1층": "#ffe0e0", "2층": "#e0f7ff", "상층": "#e0ffe0" };
+
+        floorGroupKeys.forEach(floorGroup => {
+            let areaKeys = Object.keys(groups[floorGroup]).sort((a, b) => {
+                if (a === "미정") return 1;
+                if (b === "미정") return -1;
+                return parseInt(a) - parseInt(b);
+            });
+            let rowspan = areaKeys.length + 1;
+            let floorColor = floorColors[floorGroup] || "#f0f0f0";
+
+            areaKeys.forEach((areaGroup, index) => {
+                let groupData = groups[floorGroup][areaGroup];
+                let count = groupData.count;
+                let avg = count > 0 ? (groupData.sum / count).toFixed(1) : "0";
+                let min = count > 0 ? groupData.min.toFixed(1) : "0";
+                let max = count > 0 ? groupData.max.toFixed(1) : "0";
+
+                tableRowsHtml += `
+                    <tr style="background-color: ${floorColor}; text-align: center; font-size:12px;">
+                        ${index === 0 ? `<td rowspan="${rowspan}" style="border: 1px solid #ddd; padding: 5px; font-weight: bold;">${floorGroup}</td>` : ''}
+                        <td style="border: 1px solid #ddd; padding: 5px;">${areaGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${count}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${min}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${avg}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${max}</td>
+                    </tr>`;
+            });
+            let ft = floorTotals[floorGroup];
+            tableRowsHtml += `
+                <tr style="background-color: #f9f9f9; text-align: center; font-weight: bold; font-size:12px;">
+                    <td style="border: 1px solid #ddd; padding: 5px;">합계</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.count}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.min ? ft.min.toFixed(1) : 0}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.count > 0 ? (ft.sum / ft.count).toFixed(1) : 0}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.max ? ft.max.toFixed(1) : 0}</td>
+                </tr>`;
+        });
+
+        // 차트 데이터 (면적별 분포)
+        const areaCounts = { '10': 0, '20': 0, '30': 0, '40': 0, '50': 0, '60': 0, '70': 0, '80': 0, '90': 0, '100+': 0 };
+        filteredItems.forEach(item => {
+            const area = item.exclusive_area_pyeong;
+            if (area < 20) areaCounts['10']++;
+            else if (area < 30) areaCounts['20']++;
+            else if (area < 40) areaCounts['30']++;
+            else if (area < 100) areaCounts[Math.floor(area/10)*10]++;
+            else areaCounts['100+']++;
+        });
+
+        const maxVal = Math.max(...Object.values(areaCounts), 1);
+        let chartBarsHtml = "";
+        Object.entries(areaCounts).forEach(([range, count]) => {
+            const h = Math.max((count / maxVal) * 80, 2);
+            chartBarsHtml += `
+                <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+                    <div style="font-size: 10px; color: var(--primary-color); font-weight:bold;">${count > 0 ? count : ''}</div>
+                    <div style="width: 18px; height: ${h}px; background-color: var(--primary-color); opacity: ${count > 0 ? 1 : 0.2}; border-radius: 2px 2px 0 0;"></div>
+                    <div style="font-size: 9px; margin-top: 4px; color: #666;">${range}</div>
+                </div>`;
+        });
+
+        // 팝업 생성
+        const popupHtml = `
+            <div id="popupOverlay" style="display:block;" onclick="closePyengPopup()"></div>
+            <div id="pyengRentPopup" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border: 1px solid var(--primary-color); border-radius: 12px; z-index: 3000; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-family: sans-serif;">
+                <h3 style="margin: 0 0 15px 0; display:flex; justify-content:space-between; align-items:center; font-size:1.1rem;">
+                    <span>📊 ${headerText}</span>
+                    <i class="fa-solid fa-xmark" style="cursor:pointer; color:#999;" onclick="closePyengPopup()"></i>
+                </h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="background: #f2f2f2; font-size:11px;">
+                                <th style="border: 1px solid #ddd; padding: 5px;">구분</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">평형</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">건수</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">최소</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">평균</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">최대</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRowsHtml}</tbody>
+                    </table>
+                </div>
+                <div style="border-top: 1px solid #eee; padding-top: 15px;">
+                    <div style="text-align: center; font-weight: bold; font-size: 0.8rem; margin-bottom: 10px;">면적별 매물 분포(평)</div>
+                    <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 100px;">${chartBarsHtml}</div>
+                </div>
+                <button onclick="closePyengPopup()" style="width:100%; margin-top:20px; padding:10px; background:var(--primary-color); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">닫기</button>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', popupHtml);
+    }
+
+    function closePyengPopup() {
+        const p = document.getElementById('pyengRentPopup');
+        const o = document.getElementById('popupOverlay');
+        if (p) p.remove();
+        if (o) o.remove();
+    }
+
+    // 3. renderDetailBody 수정 (상가에서 적용했던 억단위/평단가 스타일 적용)
+    function renderDetailBody() {
+        const detailBody = document.getElementById('detailBody');
+        detailBody.innerHTML = '';
+        const curYear = new Date().getFullYear();
+
+        currentDetailList.forEach(d => {
+            const age = d.bYear > 1900 ? curYear - d.bYear : '-';
+
+            // 금액 형식 변환 (억 단위)
+            let priceText = "";
+            if (d.price >= 10000) {
+                const uk = Math.floor(d.price / 10000);
+                const man = d.price % 10000;
+                priceText = (man > 0) ? (d.price / 10000).toFixed(1) + "억" : uk + "억";
+            } else {
+                priceText = d.price.toLocaleString() + "만";
+            }
+
+            // 평단가 계산 (@표시)
+            let pyeongPriceText = "";
+            if (d.py > 0) {
+                const pPrice = Math.round(d.price / d.py);
+                pyeongPriceText = ` / <span style="color: #e63946; font-size:0.75rem; font-weight: bold;">@${pPrice.toLocaleString()}</span>`;
+            }
+
+            detailBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td style="text-align:left; font-weight:600;">${d.name}</td>
+                    <td>${d.m2}</td>
+                    <td class="price-stats">${d.py}P</td>
+                    <td><strong>${priceText}</strong>${pyeongPriceText}</td>
+                    <td>${d.bYear}</td>
+                    <td>${age}년</td>
+                    <td style="font-size:0.7rem;">${d.date}</td>
+                    <td>
+                        <i class="fa-solid fa-map-location-dot"
+                           style="color: #4361ee; cursor: pointer; font-size: 1.1rem;"
+                           onclick="openMapNaverLatLon(${d.lat}, ${d.lon}, '${d.address}')"
+                           title="지도보기"></i>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
+    // 상세 리스트 정렬 함수
+    function sortDetail(key) {
+        if (detailSortState.key === key) {
+            detailSortState.asc = !detailSortState.asc;
+        } else {
+            detailSortState.key = key;
+            detailSortState.asc = true;
+        }
+
+        currentDetailList.sort((a, b) => {
+            let v1 = a[key];
+            let v2 = b[key];
+
+            if (key === 'name' || key === 'date') {
+                return detailSortState.asc ? v1.localeCompare(v2) : v2.localeCompare(v1);
+            } else {
+                return detailSortState.asc ? v1 - v2 : v2 - v1;
+            }
+        });
+        renderDetailBody();
+    }
+
+    function closeDetail() { document.getElementById('detailPanel').style.display = 'none'; }
+
+    function filterByDong() {
+        const key = document.getElementById('dongSearchInput').value.toLowerCase();
+        renderTable(processedStats.filter(s => s.name.toLowerCase().includes(key)));
+    }
+
+    function toggleStatsSort() {
+        isStatsAsc = !isStatsAsc;
+        processedStats.sort((a, b) => isStatsAsc ? a.name.localeCompare(b.name, 'ko') : b.name.localeCompare(a.name, 'ko'));
+        document.getElementById('statsSortIcon').className = isStatsAsc ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+        filterByDong();
+    }
+
+    // 네이버 지도 팝업 (위경도 및 마스킹 주소 대응)
+    function openMapNaverLatLon(lat, lon, address) {
+        const width = 1200;
+        const height = 800;
+        const left = (screen.width - width) / 2;
+        const top = (screen.height - height) / 2;
+
+        let url = "";
+
+        // 주소에 ***이 포함되어 있거나 주소가 불완전한 경우 좌표 우선 사용
+        if (!address || address.includes('*') || address.trim() === "") {
+            if (lat && lon && lat != 0 && lon != 0) {
+                url = `https://map.naver.com/v5/search/${lon},${lat}?c=${lon},${lat},17,0,0,0,dh`;
+            } else {
+                alert("주소 마스킹 처리로 인해 위치를 찾을 수 없으며 좌표 정보도 부족합니다.");
+                return;
+            }
+        }
+        else {
+            url = 'https://map.naver.com/v5/search/' + encodeURIComponent(address);
+        }
+        window.open(url, '_blank', `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 빌라 실거래 지도 분석 팝업 호출
+    async function openMapAnalysis() {
+        if (currentDetailList.length === 0) {
+            alert("지도에 표시할 데이터가 없습니다.");
+            return;
+        }
+
+        // 로딩바가 있다면 표시 (옵션)
+        // if (typeof showCenterLoading === 'function') showCenterLoading('지도 데이터 처리 중...');
+
+        const sigungu = document.getElementById('sigunguInput').value;
+        const dongName = document.querySelector('#detailTitle').innerText.split('-')[1] || "";
+        const lawName = `${sigungu} ${dongName}`.trim();
+
+        // 1) 실거래 데이터 JSON 생성 (currentDetailList 활용)
+        const realAddrs = currentDetailList.map(item => {
+            const amount = item.price; // 이미 정수형(만원단위)
+            const area = item.py || 0;
+            const unitPrice = area > 0 ? Math.round(amount / area) : 0;
+
+            return {
+                type: "real",
+                address: item.address || lawName,
+                buildingName: item.use || "상가",
+                date: item.date.replace(/\./g, ''), // 2024.01.01 -> 20240101
+                year: item.bYear || '',
+                floor: `${item.floor}층`,
+                area: area ? `${area}평` : "",
+                unitPrice: unitPrice.toLocaleString(),
+                price: formatKoreanAmount(amount), // 금액 한글 변환 함수 필요
+                latitude: item.lat || 0,
+                longitude: item.lon || 0
+            };
+        });
+
+        // 필터 정보 (현재 선택된 값)
+        const pyeongFilterText = document.getElementById("pyeongFilter") ?
+                                 document.getElementById("pyeongFilter").options[document.getElementById("pyeongFilter").selectedIndex].text : "전체";
+
+        const payload = {
+            options: [{
+                region: lawName,
+                floor: "전체",
+                area: pyeongFilterText
+            }],
+            addresses: realAddrs // 실거래 데이터만 포함
+        };
+
+        // 팝업 설정
+        const popupWidth = 1200;
+        const popupHeight = 900;
+        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+        const top = window.screenY + (window.outerHeight - popupHeight) / 2;
+
+        const popup = window.open(
+            '/api/ext_tool/map?menu=map_popup',
+            'mapPopup',
+            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
+        );
+
+        // 팝업 로드 후 데이터 전송
+        if (popup) {
+            const checkLoad = setInterval(() => {
+                if (popup.document.readyState === 'complete') {
+                    popup.postMessage(payload, window.location.origin);
+                    clearInterval(checkLoad);
+                    // if (typeof hideCenterLoading === 'function') hideCenterLoading();
+                }
+            }, 200);
+        }
+    }
+
+    // 금액을 '1.2억' 형태로 변환해주는 보조 함수
+    function formatKoreanAmount(amount) {
+        if (amount >= 10000) {
+            const uk = Math.floor(amount / 10000);
+            const man = amount % 10000;
+            return man > 0 ? `${uk}.${Math.floor(man/100)}억` : `${uk}억`;
+        }
+        return `${amount.toLocaleString()}만`;
+    }
+
+    function downloadExcel() {
+        const table = document.getElementById("statsTable");
+        const wb = XLSX.utils.table_to_book(table, { sheet: "통계", raw: true });
+        XLSX.writeFile(wb, `${document.getElementById('sigunguInput').value}_통계.xlsx`);
+    }
+</script>
+
+</body>
+</html>

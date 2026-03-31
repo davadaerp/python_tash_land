@@ -16,6 +16,10 @@ let apt_key = "";
 let villa_key = "";
 let sanga_key = "";
 
+// ===== 업종상권분석 전역 =====
+window.currentCommercialAreaItems = window.currentCommercialAreaItems || [];
+window.currentCommercialAreaGrouped = window.currentCommercialAreaGrouped || [];
+
 // config으로 만들 부분
 let autoScroll = true;
 let contiStatus = false;
@@ -542,6 +546,8 @@ function sangaItemRowModify(item, type, area, pdanga, price) {
     }
     if (type === '월세') {
         // 월세 정보를 붉은색으로 표시
+        /*  landcore_panel.js에서 처리되어 여기서 삭제함
+        --
         if (!priceElement.dataset.highlighted) {
             const priceSpan = document.createElement('span');
             priceSpan.textContent = `(${area}평 @${pdanga}만`;
@@ -560,8 +566,10 @@ function sangaItemRowModify(item, type, area, pdanga, price) {
 
             priceElement.dataset.highlighted = true; // 한 번만 실행되도록 표시
         }
+         */
     }
-    // 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)
+    // 차후 네이버 문제발생요소 차단
+    // 부동산중개사등 불필요한 요소 숨김 처리(위 삭제하면 동일묶음에서 에러발생)
     ['.tag_area', '.cp_area', '.label_area'].forEach(selector => {
         const element = item.querySelector(selector);
         //if (element) element.remove();
@@ -2069,7 +2077,8 @@ function searchNaverListings() {
     onoffPanel.appendChild(naverSearch);
 }
 
-// 국토부 실거래데이타 분석
+// 리스트형식으로 현재 사용안함..
+// 버튼형식처리 국토부 실거래데이타 분석(실거래 및 경매데이타)
 function searchLandRealData() {
 
     // 네이버 실거래검색 버튼 요소 가져오기
@@ -2107,44 +2116,271 @@ function searchLandRealData() {
                 menu = 'villa_real_deal';
             }
             openExtensionPopup(menu, { customTag: menu}, "realDataPopup", 950, 840);
-            /*
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
-            const aptNm = "";
-            // '경기도,김포시,구래동, 아파트명'
-            const regions = region + ',' + sigungu + ',' + umdNm + ',' + aptNm;
-            //alert(regions);
-
-            let search_menu = "";
-            if (tabGubun === 'apt') {
-                search_menu = "menu=apt_real_deal&regions=" + regions;
-            } else if (tabGubun === 'sanga') {
-                search_menu = "menu=sanga_real_deal&regions=" + regions;
-            } else {
-                search_menu = "menu=villa_real_deal&regions=" + regions;
-            }
-
-            // 확장툴url
-            let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-
-            const popupWidth = 950;  // 원하는 팝업 너비
-            const popupHeight= 840;  // 원하는 팝업 높이
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            // window.open(ext_url, "realDataPopup",
-            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-            window.open(
-                  ext_url,
-                  "realDataPopup",
-                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-            );
-             */
+            //
         });
   });
 
   // 네이버 매물검색 버튼 바로 뒤에 국토부실거래 버튼 추가
   naverSearch.parentNode.insertBefore(landSearch, naverSearch.nextSibling);
 }
+
+// 국토부 실거래데이타 분석 - 통계분석
+/**
+ * 실거래 및 통계 분석 사이트 메뉴 생성 (네이버매물검색 버튼 다음에 생성)
+ * 조건: 1. 드롭다운 형태, 2. 실거래분석 클릭시 팝업, 3. 통계분석 클릭시 조건부 팝업
+ */
+function statisticsLandRealSite() {
+    // 기준점이 되는 네이버매물검색 버튼 요소 가져오기
+    // (실제 코드 내에서 naverSearch 변수가 생성된 직후 이 함수가 호출되어야 함)
+    const naverSearch = document.getElementById("naverSearch");
+    if (!naverSearch) return;
+
+    // 1. 버튼과 메뉴를 감쌀 컨테이너 생성
+    const container = document.createElement('div');
+    container.style.display = 'inline-block';
+    container.style.position = 'relative';
+    container.style.verticalAlign = 'middle';
+
+    // 2. 분석메뉴 버튼(span) 생성
+    const analysisBtn = document.createElement('span');
+    analysisBtn.id = 'landSearch';
+    analysisBtn.textContent = '데이터분석 ▼';
+    analysisBtn.style.marginLeft = '10px';
+    analysisBtn.style.backgroundColor = '#4A90E2'; // 구분감을 위해 파란색 계열 사용
+    analysisBtn.style.color = '#fff';
+    analysisBtn.style.padding = '5px 6px';
+    analysisBtn.style.fontSize = '12px';
+    analysisBtn.style.borderRadius = '8px';
+    analysisBtn.style.cursor = 'pointer';
+    analysisBtn.style.border = '1px solid #357ABD';
+    analysisBtn.style.display = 'inline-block';
+
+    // 3. 드롭다운 메뉴용 DIV 생성
+    const menuDiv = document.createElement('div');
+    menuDiv.id = 'analysis-dropdown-menu';
+    menuDiv.style.display = 'none';
+    menuDiv.style.position = 'absolute';
+    menuDiv.style.top = '100%';
+    menuDiv.style.left = '10px';
+    menuDiv.style.width = '120px';
+    menuDiv.style.backgroundColor = '#fff';
+    menuDiv.style.border = '1px solid #ccc';
+    menuDiv.style.borderRadius = '4px';
+    menuDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+    menuDiv.style.zIndex = '9999';
+    menuDiv.style.marginTop = '5px';
+
+    // 메뉴 항목 생성 함수
+    const createMenuItem = (text, onClickHandler) => {
+        const item = document.createElement('div');
+        item.textContent = text;
+        item.style.padding = '8px 10px';
+        item.style.cursor = 'pointer';
+        item.style.fontSize = '12px';
+        item.style.color = '#333';
+        item.style.borderBottom = '1px solid #eee';
+
+        item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+        item.onmouseout = () => item.style.backgroundColor = '#fff';
+
+        item.onclick = (e) => {
+            e.stopPropagation();
+            onClickHandler(); // 전달받은 팝업 함수 실행
+            menuDiv.style.display = 'none';
+        };
+        return item;
+    };
+
+    // 4. 메뉴 항목 추가 (조건 2, 3 처리)
+    // 실거래 분석 클릭 시
+    menuDiv.appendChild(createMenuItem('📊 실거래분석', () => {
+        openLandRealAuctionPopup();
+    }));
+
+    // 업종 분석 클릭 시
+    menuDiv.appendChild(createMenuItem('🏪 업종분석', () => {
+        openCommericalAreaPopup();
+    }));
+
+    // 통계 분석 클릭 시
+    menuDiv.appendChild(createMenuItem('📈 통계분석', () => {
+        openLandRealStatisticsPopup();
+    }));
+
+    // 5. 버튼 클릭 시 메뉴 토글
+    analysisBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const isVisible = menuDiv.style.display === 'block';
+        menuDiv.style.display = isVisible ? 'none' : 'block';
+    });
+
+    // 바탕 클릭 시 닫기
+    document.addEventListener('click', () => {
+        menuDiv.style.display = 'none';
+    });
+
+    // 6. 버튼과 메뉴를 컨테이너에 넣고, 네이버매물검색(naverSearch) 버튼 다음에 삽입
+    container.appendChild(analysisBtn);
+    container.appendChild(menuDiv);
+
+    // naverSearch의 다음 형제로 삽입
+    if (naverSearch.nextSibling) {
+        naverSearch.parentNode.insertBefore(container, naverSearch.nextSibling);
+    } else {
+        naverSearch.parentNode.appendChild(container);
+    }
+}
+
+// 국토부 실거래데이타/경매데이타 분석
+function openLandRealAuctionPopup() {
+
+    //alert('준비중입니다.');
+    // 로그인여부 체크
+    loginValid().then(valid => {
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
+        // 국토부 실거래데이타 팝업 오픈
+        let menu = '';
+        if (tabGubun === 'apt') {
+            menu = 'apt_real_deal';
+        } else if (tabGubun === 'sanga') {
+            menu = 'sanga_real_deal';
+        } else {
+            menu = 'villa_real_deal';
+        }
+        openExtensionPopup(menu, { customTag: menu}, "realDataPopup", 950, 840);
+        //
+    });
+}
+
+// 업종분석 팝업
+function openCommericalAreaPopup() {
+    loginValid().then(async valid => {
+        if (!valid) return;
+
+        if (tabGubun !== 'sanga') {
+            alert('업종상권분석은 상가에서만 지원됩니다.');
+            return;
+        }
+
+        try {
+            // 1. 현재 선택 지역 기준 법정동코드 찾기
+            //const { lawdCd, lawName } = await resolveCommercialLawdCd();
+            const { region, sigungu, umdNm } = getSelectedRegions();
+
+            if (!region || !sigungu || !umdNm) {
+                throw new Error('지역 선택값이 올바르지 않습니다.');
+            }
+
+            const lawdCd = ''; // 테스트용 고정값 (4157010300: 김포시 운양동)
+            const lawName = `${region} ${sigungu} ${umdNm}`;
+            //alert(query);
+
+            //    상권정보 원본을 먼저 조회
+            const commercialItems = await fetchCommercialAreaInfo(lawdCd, lawName);
+            if (!commercialItems || !commercialItems.length) {
+                alert('해당 지역의 상권정보가 없습니다.');
+                return;
+            }
+
+            // 3. 상권정보를 지도팝업으로 전달하여 표시
+            const payload = {
+                options: [{
+                    region: lawName,
+                    floor: "전체",
+                    area: "전체"
+                }],
+                addresses: [{
+                    type: "region",
+                    address: lawName,
+                    buildingName: lawName,
+                    latitude: 0,
+                    longitude: 0
+                }],
+                commercialAreaItems: Array.isArray(commercialItems) ? commercialItems : []
+            };
+
+            console.log("Commercial area payload for popup:", payload);
+
+            const popupWidth = 1200;
+            const popupHeight = 1100;
+            const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+            const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
+
+            const popup = window.open(
+                BASE_URL + '/api/ext_tool/map?menu=map_popup',
+                'commercialAreaMapPopup',
+                `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
+            );
+
+            if (!popup) {
+                alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
+                return;
+            }
+
+            const sendPayload = () => {
+                try {
+                    popup.postMessage(payload, new URL(BASE_URL).origin);
+                } catch (e) {
+                    console.error('상권분석 payload 전송 실패:', e);
+                }
+            };
+
+            // 팝업 로딩 완료 시점 고려
+            popup.onload = sendPayload;
+            setTimeout(sendPayload, 800);
+
+        } catch (err) {
+            console.error('업종상권분석 처리 실패:', err);
+            alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
+        }
+    });
+}
+
+// 국토부 실거래 통계분석 전용 함수 추가
+function openLandRealStatisticsPopup() {
+
+    // 로그인 체크 후 실행
+    loginValid().then(valid => {
+
+        if (!valid) return;   // 로그인 실패 시 여기서 중단
+        //
+        if (tabGubun === 'apt') {
+            alert('아파트 통계분석은 준비중입니다.');
+            return;
+        }
+
+        // 1. 공통 지역 선택 정보 가져오기
+        const { region, sigungu, umdNm } = getSelectedRegions();
+        const regions = `${region},${sigungu},${umdNm}`;
+
+        // 2. 파라미터 구성 (기본 정보 + 통계용 플래그) - 통계분석은 menu와 type default로 public(실거래)이 동일하게 전달됨
+        const finalParams = {
+            menu: tabGubun,
+            type: 'public',
+            regions: regions,
+            tk: access_token || ''      // 기존 키값이 있으면 사용, 없으면 빈 문자열
+        };
+
+        // 3. URL 생성
+        const urlParams = new URLSearchParams(finalParams);
+        const extUrl = `${BASE_URL}/api/trade/statistics?${urlParams.toString()}`;
+
+        // 4. 팝업 창 설정
+        const popupWidth = 1390;
+        const popupHeight = 1180;
+        const left = (screen.width - popupWidth) / 2;
+        const top = (screen.height - popupHeight) / 2;
+        const popupName = "statisticsAnalysisPopup";
+
+        // 5. 창 열기
+        window.open(
+            extUrl,
+            popupName,
+            `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+    }); // end 로그인 체크 후 실행
+}
+
 
 // 아파트경우 부동산원 PIR데이타 분석
 function searchPirAnalyzeData() {
@@ -2854,7 +3090,8 @@ function topButtonCreate() {
     // 네이버매물 팝업
     searchNaverListings();
     // 실거래분석 처리(아파트 실거래및 경매내역)
-    searchLandRealData();
+    //searchLandRealData();
+    statisticsLandRealSite();
     // PIR분석 데이타
     if (tabGubun === 'apt') {
         // searchLandRealData();
@@ -2938,6 +3175,144 @@ function login() {
         });
     });
 }
+
+// ======================================
+// 업종상권분석용: 상권정보 조회
+// sanga_real_deal.html 의 fetchCommercialAreaInfo() 이식
+// ======================================
+async function fetchCommercialAreaInfo(lawdCd, lawdNm) {
+
+    if (!lawdNm) {
+        console.warn("법정동명이 없어 상권정보 조회를 건너뜁니다.");
+        window.currentCommercialAreaItems = [];
+        window.currentCommercialAreaGrouped = [];
+        return [];
+    }
+
+    try {
+        const res = await $.ajax({
+            url: BASE_URL + "/api/sanga/commerical_area_info",
+            method: "GET",
+            data: { lawd_cd: lawdCd, lawd_name: lawdNm },
+            dataType: "json",
+            timeout: 10000
+        });
+
+        // 서버가 200이어도 fail 상태를 줄 수 있으므로 한번 더 체크
+        if (!res || res.status !== "success") {
+            const serverMsg = res?.message || "상권정보 조회에 실패했습니다.";
+            throw new Error(serverMsg);
+        }
+
+        const records = Array.isArray(res?.records) ? res.records : [];
+        window.currentCommercialAreaItems = records;
+        window.currentCommercialAreaGrouped = groupCommercialAreaItems(records);
+
+        console.log("상권정보 조회 완료:", {
+            total_found: res?.total_found || 0,
+            records: window.currentCommercialAreaItems,
+            grouped: window.currentCommercialAreaGrouped
+        });
+
+        return records;
+
+    } catch (xhr) {
+        window.currentCommercialAreaItems = [];
+        window.currentCommercialAreaGrouped = [];
+
+        let errorMessage = "상권정보 조회 중 서버 오류가 발생했습니다.";
+
+        // jQuery ajax error 객체 대응
+        if (xhr?.responseJSON?.message) {
+            errorMessage = xhr.responseJSON.message;
+        } else if (xhr?.responseText) {
+            try {
+                const parsed = JSON.parse(xhr.responseText);
+                if (parsed?.message) {
+                    errorMessage = parsed.message;
+                }
+            } catch (e) {
+                // responseText가 JSON이 아닐 수 있으므로 무시
+            }
+        } else if (xhr?.statusText === "timeout") {
+            errorMessage = "상권정보 조회 시간이 초과되었습니다.";
+        } else if (xhr?.message) {
+            errorMessage = xhr.message;
+        }
+
+        console.error("상권정보 호출 실패:", {
+            status: xhr?.status,
+            statusText: xhr?.statusText,
+            responseJSON: xhr?.responseJSON,
+            errorMessage
+        });
+
+        alert(errorMessage);
+        return [];
+    }
+}
+
+// ======================================
+// 업종상권분석용: 상권정보 업종별 그룹화
+// ======================================
+function groupCommercialAreaItems(items) {
+    const safeItems = Array.isArray(items) ? items : [];
+    const lclsMap = {};
+    const totalCount = safeItems.length;
+
+    safeItems.forEach(item => {
+        const lclsName = (item.indsLclsNm || "기타").trim() || "기타";
+        const mclsName = (item.indsMclsNm || "기타").trim() || "기타";
+
+        if (!lclsMap[lclsName]) {
+            lclsMap[lclsName] = {
+                groupName: lclsName,
+                count: 0,
+                items: [],
+                mclsMap: {}
+            };
+        }
+
+        lclsMap[lclsName].count += 1;
+        lclsMap[lclsName].items.push(item);
+
+        if (!lclsMap[lclsName].mclsMap[mclsName]) {
+            lclsMap[lclsName].mclsMap[mclsName] = {
+                groupName: mclsName,
+                count: 0,
+                items: []
+            };
+        }
+
+        lclsMap[lclsName].mclsMap[mclsName].count += 1;
+        lclsMap[lclsName].mclsMap[mclsName].items.push(item);
+    });
+
+    const lclsGroups = Object.values(lclsMap)
+        .map(group => {
+            const mclsGroups = Object.values(group.mclsMap).sort((a, b) => {
+                if (b.count !== a.count) return b.count - a.count;
+                return a.groupName.localeCompare(b.groupName, "ko");
+            });
+
+            return {
+                groupName: group.groupName,
+                count: group.count,
+                items: group.items,
+                mclsGroups: mclsGroups
+            };
+        })
+        .sort((a, b) => {
+            if (b.count !== a.count) return b.count - a.count;
+            return a.groupName.localeCompare(b.groupName, "ko");
+        });
+
+    return {
+        totalCount: totalCount,
+        lclsGroups: lclsGroups
+    };
+}
+
 
 
 // **MutationObserver를 활용한 자동 감시**
@@ -3279,7 +3654,8 @@ function extractPropertyInfoDetailTank() {
 window.addEventListener('load', function() {
     if (window.location.href.startsWith('https://new.land.naver.com/offices') ||
         window.location.href.startsWith('https://new.land.naver.com/houses') ||
-        window.location.href.startsWith('https://new.land.naver.com/complexes')) {
+        window.location.href.startsWith('https://new.land.naver.com/complexes') ||
+        window.location.href.startsWith('https://fin.land.naver.com/map')) {
         setTimeout(extractPropertyInfo,50);
 
         observeMutations(); // DOM 변경 감시 시작

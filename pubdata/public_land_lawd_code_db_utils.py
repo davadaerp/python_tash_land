@@ -123,6 +123,28 @@ def get_lawd_by_code(lawd_cd: str, db_path: str = DB_PATH) -> Optional[Dict[str,
         conn.close()
 
 # ==========================
+# 3) lawd_name로 단건 조회
+# ==========================
+def get_lawd_by_name(lawd_name: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
+    """
+    lawd_name lawd_name 테이블에서 단건 조회.
+    반환: {"lawd_cd": "...", "lawd_name": "..."} 또는 None
+    """
+    if not lawd_name:
+        return None
+
+    conn = get_conn(db_path)
+    try:
+        sql = f"SELECT lawd_cd, lawd_name FROM {TABLE_NAME} WHERE lawd_name LIKE ?"
+        cur = conn.execute(sql, (f"%{lawd_name}%",))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"lawd_cd": row[0], "lawd_name": row[1]}
+    finally:
+        conn.close()
+
+# ==========================
 # 3-2) lawd_code 테이블 전체 조회
 def get_lawd_by_codes(db_path: str = DB_PATH) -> List[Dict[str, str]]:
     """

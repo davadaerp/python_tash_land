@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부동산 실거래 통계 대시보드</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* CSS 스타일은 이전과 동일 (가독성을 위해 핵심만 유지) */
+        :root { --primary-color: #4361ee; --bg-color: #f8f9fa; --card-bg: #ffffff; --border-color: #e9ecef; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-color); padding: 20px; margin: 0; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .search-section { background: var(--card-bg); padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .search-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        input[type="text"] { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; }
+        .table-container { background: var(--card-bg); border-radius: 15px; overflow-x: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+        th { background-color: #f1f4ff; color: var(--primary-color); padding: 15px; border-bottom: 2px solid var(--border-color); }
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); text-align: center; }
+        .loading { text-align: center; padding: 40px; font-size: 1.2rem; color: var(--primary-color); }
+        .price-stats { color: #6c757d; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header style="text-align: center; margin-bottom: 30px;">
+        <h1><i class="fa-solid fa-chart-line"></i> 부동산 실거래 통계 분석</h1>
+    </header>
+
+    <section class="search-section">
+        <div class="search-row">
+            <div class="input-group">
+                <label>시도</label>
+                <input type="text" id="regionInput" value="경기도">
+            </div>
+            <div class="input-group">
+                <label>시군구</label>
+                <input type="text" id="sigunguInput" value="김포시">
+            </div>
+            <div class="input-group">
+                <label>물건종별</label>
+                <div id="categoryGroup" style="display:flex; gap:15px;">
+                    <label><input type="checkbox" name="category" value="아파트" checked> 아파트</label>
+                    <label><input type="checkbox" name="category" value="다세대주택" checked> 다세대</label>
+                    <label><input type="checkbox" name="category" value="근린상가" checked> 상가</label>
+                    <label><input type="checkbox" name="category" value="오피스텔"> 오피스텔</label>
+                </div>
+            </div>
+            <button class="btn-search" onclick="fetchStatistics()" style="background:var(--primary-color); color:white; border:none; padding:12px 30px; border-radius:8px; cursor:pointer;">
+                <i class="fa-solid fa-magnifying-glass"></i> 통계 조회
+            </button>
+        </div>
+    </section>
+
+    <section class="table-container">
+        <table id="statsTable">
+            <thead>
+                <tr>
+                    <th>주소(읍면동)</th>
+                    <th>거래건수</th>
+                    <th>평균거래금액</th>
+                    <th>평균면적(건물)</th>
+                    <th>1억 이하</th>
+                    <th>1~2억</th>
+                    <th>2~3억</th>
+                    <th>3~5억</th>
+                    <th>5억 이상</th>
+                </tr>
+            </thead>
+            <tbody id="statsBody">
+                <tr><td colspan="9" class="loading">조회 버튼을 클릭해주세요.</td></tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<script>
+    async function fetchStatistics() {
+        const region = document.getElementById('regionInput').value;
+        const sigungu = document.getElementById('sigunguInput').value;
+        const categories = Array.from(document.querySelectorAll('input[name="category"]:checked')).map(cb => cb.value);
+
+        // 1. URL 생성 및 쿼리 파라미터 구성
+        let url = new URL('/api/trade/statistics', window.location.origin);
+        url.searchParams.append('region', region);
+        url.searchParams.append('sigungu_name', sigungu);
+        categories.forEach(cat => url.searchParams.append('category', cat));
+
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '<tr><td colspan="9" class="loading"><i class="fa-solid fa-spinner fa-spin"></i> 데이터를 가져오는 중...</td></tr>';
+
+        try {
+            // 2. API 호출
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('네트워크 응답이 올바르지 않습니다.');
+
+            const json = await response.json();
+
+            if (json.status === "success" && json.results.length > 0) {
+                processAndRender(json.results);
+            } else {
+                tbody.innerHTML = '<tr><td colspan="9" class="loading">데이터가 없습니다.</td></tr>';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            tbody.innerHTML = `<tr><td colspan="9" class="loading" style="color:red;">오류 발생: ${error.message}</td></tr>`;
+        }
+    }
+
+    function processAndRender(results) {
+        const groups = {};
+
+        // 3. 동별 데이터 그룹화 로직
+        results.forEach(item => {
+            const dong = item.eub_myeon_dong || '기타';
+            if (!groups[dong]) {
+                groups[dong] = { count: 0, totalPrice: 0, totalM2: 0, r1: 0, r2: 0, r3: 0, r4: 0, r5: 0 };
+            }
+
+            const g = groups[dong];
+            const salePrice = parseInt(item.sale_price) || 0;
+            const m2 = parseFloat(item.building_m2) || 0;
+
+            g.count++;
+            g.totalPrice += salePrice;
+            g.totalM2 += m2;
+
+            // 금액대 분류
+            const p = salePrice / 100000000;
+            if (p <= 1) g.r1++;
+            else if (p <= 2) g.r2++;
+            else if (p <= 3) g.r3++;
+            else if (p <= 5) g.r4++;
+            else g.r5++;
+        });
+
+        // 4. 테이블 렌더링
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '';
+
+        Object.entries(groups).forEach(([dong, stats]) => {
+            const avgPrice = Math.round(stats.totalPrice / stats.count / 10000); // 만원 단위
+            const avgM2 = (stats.totalM2 / stats.count).toFixed(1);
+            const avgPy = (avgM2 / 3.305).toFixed(1);
+
+            const getPct = (val) => Math.round((val / stats.count) * 100);
+
+            const row = `
+                <tr>
+                    <td style="font-weight:bold;">${dong}</td>
+                    <td><span style="background:var(--primary-color); color:white; padding:3px 8px; border-radius:4px;">${stats.count}건</span></td>
+                    <td><strong>${avgPrice.toLocaleString()}</strong> 만원</td>
+                    <td>${avgM2}㎡ <span class="price-stats">(${avgPy}평)</span></td>
+                    <td>${stats.r1}건 <br><span class="price-stats">(${getPct(stats.r1)}%)</span></td>
+                    <td>${stats.r2}건 <br><span class="price-stats">(${getPct(stats.r2)}%)</span></td>
+                    <td>${stats.r3}건 <br><span class="price-stats">(${getPct(stats.r3)}%)</span></td>
+                    <td>${stats.r4}건 <br><span class="price-stats">(${getPct(stats.r4)}%)</span></td>
+                    <td>${stats.r5}건 <br><span class="price-stats">(${getPct(stats.r5)}%)</span></td>
+                </tr>
+            `;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+    }
+</script>
+
+</body>
+</html>

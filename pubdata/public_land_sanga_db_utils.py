@@ -191,6 +191,62 @@ def print_rows(rows: List[Dict]) -> None:
             f"{r.get('lon',''):<12}"
         )
 
+# sgg_nm 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
+# 경기도 김포시 조건으로 해당 동목록을 가져옴
+def public_read_sanga_by_region(
+    sgg_nm: str = "",
+    umd_nm: str = "",
+    building_types: Optional[List[str]] = None,
+    db_path: str = DB_PATH
+) -> List[Dict]:
+    """
+    시군구명(sggNm)과 읍면동명(umdNm)을 조건으로 상가/상업용 실거래 데이터를 조회합니다.
+    건물유형(buildingType: 집합, 일반 등)을 리스트로 받아 멀티 필터링이 가능합니다.
+    """
+    conn = get_conn(db_path)
+    # dict 형태의 결과를 얻기 위해 row_factory 설정
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # 1. 기본 쿼리 (SANGA_COLUMNS 사용)
+    # SANGA_COLUMNS는 튜플이므로 리스트로 변환하여 조인하거나 직접 컬럼을 지정합니다.
+    cols_sql = ", ".join(SANGA_COLUMNS)
+    query = f"SELECT {cols_sql} FROM {TABLE_NAME} WHERE 1=1"
+    params = []
+
+    # 2. 시군구명 필터 (부분 일치 검색 가능하도록 LIKE 처리)
+    if sgg_nm:
+        query += " AND sggNm LIKE ?"
+        params.append(f"%{sgg_nm}%")
+
+    # 3. 읍면동명 필터 (부분 일치 검색 가능하도록 LIKE 처리)
+    if umd_nm:
+        query += " AND umdNm LIKE ?"
+        params.append(f"%{umd_nm}%")
+
+    # 4. 건물유형(buildingType) 멀티 필터 처리 (예: ['집합', '일반'])
+    if building_types and isinstance(building_types, list):
+        placeholders = ', '.join(['?'] * len(building_types))
+        query += f" AND buildingType IN ({placeholders})"
+        params.extend(building_types)
+
+    # 5. 정렬 (최신 거래순: 년 -> 월 -> 일)
+    # 데이터가 TEXT 형식이므로 정렬 시 주의가 필요할 수 있으나, 보통 '07' 형태이므로 DESC 정렬이 작동합니다.
+    query += " ORDER BY dealYear DESC, dealMonth DESC, dealDay DESC"
+
+    try:
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        # sqlite3.Row 객체들을 dict 리스트로 변환
+        result = [dict(row) for row in rows]
+        return result
+    except Exception as e:
+        print(f"상가 데이터 조회 중 오류 발생: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 # ==========================
 # 사용 예시
 # ==========================

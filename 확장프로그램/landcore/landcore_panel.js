@@ -1,8 +1,13 @@
 /**
+ * Naverbu V2 - Content Script
  *
  * 기능:
  * 1. 매물 목록에 평당가/평수 배지 자동 표시
  * 2. Side Panel에서 분석 요청 시 데이터 제공
+ *
+ * ============================================
+ * 수정 이력 (2026-01-21)
+ * ============================================
  *
  * [버그 수정] 가격/면적 정규식 개선
  * - 문제: 공백 제거 시 숫자가 합쳐져 잘못된 평당가 계산
@@ -19,55 +24,97 @@
  * ============================================
  */
 
-console.log('🏢 랜드코어 분석기 - Content Script 로드됨');
-
-// 페이지 로드 시 자동으로 배지 표시 및 분석
-setTimeout(() => {
-    initAutoAnalysis();
-}, 1500);
-
-// 디바운스 타이머
-let analysisDebounceTimer = null;
+console.log('🏢 랜드코어 부동산 분석기 - Content Script 로드됨');
 
 /**
- * 자동 분석 초기화
- * - 페이지 로드 시 즉시 배지 표시 및 분석
- * - MutationObserver로 새 매물 감지하여 실시간 업데이트
+ * 신 버전(fin.land.naver.com) 여부 감지
  */
-function initAutoAnalysis() {
-    console.log('🏷️ 자동 분석 시작...');
+function isNewVersion() {
+    return location.hostname === 'fin.land.naver.com';
+}
+
+// ===== SPA 대응 자동 분석 시스템 =====
+// 핵심: document.body를 항상 감시하여 어떤 SPA 네비게이션에서도 동작
+let analysisDebounceTimer = null;
+let badgeDebounceTimer = null;
+let lastUrl = location.href;
+
+// 1. 초기 로드 대기 후 시작
+setTimeout(() => {
+    startPersistentWatcher();
+}, 1500);
+
+/**
+ * 영구 감시 시스템 (SPA 네비게이션 대응)
+ * - document.body를 항상 감시
+ * - 배지 없는 매물 발견 시 즉시 처리
+ * - URL 변경 감지하여 재분석
+ */
+function startPersistentWatcher() {
+    console.log('🏷️ 영구 감시 시스템 시작');
 
     // 초기 배지 표시
     const count = addBadgesToListings();
-    console.log(`✅ 초기 ${count}개 매물에 배지 표시`);
-
-    // 초기 분석 실행 및 사이드패널 업데이트
-    sendAnalysisToPanel();
-
-    // 스크롤로 새 매물 로드 시 배지 추가 + 분석 업데이트 (MutationObserver)
-    const listContainer = document.querySelector('.item_list, .list_item, .article_list');
-    if (listContainer) {
-        const observer = new MutationObserver((mutations) => {
-            // 새 요소가 추가되면 처리
-            let hasNewItems = mutations.some(m => m.addedNodes.length > 0);
-            if (hasNewItems) {
-                // 배지 표시 (즉시)
-                setTimeout(() => addBadgesToListings(), 300);
-
-                // 분석 업데이트 (디바운스 - 500ms)
-                clearTimeout(analysisDebounceTimer);
-                analysisDebounceTimer = setTimeout(() => {
-                    sendAnalysisToPanel();
-                }, 500);
-            }
-        });
-
-        observer.observe(listContainer.parentElement || document.body, {
-            childList: true,
-            subtree: true
-        });
-        console.log('👁️ MutationObserver 활성화 - 실시간 분석 중');
+    if (count > 0) {
+        console.log(`✅ 초기 ${count}개 매물에 배지 표시`);
+        sendAnalysisToPanel();
     }
+
+    // === body 레벨 MutationObserver (절대 끊기지 않음) ===
+    const observer = new MutationObserver((mutations) => {
+        // 상세 패널(#article_detail) 내부 변경은 무시 (평/m² 토글 등)
+        // → 토글 시 analyzeCurrentPage() 호출을 방지하여 메시지 채널 보호
+        let hasRelevantChange = false;
+        for (const m of mutations) {
+            if (m.addedNodes.length > 0) {
+                // 상세 패널 내부인지 확인
+                const isInsideDetail = m.target.closest?.('#article_detail, [class*="ArticleDetail"]');
+                if (!isInsideDetail) {
+                    hasRelevantChange = true;
+                    break;
+                }
+            }
+        }
+        if (!hasRelevantChange) return;
+
+        // 배지 표시 (디바운스 300ms - 연속 DOM 변경 시 한 번만)
+        clearTimeout(badgeDebounceTimer);
+        badgeDebounceTimer = setTimeout(() => {
+            const added = addBadgesToListings();
+            if (added > 0) {
+                console.log(`🏷️ ${added}개 매물에 배지 추가`);
+            }
+        }, 300);
+
+        // 분석 업데이트 (디바운스 800ms)
+        clearTimeout(analysisDebounceTimer);
+        analysisDebounceTimer = setTimeout(() => {
+            sendAnalysisToPanel();
+        }, 800);
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    console.log('👁️ body MutationObserver 활성화 - 영구 감시 중');
+
+    // === URL 변경 감지 (SPA pushState/replaceState) ===
+    // SPA에서 지도 이동/건물 클릭 시 URL이 바뀌지만 페이지 리로드 없음
+    setInterval(() => {
+        if (location.href !== lastUrl) {
+            console.log('🔄 URL 변경 감지:', lastUrl, '→', location.href);
+            lastUrl = location.href;
+            // URL 변경 후 DOM 업데이트 대기
+            setTimeout(() => {
+                const added = addBadgesToListings();
+                if (added > 0) {
+                    console.log(`🏷️ URL 변경 후 ${added}개 배지 추가`);
+                }
+                sendAnalysisToPanel();
+            }, 1000);
+        }
+    }, 500);
 }
 
 /**
@@ -75,10 +122,10 @@ function initAutoAnalysis() {
  */
 function sendAnalysisToPanel() {
     try {
-        const analysisResult = analyzeCurrentPage();
+        const payload = buildAnalysisResponseData();
         chrome.runtime.sendMessage({
             type: 'AUTO_ANALYSIS_UPDATE',
-            data: analysisResult
+            data: payload
         }).catch(() => {
             // 사이드패널이 열려있지 않은 경우 무시
         });
@@ -97,9 +144,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('📊 분석 시작 요청 수신');
 
         try {
-            const analysisResult = analyzeCurrentPage();
+            const payload = analyzeCurrentPage();
             console.log('✅ 분석 완료, 응답 전송');
-            sendResponse({ success: true, data: analysisResult });
+            sendResponse({ success: true, data: payload });
         } catch (error) {
             console.error('❌ 분석 오류:', error);
             sendResponse({ success: false, error: error.message || '분석 실패' });
@@ -166,10 +213,110 @@ function extractListingDetail() {
         exclusiveArea: 0,    // 전용면적 (m²)
         deposit: 0,          // 보증금 (만원)
         monthlyRent: 0,      // 월세 (만원)
-        hasRentInfo: false   // 임대 정보 존재 여부
+        hasRentInfo: false,  // 임대 정보 존재 여부
+        areaInPyeong: false  // 면적이 이미 평 단위인지 여부
     };
 
-    // 상세정보 팝업 영역 찾기 (.detail_panel이 정확한 셀렉터)
+    // 신 버전: #article_detail
+    if (isNewVersion()) {
+        // 매번 최신 DOM을 참조 (토글 등으로 재렌더링될 수 있으므로)
+        const getDetailPanel = () => document.querySelector('#article_detail, [class*="ArticleDetail"]');
+
+        const detailPanel = getDetailPanel();
+        if (!detailPanel) {
+            console.warn('⚠️ 신 버전 상세정보 패널을 찾을 수 없습니다.');
+            return extractFromText(document.body.innerText);
+        }
+
+        console.log('📋 신 버전 상세정보 패널 발견, 데이터 추출 시작');
+
+        // 신 버전 라벨-값 검색 헬퍼 (매번 최신 DOM 텍스트 사용)
+        const getFieldValue = (labelKeyword) => {
+            const panel = getDetailPanel();
+            if (!panel) return null;
+            const allText = panel.innerText;
+            const lines = allText.split('\n').map(l => l.trim()).filter(l => l);
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes(labelKeyword)) {
+                    // 같은 줄에 라벨과 값이 있는 경우
+                    const parts = lines[i].split(labelKeyword);
+                    const afterLabel = parts[parts.length - 1].trim();
+                    if (afterLabel && /\d/.test(afterLabel)) return afterLabel;
+                    // 다음 줄에 값이 있는 경우
+                    if (i + 1 < lines.length) {
+                        return lines[i + 1].trim();
+                    }
+                }
+            }
+            return null;
+        };
+
+        // 1. 매매가/월세 추출 (상단 텍스트에서)
+        const panelText = getDetailPanel()?.innerText || '';
+        const salePriceMatch = panelText.match(/매매\s*(\d{1,3}억(?:\s*\d{1,4}(?:,\d{3})?)?|[\d,]+만)/);
+        if (salePriceMatch) {
+            result.salePrice = parseKoreanPrice(salePriceMatch[1].replace(/\s+/g, ''));
+            console.log('💰 매매가 추출:', salePriceMatch[1], '→', result.salePrice, '만원');
+        }
+
+        // 월세 패턴: "월세 1억/420" 또는 "월세 5,000/400"
+        const rentPriceMatch = panelText.match(/월세\s*([\d,억천]+)\s*\/\s*([\d,]+)/);
+        if (rentPriceMatch) {
+            result.deposit = parseKoreanPrice(rentPriceMatch[1].replace(/\s+/g, ''));
+            result.monthlyRent = parseInt(rentPriceMatch[2].replace(/,/g, '')) || 0;
+            result.hasRentInfo = true;
+            console.log('🏠 월세 추출: 보증금', result.deposit, '만원, 월세', result.monthlyRent, '만원');
+        }
+
+        // 매매 물건의 기보증금/기월세액 추출 (매매인데 현재 임차인이 있는 경우)
+        // 주의: innerText에서 "3,000" 과 "/180만원"이 별도 줄로 분리됨
+        // → 공백/줄바꿈 제거 후 전체 텍스트에서 패턴 매칭
+        if (!result.hasRentInfo) {
+            const collapsed = panelText.replace(/\s+/g, '');
+            // "기보증금/기월세액3,000/180만원" 또는 "기보증금/기월세액1,000/60만원"
+            const rentMatch = collapsed.match(/기보증금\/기월세액([\d,]+)\/([\d,]+)/);
+            if (rentMatch) {
+                result.deposit = parseInt(rentMatch[1].replace(/,/g, '')) || 0;
+                result.monthlyRent = parseInt(rentMatch[2].replace(/,/g, '')) || 0;
+                result.hasRentInfo = true;
+                console.log('🏠 기보증금/기월세 추출: 보증금', result.deposit, '만원, 월세', result.monthlyRent, '만원');
+            }
+        }
+
+        // 2. 면적 추출 (단위 감지: m² vs 평)
+        const contractAreaText = getFieldValue('계약면적');
+        const exclusiveAreaText = getFieldValue('전용면적');
+
+        // 단위 감지: "18.14평" (숫자 바로 뒤 평) vs "60m²"
+        // 주의: "60m² ☛ 평" 처럼 전환 버튼 텍스트에도 '평'이 포함됨
+        if (contractAreaText && /[\d.]평/.test(contractAreaText)) {
+            result.areaInPyeong = true;
+        }
+
+        if (contractAreaText) {
+            const caMatch = contractAreaText.match(/([\d.]+)/);
+            if (caMatch) result.contractArea = parseFloat(caMatch[1]);
+        }
+        if (exclusiveAreaText) {
+            const eaMatch = exclusiveAreaText.match(/([\d.]+)/);
+            if (eaMatch) result.exclusiveArea = parseFloat(eaMatch[1]);
+        }
+        // 폴백: 요약에서 "계약88.24㎡ (전용88)" 추출
+        // ★ "계약" 키워드 필수 → 설명의 "전용12P" 오매칭 방지
+        if (result.exclusiveArea === 0) {
+            const summaryMatch = panelText.match(/계약[\d.]+[㎡m평]\S*\s*\(?전용([\d.]+)/);
+            if (summaryMatch) result.exclusiveArea = parseFloat(summaryMatch[1]);
+        }
+        if (result.contractArea === 0) {
+            const summaryMatch = panelText.match(/계약([\d.]+)/);
+            if (summaryMatch) result.contractArea = parseFloat(summaryMatch[1]);
+        }
+        console.log('📐 면적 추출:', result.contractArea, '/', result.exclusiveArea, 'm²');
+
+        return result;
+    }
+
+    // ===== 구 버전 (new.land.naver.com) =====
     const detailPanel = document.querySelector('.detail_panel');
     if (!detailPanel) {
         console.warn('⚠️ 상세정보 패널을 찾을 수 없습니다. 페이지 전체에서 검색합니다.');
@@ -247,6 +394,119 @@ function extractMemoData() {
         agencyAddress: ''   // 중개사 주소
     };
 
+    // ===== 신 버전 (fin.land.naver.com) =====
+    if (isNewVersion()) {
+        const detailPanel = document.querySelector('#article_detail, [class*="ArticleDetail"]');
+        if (!detailPanel) {
+            console.warn('⚠️ 신 버전 상세정보 패널을 찾을 수 없습니다.');
+            return result;
+        }
+
+        console.log('📝 신 버전 메모 데이터 추출 시작...');
+        const panelText = detailPanel.innerText;
+        const lines = panelText.split('\n').map(l => l.trim()).filter(l => l);
+
+        // 라벨 다음 줄에 값이 있는 구조에서 값 추출
+        const getFieldValue = (labelKeyword) => {
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i] === labelKeyword || lines[i].startsWith(labelKeyword)) {
+                    // 같은 줄에 값이 있는 경우
+                    const afterLabel = lines[i].replace(labelKeyword, '').trim();
+                    if (afterLabel) return afterLabel;
+                    // 다음 줄에 값이 있는 경우
+                    if (i + 1 < lines.length) return lines[i + 1].trim();
+                }
+            }
+            return null;
+        };
+
+        // 1. 매물명 (상단 "정자동 일반상가" 등)
+        // 첫 몇 줄에서 상가 유형 추출
+        for (const line of lines.slice(0, 5)) {
+            if (line.includes('상가') || line.includes('사무실') || line.includes('건물')) {
+                result.propertyName = line;
+                break;
+            }
+        }
+
+        // 2. 가격
+        const priceMatch = panelText.match(/매매\s*(\d{1,3}억(?:\s*\d{1,4}(?:,\d{3})?)?|[\d,]+만)/);
+        if (priceMatch) result.price = '매매 ' + priceMatch[1];
+        const rentMatch = panelText.match(/월세\s*([\d,억천]+\s*\/\s*[\d,]+)/);
+        if (rentMatch) {
+            result.price = '월세 ' + rentMatch[1];
+            result.rent = rentMatch[1];
+        }
+
+        // 기보증금/기월세액 추출 (매매 물건에 임차인이 있는 경우)
+        if (!result.rent) {
+            const collapsed = panelText.replace(/\s+/g, '');
+            const rentFieldMatch = collapsed.match(/기보증금\/기월세액([\d,]+)\/([\d,]+)/);
+            if (rentFieldMatch) {
+                result.rent = `${rentFieldMatch[1]}/${rentFieldMatch[2]}만원`;
+            }
+        }
+
+        // 3. 면적 - 상세 필드(계약면적/전용면적)에서 추출 (요약줄은 네이버가 내림한 값이라 부정확)
+        const contractAreaText = getFieldValue('계약면적') || '';
+        const exclusiveAreaText = getFieldValue('전용면적') || '';
+        const cNum = contractAreaText.match(/([\d.]+)/);
+        const eNum = exclusiveAreaText.match(/([\d.]+)/);
+        if (cNum && eNum) {
+            const cVal = parseFloat(cNum[1]);
+            const eVal = parseFloat(eNum[1]);
+            const isAlreadyPyeong = /[\d.]평/.test(contractAreaText);
+            const cPy = isAlreadyPyeong ? cVal.toFixed(1) : (cVal * 0.3025).toFixed(1);
+            const ePy = isAlreadyPyeong ? eVal.toFixed(1) : (eVal * 0.3025).toFixed(1);
+            result.area = `${cPy}평/${ePy}평`;
+        }
+
+        // 4. 층수
+        result.floor = getFieldValue('해당층/총층') || '';
+
+        // 5. 주소 (건축물 정보 > 위치)
+        result.address = getFieldValue('위치') || getFieldValue('소재지') || '';
+
+        // 6. 매물특징
+        const featuresVal = getFieldValue('매물소개');
+        if (featuresVal) result.features = featuresVal;
+
+        // 7. 매물번호
+        result.propertyNo = getFieldValue('매물번호') || '';
+
+        // 8. 중개사 정보
+        // 전화번호 추출
+        const phoneMatches = panelText.match(/\d{2,4}-\d{3,4}-\d{4}/g) || [];
+        if (phoneMatches.length > 0) result.agencyPhone = phoneMatches[0];
+        if (phoneMatches.length > 1) result.agencyMobile = phoneMatches[1];
+
+        // 중개사명 추출
+        for (const line of lines) {
+            if (line.includes('공인중개사') || line.includes('부동산사무소')) {
+                result.agencyName = line;
+                break;
+            }
+        }
+
+        // 중개사 위치 (등록번호 근처)
+        const agencyLocVal = getFieldValue('위치');
+        // 두번째 "위치" 값이 중개사 주소
+        let locationCount = 0;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === '위치' || lines[i].startsWith('위치')) {
+                locationCount++;
+                if (locationCount === 2 && i + 1 < lines.length) {
+                    result.agencyAddress = lines[i + 1].trim();
+                    break;
+                }
+            }
+        }
+
+        console.log('📝 신 버전 메모 데이터 추출 완료:', result);
+        return result;
+    }
+
+    // ===== 구 버전 (new.land.naver.com) =====
     const detailPanel = document.querySelector('.detail_panel');
     if (!detailPanel) {
         console.warn('⚠️ 상세정보 패널을 찾을 수 없습니다.');
@@ -496,10 +756,64 @@ function analyzeCurrentPage() {
 }
 
 /**
+ * 지역정보를 포함한 분석 응답 데이터 생성
+ */
+function buildAnalysisResponseData() {
+    const analysisResult = analyzeCurrentPage();
+    const regionInfo = getSelectedRegionInfo();
+
+    return {
+        ...analysisResult,
+        regionInfo: {
+            region: regionInfo?.region || null,
+            sigungu: regionInfo?.sigungu || null,
+            umdNm: regionInfo?.umdNm || null
+        }
+    };
+}
+
+/**
  * 매물 아이템 요소 찾기
  * ⚠️ 읽기만 수행
  */
 function findListingItems() {
+    // 신 버전 (fin.land.naver.com)
+    if (isNewVersion()) {
+        // ArticleCard 링크 + 그룹 카드(중개사 다중 등록) 모두 포함
+        // 링크: ArticleCard_link (투명 오버레이), 그룹: ArticleCard_button-expand
+        const cardElements = document.querySelectorAll(
+            '[class*="ArticleCard_link"], [class*="ArticleCard_button-expand"]'
+        );
+        if (cardElements.length > 0) {
+            const parents = new Set();
+            cardElements.forEach(el => {
+                // 부모 요소가 카드 컨테이너
+                const parent = el.parentElement;
+                if (parent) parents.add(parent);
+            });
+            return Array.from(parents);
+        }
+
+        // 방법 2: #article_list 내 직접 자식 요소들
+        const listContainer = document.querySelector('#article_list');
+        if (listContainer) {
+            // 스크롤 컨테이너의 자식들 중 실제 카드 요소만 필터링
+            const scrollContainer = listContainer.querySelector('[class*="ScrollBox_scroller"]') || listContainer;
+            const children = scrollContainer.children;
+            const items = [];
+            for (const child of children) {
+                // 텍스트가 있는 의미있는 카드만 포함
+                if (child.innerText && child.innerText.includes('매') && child.innerText.length > 20) {
+                    items.push(child);
+                }
+            }
+            if (items.length > 0) return items;
+        }
+
+        return [];
+    }
+
+    // 구 버전 (new.land.naver.com)
     const selectors = [
         '.item_inner',
         '.item',
@@ -512,7 +826,6 @@ function findListingItems() {
     for (const selector of selectors) {
         const found = document.querySelectorAll(selector);
         if (found.length > 0) {
-            // 매물 발견
             // 중개사 묶음의 자식 아이템 제외
             return Array.from(found).filter(item => {
                 return !item.classList.contains('item--child') &&
@@ -577,7 +890,8 @@ function parseListingItem(item) {
         direction: direction,            // 향
         pricePerPyeong: pricePerPyeong, // 평당가
         area: areaInfo.pyeong,          // 면적 (평)
-        fullPrice: priceInfo.fullPrice, // 원본 가격 문자열
+        fullPrice: priceInfo.fullPrice, // 원본 가격 문자열(매매 2억, 월세 1,000/70)
+        price: priceInfo.price,         // 가격 (만원 단위)
         agencyName: agencyInfo.name,    // 공인중개사 이름
         agencyCount: agencyInfo.count,  // 중개사 수
         verificationDate: verificationDate // 확인 날짜
@@ -700,7 +1014,12 @@ function extractAgencyInfo(rawText) {
  * 확인 날짜 추출
  */
 function extractVerificationDate(text) {
-    // "확인매물 26.01.07" 패턴 (공백 허용, YY.MM.DD 형식)
+    // "확인매물 2026.03.19" 패턴 (YYYY.MM.DD 형식 - 신 버전)
+    const matchFull = text.match(/확인매물\s*(\d{4}\.\d{2}\.\d{2})/);
+    if (matchFull) {
+        return matchFull[1];
+    }
+    // "확인매물 26.01.07" 패턴 (YY.MM.DD 형식 - 구 버전)
     const match = text.match(/확인매물\s*(\d{2}\.\d{2}\.\d{2})/);
     if (match) {
         return match[1];
@@ -758,30 +1077,65 @@ function extractPriceInfo(text) {
 
 /**
  * 면적 정보 추출 (기존 naverbu 로직 이식)
+ *
+ * ★ 주의: 중개사 설명에 "전용12P", "전용42" 등 평수를 기재하는 경우가 있음
+ *   이를 m²로 오인하면 이중 환산 버그 발생 (12 × 0.3025 = 3.6평 ← 틀린 값)
+ *   → 구 버전: "/38m²" 패턴을 최우선 매칭
+ *   → 신 버전: "계약" 키워드 필수로 설명 텍스트 오매칭 차단
  */
 function extractArea(text) {
-    const match = text.match(/\/([\d.]+)m²/);
-    if (!match) return null;
+    // ★ 구 버전 형식 우선 체크: "상가· 76/38m²" 또는 "/63㎡"
+    // 이 패턴이 있으면 확실한 m² 데이터이므로 설명 텍스트 파싱 불필요
+    const legacyMatch = text.match(/\/([\d.]+)m²/);
+    if (legacyMatch) {
+        const squareMeters = parseFloat(legacyMatch[1]);
+        const pyeong = squareMeters * 0.3025;
+        return { squareMeters, pyeong };
+    }
 
-    const squareMeters = parseFloat(match[1]);
-    const pyeong = squareMeters * 0.3025;
+    // 신 버전 형식 감지 (fin.land.naver.com)
+    // ㎡ 모드: "계약123.95㎡ (전용62.97)" → 전용면적은 ㎡, 환산 필요
+    // 평 모드: "계약35평 (전용35)" → 전용면적은 이미 평, 그대로 사용
+    // ★ "계약" 키워드 필수 → 설명의 "전용12P", "전용42" 오매칭 방지
+    const newFormatMatch = text.match(/계약[\d.]+[㎡m평]\S*\s*\(?전용([\d.]+)/);
+    if (newFormatMatch) {
+        const value = parseFloat(newFormatMatch[1]);
 
-    return { squareMeters, pyeong };
+        // 단위 판별: "계약" 뒤에 "평" 확인
+        const isPyeongMode = /계약[\d.]+평/.test(text);
+
+        if (isPyeongMode) {
+            // 이미 평 단위 → 그대로 사용
+            const pyeong = value;
+            const squareMeters = pyeong / 0.3025;  // 역환산 (표시용)
+            return { squareMeters, pyeong };
+        } else {
+            // ㎡ 단위 → 평으로 환산
+            const squareMeters = value;
+            const pyeong = squareMeters * 0.3025;
+            return { squareMeters, pyeong };
+        }
+    }
+
+    return null;
 }
 
 /**
- * 평당가 계산 (기존 naverbu 로직 이식)
+ * 평당가 계산
  */
 function calculatePricePerPyeong(type, price, pyeong) {
     if (type === '매매') {
+        // 매매는 보통 만원 단위로 딱 떨어지게 반올림
         return Math.round(price / pyeong);
     } else {
-        return parseFloat((price / pyeong).toFixed(1));
+        // 월세는 4.49 -> 4.5가 되도록 소수점 첫째 자리에서 반올림
+        // (price / pyeong) 결과에 10을 곱하고 반올림 후 다시 10으로 나눔
+        return Math.round((price / pyeong) * 10) / 10;
     }
 }
 
 /**
- * 층 정보 추출 (기존 naverbu 로직 이식)
+ * 층 정보 추출
  */
 function extractFloorInfo(text) {
     let raw = '-';
@@ -955,7 +1309,7 @@ function calculateGroupStats(items) {
 
 /**
  * 매물 목록에 평당가/평수 배지 표시
- * 스크린샷 참고: "월세 1,000/135 (10.3만/13평)" 형식
+ * 스크린샷 참고: "월세 1,000/135 (15평/@10.3만)" 형식
  */
 function addBadgesToListings() {
     const items = findListingItems();
@@ -967,13 +1321,17 @@ function addBadgesToListings() {
         style.id = 'naverbu-badge-style';
         style.textContent = `
             .naverbu-badge {
-                display: inline-block;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
                 margin-left: 6px;
-                padding: 2px 6px;
+                padding: 3px 8px;
                 border-radius: 4px;
                 font-size: 11px;
                 font-weight: 700;
+                line-height: 1;
                 vertical-align: middle;
+                white-space: nowrap;
             }
             .naverbu-badge--wolse {
                 background: #FFF0F0;
@@ -989,7 +1347,6 @@ function addBadgesToListings() {
         document.head.appendChild(style);
     }
 
-    // 각 매물 아이템에 배지 추가(예를들어 30.25평 @5.6만 >> 3.4억가 6만/30.3평 이리 처리되어짐)
     items.forEach(item => {
         // 이미 배지가 있으면 스킵
         if (item.querySelector('.naverbu-badge')) return;
@@ -998,24 +1355,81 @@ function addBadgesToListings() {
             const listingData = parseListingItem(item);
             if (!listingData) return;
 
-            /*
-            // landcore.js에 이미 배치처리가 되어져서 여기에서는 블럭처리함.
-            //
-            // 가격 요소 찾기 (.price_line, .price, 또는 텍스트에서)
-            const priceEl = item.querySelector('.price_line, .item_price, .price');
-            if (!priceEl) return;
-
             // 배지 생성
             const badge = document.createElement('span');
             const isWolse = listingData.type === '월세';
 
-            badge.className = `naverbu-badge naverbu-badge--${isWolse ? 'wolse' : 'maemae'}`;
-            badge.textContent = `${formatNumber(Math.round(listingData.pricePerPyeong))}만/${listingData.area.toFixed(1)}평`;
+            // 기본 평당가 텍스트 (예: 44.5평/@4.5만)
+            let badgeText = `${listingData.area.toFixed(1)}평/@${listingData.pricePerPyeong}만`;
 
-            // 배지 삽입
-            priceEl.appendChild(badge);
-            */
-            addedCount++;
+            // 월세인 경우 환산 매매가 추가
+            if (isWolse) {
+                // 1. 월세 * 200(수익율 6%기준)환산 (예: 120만 * 200 = 24,000만)
+                const convertedPrice = listingData.price * 200;
+                let priceLabel = "";
+
+                // 2. '2.4억' 형태로 포맷팅 (만원 단위를 10000으로 나누어 소수점 처리)
+                if (convertedPrice >= 10000) {
+                    const ukValue = convertedPrice / 10000;
+                    // 소수점이 있으면 표시(최대 2자리), 없으면 정수로 (예: 2.4억 또는 4억)
+                    priceLabel = `${Number(ukValue.toFixed(2))}억`;
+                } else {
+                    priceLabel = `${formatNumber(convertedPrice)}만`;
+                }
+
+                // 3. 월세일 때만 " >> 월세금액 (환산가)" 추가
+                badgeText += ` >> ${priceLabel}`;
+            }
+            // 1. 배지 텍스트 생성을 위한 변수 설정
+            badge.className = `naverbu-badge naverbu-badge--${isWolse ? 'wolse' : 'maemae'}`;
+            badge.textContent = badgeText;
+
+            // 배지 삽입 위치 결정
+            if (isNewVersion()) {
+                // 신 버전: 가격 텍스트(매매/월세)를 포함하는 요소 찾아서 그 옆에 삽입
+                let priceEl = null;
+
+                // 방법 1: 카드 내 모든 요소 중 가격 패턴을 가진 요소 찾기
+                const allElements = item.querySelectorAll('*');
+                for (const el of allElements) {
+                    // 자식 요소 없이 직접 텍스트만 가진 요소 중 가격 패턴 매칭
+                    if (el.children.length === 0 || el.childNodes.length <= 3) {
+                        const text = el.textContent.trim();
+                        if (/^(매매|월세)\s/.test(text) && text.length < 30) {
+                            priceEl = el;
+                            break;
+                        }
+                    }
+                }
+
+                // 방법 2: 텍스트 노드에서 직접 찾기
+                if (!priceEl) {
+                    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+                    while (walker.nextNode()) {
+                        const text = walker.currentNode.textContent.trim();
+                        if (/^(매매|월세)/.test(text)) {
+                            priceEl = walker.currentNode.parentElement;
+                            break;
+                        }
+                    }
+                }
+
+                if (priceEl) {
+                    // 가격 범위(~)가 있으면 스킵 (중개사별 다른 가격)
+                    if (priceEl.textContent.includes('~')) return;
+                    // 가격 요소 옆에 배지 삽입 (inline으로)
+                    priceEl.style.display = priceEl.style.display || '';
+                    priceEl.appendChild(badge);
+                    addedCount++;
+                }
+            } else {
+                // 구 버전: .price_line, .item_price, .price 요소
+                const priceEl = item.querySelector('.price_line, .item_price, .price');
+                if (priceEl) {
+                    priceEl.appendChild(badge);
+                    addedCount++;
+                }
+            }
         } catch (e) {
             console.warn('배지 추가 실패:', e);
         }
@@ -1031,3 +1445,51 @@ function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/**
+ * 현재 선택 지역 추출
+ * 우선순위:
+ * 1. 기존 new.land 스타일: .filter_region_inner span.area.is-selected
+ * 2. 선택 chip / breadcrumb / aria-selected 요소
+ */
+function getSelectedRegionInfo() {
+    let regions = [];
+    // 신 버전: fin.land.naver.com - 선택된 지역 정보는 breadcrumb 또는 chip 형태로 존재할 수 있음
+    if (isNewVersion()) {
+        //regions = ['경기도', '김포시', '구래동'];
+        const el = document.querySelector('.ChipsItem-module_text__NCP3f > div');
+        if (el) {
+            const text = el.textContent.trim(); // "김포시 운양동"
+            const [sigungu, umdNm] = text.split(' ');
+
+            return {
+                region: '경기도',   // 필요시 따로 처리
+                sigungu,
+                umdNm
+            };
+        }
+    } else {
+        // 구 버전: new.land.naver.com - .filter_region_inner 내 .area.is-selected 클래스
+        const container = document.querySelector('.filter_region_inner');
+        if (!container) {
+            console.error('filter_region_inner 요소를 찾을 수 없습니다.');
+            return { region: null, sigungu: null, umName: null };
+        }
+
+        // .area.is-selected 클래스를 가진 모든 span 요소 선택
+        const spans = container.querySelectorAll('span.area.is-selected');
+
+        // 각 span에서 첫 번째 텍스트 노드(아이콘 등 제외)를 가져옵니다.
+        regions = Array.from(spans).map(span => {
+            // textContent 사용 시 자식 요소의 텍스트까지 모두 포함되므로
+            // childNodes[0]를 이용하여 첫 번째 텍스트 노드만 취득합니다.
+            const textNode = span.childNodes[0];
+            return textNode ? textNode.nodeValue.trim() : "";
+        });
+    }
+
+  return {
+    region: regions[0] || null,
+    sigungu: regions[1] || null,
+    umdNm: regions[2] || null
+  };
+}

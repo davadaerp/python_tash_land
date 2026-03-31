@@ -86,7 +86,8 @@ def user_insert_record(record):
                 recharge_sms_count, recharge_amount,recharge_request_date, recharge_request_sms_count, recharge_status, etc,
                 kakao_id, email, nick_name, profile_image,
                 created_at, updated_at,
-                access_token, refresh_token, token_expires_at
+                access_token, refresh_token, token_expires_at,
+                subscription_start_date, subscription_end_date, subscription_month, subscription_status
             ) VALUES (?,?,?,?, 
                       ?,?,?,
                       ?,?,
@@ -94,7 +95,8 @@ def user_insert_record(record):
                       ?,
                       ?,?,?,?,
                       ?,?,
-                      ?,?,?)
+                      ?,?,?,
+                      ?,?,?,?)
         """
         cursor.execute(insert_query, (
             user_id,
@@ -128,6 +130,11 @@ def user_insert_record(record):
             record.get("access_token"),
             record.get("refresh_token"),
             record.get("token_expires_at"),
+            #
+            record.get("subscription_start_date"),
+            record.get("subscription_end_date"),
+            record.get("subscription_month") if record.get("subscription_month") is not None else 1,
+            record.get("subscription_status") or "",
         ))
         conn.commit()
         print(f"user_id {user_id} 값의 레코드가 성공적으로 삽입되었습니다.")

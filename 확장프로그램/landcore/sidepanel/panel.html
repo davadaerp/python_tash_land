@@ -7,42 +7,97 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>랜드코어</title>
   <link rel="stylesheet" href="panel.css">
+  <style>
+    /* 사용자 정보 바 스타일 */
+    .user-info-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-left: auto; /* 로고와 간격을 띄움 */
+      margin-right: 10px;
+    }
+
+    .user-detail {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .user-nickname {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .sms-badge {
+      font-size: 10px;
+      color: #f0f0f0;
+      opacity: 0.9;
+    }
+
+    .logout-mini-btn {
+      background: none;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .logout-mini-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .login-msg-card {
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+      border-radius: 8px;
+      margin: 10px;
+    }
+
+    .login-mini-link {
+      background: #faad14;
+      color: #fff;
+      border: none;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+  </style>
 </head>
 
 <body>
   <div class="panel-container">
     <!-- 헤더 -->
-    <!--
-    <header class="panel-header">
-      <div class="header-content">
-        <div class="header-top-row">
-          <h1 class="logo">부동산 분석기</h1>
-          <div class="header-btn-group">
-            <button id="naver-land-btn" class="naver-land-btn">🏠 네이버부동산</button>
-            <button id="guide-btn" class="guide-btn">📖 사용가이드</button>
-          </div>
-        </div>
-        <p class="subtitle">made by 랜드코어</p>
-        <div class="link-buttons">
-          <a href="#" class="link-btn">홈페이지</a>
-          <a href="#" class="link-btn">유튜브채널</a>
-          <a href="#" class="link-btn">오픈채팅방</a>
-        </div>
-      </div>
-    </header>
-    -->
     <header class="panel-header">
       <div class="header-content centered">
         <div class="header-top-row">
           <h1 class="logo">랜드코어 분석기</h1>
+
           <div class="header-btn-group">
             <button id="guide-btn" class="guide-btn">📖 사용가이드</button>
           </div>
         </div>
-
+        <!-- 사용자 정보 바 -->
+        <div class="header-top-row">
+          <div id="user-info-bar" class="user-info-bar hidden">
+            <div class="user-detail">
+              <span id="nickname" class="user-nickname">-</span>
+              <span class="sms-badge">SMS <span id="sms-count">0</span></span>
+            </div>
+          </div>
+        </div>
         <div class="link-buttons">
           <a href="#"  id="naver-land-btn" class="link-btn">네이버부동산</a>
-          <a href="https://www.youtube.com/@landcore" target="_blank" class="link-btn">유튜브채널</a>
+          <a href="https://www.youtube.com/@랜드코어-win" target="_blank" class="link-btn">유튜브채널</a>
           <a href="https://open.kakao.com/o/go3wU1ei" target="_blank" class="link-btn">오픈채팅방</a>
         </div>
       </div>
@@ -50,11 +105,19 @@
 
     <!-- 도구 섹션 -->
     <div class="tools-section">
-      <div class="tools-header">🛠️ 도구</div>
+      <div class="tools-header">🛠️ 분석도구</div>
       <div class="tools-buttons">
-        <button id="real-auction-btn" class="tool-btn">
-          📝 실거래분석
-        </button>
+      <!-- 데이터 분석 드롭다운 -->
+      <div class="tool-dropdown">
+          <button id="real-auction-btn" class="tool-btn">
+            📝 데이터분석 ▼
+          </button>
+          <div id="real-auction-menu" class="tool-dropdown-menu hidden">
+            <button type="button" class="tool-dropdown-item" data-analysis-menu="realdeal">실거래분석</button>
+            <button type="button" class="tool-dropdown-item" data-analysis-menu="commercial">업종분석</button>
+            <button type="button" class="tool-dropdown-item" data-analysis-menu="statistics">통계분석</button>
+          </div>
+        </div>
         <button id="calculator-btn" class="tool-btn">
           📊 수익률분석
         </button>
@@ -94,23 +157,21 @@
     <!-- 평수 분포 섹션 -->
     <div class="chart-section">
       <div class="section-header">
-        <span>✏️ 월세 평수 분포</span>
+        <span id="chart-title">✏️ 월세 평수 분포</span>
       </div>
-      <div id="area-chart" class="area-chart-container">
-        <!-- 차트바 -->
-      </div>
+      <div id="area-chart" class="area-chart-container"></div>
     </div>
 
     <!-- 부동산 TOP 3 섹션 -->
+    <!--
     <div class="top-agencies-section">
       <div class="section-header">
         <span>🏆 부동산 TOP 3</span>
       </div>
       <div id="top-agencies" class="top-agencies-list">
-        <!-- 동적으로 채워짐 -->
       </div>
     </div>
-
+    -->
     <!-- 히스토리 (숨김 처리하거나 하단에 배치) -->
     <div class="history-section hidden">
       <div id="history-list"></div>

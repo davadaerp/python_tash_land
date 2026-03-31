@@ -11,7 +11,8 @@
   ],
   "host_permissions": [
     "https://www.landcore.co.kr/",
-    "https://new.land.naver.com/*"
+    "https://new.land.naver.com/*",
+    "https://fin.land.naver.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -42,6 +43,7 @@
 		"matches" : [
             "https://www.landcore.co.kr/*",
 			"https://new.land.naver.com/*",
+            "https://fin.land.naver.com/*",
 			"https://m.land.naver.com/*",
 			"https://www.auction1.co.kr/*",
 			"https://www.tankauction.com/*",

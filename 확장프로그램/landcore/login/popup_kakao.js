@@ -1,5 +1,4 @@
 // ====== 공통 ======
-//const SERVER = "http://127.0.0.1:5000";
 const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
 //const SERVER = 'http://127.0.0.1:5000';
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;

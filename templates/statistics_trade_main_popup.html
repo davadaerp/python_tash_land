@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통계 분석</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --border: #dbe2ea;
+            --text: #1f2937;
+            --muted: #6b7280;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .wrap {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 18px 10px 18px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .title .menu-name {
+            color: var(--primary);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tab-btn {
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--muted);
+            padding: 10px 16px;
+            border-radius: 10px 10px 0 0;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .tab-btn.active.auction {
+            background: #e53935;   /* 빨간색 */
+            border-color: #e53935;
+            color: #fff;
+        }
+
+        .frame-wrap {
+            flex: 1;
+            background: #fff;
+        }
+
+        #contentFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="top-header">
+        <!--
+        <div class="title">
+            <span class="menu-name" id="menuTitle"></span>
+            <span id="regionTitle"></span>
+        </div>
+        -->
+
+        <div class="tabs">
+            <button id="tab-public" class="tab-btn" onclick="changeTab('public')">실거래</button>
+            <button id="tab-auction" class="tab-btn" onclick="changeTab('auction')">경매</button>
+        </div>
+    </div>
+
+    <div class="frame-wrap">
+        <iframe id="contentFrame"></iframe>
+    </div>
+</div>
+
+<script>
+    const menu = "{{ menu if menu else 'sanga' }}";      // sanga | villa
+    const initType = "{{ type if type else 'public' }}"; // public | auction
+    const region = "{{ region if region else '' }}";
+    const sigungu = "{{ sigungu if sigungu else '' }}";
+    const umdNm = "{{ umdNm if umdNm else '' }}";
+
+    function getMenuLabel() {
+        return menu === "villa" ? "빌라" : "상가";
+    }
+
+    function buildFrameUrl(tabType) {
+        // menu/type에 따라 실제 하위 html 결정
+        let targetHtml = "";
+
+        if (menu === "villa") {
+            targetHtml = (tabType === "auction")
+                ? "statistics_villa_auction_popup.html"
+                : "statistics_villa_public_popup.html";
+        } else {
+            targetHtml = (tabType === "auction")
+                ? "statistics_sanga_auction_popup.html"
+                : "statistics_sanga_public_popup.html";
+        }
+
+        // ✅ 하위 html에 region/sigungu/umdNm/type/menu 넘김
+        const qs = new URLSearchParams({
+            menu: menu,
+            type: tabType,
+            region: region,
+            sigungu: sigungu,
+            umdNm: umdNm
+        });
+
+        return `/templates_proxy/${targetHtml}?${qs.toString()}`;
+    }
+
+    function setActiveTab(tabType) {
+        const tabPublic = document.getElementById("tab-public");
+        const tabAuction = document.getElementById("tab-auction");
+
+        // 초기화
+        tabPublic.classList.remove("active", "auction");
+        tabAuction.classList.remove("active", "auction");
+
+        if (tabType === "auction") {
+            tabAuction.classList.add("active", "auction");  // 🔴 빨간색 적용
+        } else {
+            tabPublic.classList.add("active");              // 🔵 기본색
+        }
+    }
+
+    function changeTab(tabType) {
+        setActiveTab(tabType);
+        document.getElementById("contentFrame").src = buildFrameUrl(tabType);
+    }
+
+    window.onload = function () {
+        // document.getElementById("menuTitle").textContent = getMenuLabel();
+        // document.getElementById("regionTitle").textContent = ` ${sigungu}${umdNm ? ' ' + umdNm : ''}`;
+
+        changeTab(initType);
+    };
+</script>
+</body>
+</html>

@@ -209,6 +209,54 @@ def print_rows(rows: List[Dict]) -> None:
             f"{r.get('buyerGbn',''):<12}"
         )
 
+# sgg_nm 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
+# 경기도 김포시 조건으로 해당 동목록을 가져옴
+def public_read_villa_by_region(sgg_nm: str = "", umd_nm: str = "", house_types: Optional[List[str]] = None, db_path: str = DB_PATH) -> List[Dict]:
+    """
+    시군구명(sggNm)과 읍면동명(umdNm)을 조건으로 실거래 데이터를 조회합니다.
+    주택유형(houseType)을 리스트로 받아 멀티 필터링이 가능합니다.
+    """
+    conn = get_conn(db_path)
+    conn.row_factory = sqlite3.Row  # 결과를 dict 형태로 편하게 변환하기 위함
+    cur = conn.cursor()
+
+    # 1. 기본 쿼리 (VILLA_COLUMNS 사용)
+    cols_sql = ", ".join(VILLA_COLUMNS)
+    query = f"SELECT {cols_sql} FROM {TABLE_NAME} WHERE 1=1"
+    params = []
+
+    # 2. 시군구명 필터 (예: 김포시, 종로구 등)
+    if sgg_nm:
+        query += " AND sggNm LIKE ?"
+        params.append(f"%{sgg_nm}%")
+
+    # 3. 읍면동명 필터 (선택 사항)
+    if umd_nm:
+        query += " AND umdNm LIKE ?"
+        params.append(f"%{umd_nm}%")
+
+    # 4. 주택유형 멀티 필터 처리 (예: ['연립', '다세대'])
+    if house_types and isinstance(house_types, list):
+        placeholders = ', '.join(['?'] * len(house_types))
+        query += f" AND houseType IN ({placeholders})"
+        params.extend(house_types)
+
+    # 5. 정렬 (최신 거래년도, 월, 일 순)
+    query += " ORDER BY dealYear DESC, dealMonth DESC, dealDay DESC"
+
+    try:
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        # sqlite3.Row 객체들을 dict 리스트로 변환
+        result = [dict(row) for row in rows]
+        return result
+    except Exception as e:
+        print(f"조회 중 오류 발생: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 # ==========================
 # 사용 예시
 # ==========================

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부동산 경매 통계 대시보드</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary-color: #4361ee; --success-color: #2ec4b6; --bg-color: #f1f3f9; --card-bg: #ffffff; --border-color: #dee2e6; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--bg-color); padding: 20px; margin: 0; color: #333; }
+        .container { max-width: 100%; margin: 0 auto; }
+
+        header h1 { font-size: 1.5rem; color: #1e293b; margin-bottom: 20px; }
+
+        /* 검색 영역 */
+        .search-section { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .search-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        .input-group label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+        input[type="text"] { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; font-size: 0.9rem; }
+        #dongSearchInput { background-color: #eef2ff; border: 1px solid var(--primary-color); }
+
+        .btn-group { display: flex; gap: 8px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+        .btn-search { background: var(--primary-color); color: white; }
+        .btn-excel { background: var(--success-color); color: white; }
+
+        .main-content { display: flex; gap: 20px; align-items: flex-start; }
+        .grid-box { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .table-wrapper { overflow: auto; max-height: 800px; position: relative; }
+
+        .stats-panel { flex: 5.5; }
+        .detail-panel { flex: 4.5; min-width: 700px; display: none; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; white-space: nowrap; }
+        th { background-color: #f8fafc; color: #475569; padding: 10px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10; }
+
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background-color: #edf2f7 !important; }
+        .sort-icon { font-size: 0.7rem; margin-left: 3px; color: #cbd5e1; }
+
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+        tr:hover { background-color: #f8fafc; }
+
+        .dong-link {
+            color: #e53935;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .detail-header { background: #1e293b; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .detail-table { font-size: 0.8rem; }
+        .detail-table td { padding: 6px 8px; }
+
+        .badge-count {
+            background: #ffe5e5;
+            color: #e53935;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+        .price-stats { color: #94a3b8; font-size: 0.75rem; }
+        .loading { padding: 50px; text-align: center; color: var(--primary-color); }
+
+        .btn-analysis {
+            background: var(--success-color);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-right: 10px;
+            font-weight: 600;
+        }
+        .btn-analysis:hover { opacity: 0.9; }
+
+        #popupOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>
+            <i class="fa-solid fa-chart-column"></i>
+            상가 경매 통계 및 상세 내역({% if sigungu %} {{ sigungu }}{% endif %}{% if umdNm %} {{ umdNm }}{% endif %})
+        </h1>
+    </header>
+
+    <section class="search-section">
+        <div class="search-row">
+            <div class="input-group">
+                <label>시도</label>
+                <input type="text" id="regionInput" value="{{ region if region else '' }}">
+            </div>
+            <div class="input-group">
+                <label>시군구</label>
+                <input type="text" id="sigunguInput" value="{{ sigungu if sigungu else '' }}">
+            </div>
+            <div class="input-group">
+                <label>읍면동 필터</label>
+                <input type="text" id="dongSearchInput" placeholder="결과 내 검색..." onkeyup="filterByDong()">
+            </div>
+            <div class="input-group">
+                <label>물건종별</label>
+                <div style="display:flex; gap:10px; padding: 5px 0; flex-wrap: wrap;">
+                    <label><input type="checkbox" name="category" value="근린상가"> 근린상가</label>
+                    <label><input type="checkbox" name="category" value="근린생활시설"> 근린시설</label>
+                    <label><input type="checkbox" name="category" value="다세대주택"> 다세대주택</label>
+                    <label><input type="checkbox" name="category" value="연립주택"> 연립주택</label>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-search" onclick="fetchStatistics()">
+                    <i class="fa-solid fa-magnifying-glass"></i> 조회
+                </button>
+                <button class="btn btn-excel" onclick="downloadExcel()">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <main class="main-content">
+        <div class="stats-panel grid-box">
+            <div class="table-wrapper">
+                <table id="statsTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="toggleStatsSort()">읍면동 <i id="statsSortIcon" class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>경매건수</th>
+                            <th>평균최저가</th>
+                            <th>평균건물면적</th>
+                            <th>1억↓</th>
+                            <th>1~2억</th>
+                            <th>2~3억</th>
+                            <th>3~5억</th>
+                            <th>5~10억</th>
+                            <th>10억↑</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsBody">
+                        <tr><td colspan="11" class="loading">데이터를 조회해 주세요.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="detailPanel" class="detail-panel grid-box">
+            <div class="detail-header">
+                <span id="detailTitle"><i class="fa-solid fa-list-check"></i> 경매 상세 내역</span>
+                <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="closeDetail()"></i>
+            </div>
+            <div class="table-wrapper">
+                <table class="detail-table" id="detailTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortDetail('category')">종별 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th class="sortable" onclick="sortDetail('building_py')">건물평형 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th class="sortable" onclick="sortDetail('min_price')">최저가 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th class="sortable" onclick="sortDetail('appraisal_price')">감정가 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th class="sortable" onclick="sortDetail('sale_price')">낙찰가 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>층</th>
+                            <th>단지/건물명</th>
+                            <th class="sortable" onclick="sortDetail('sales_date')">매각기일 <i class="fa-solid fa-sort sort-icon"></i></th>
+                            <th>지도</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let currentData = [];
+    let processedStats = [];
+    let currentDetailList = [];
+    let isStatsAsc = true;
+    let detailSortState = { key: '', asc: true };
+
+    window.onload = function() {
+        const region = document.getElementById('regionInput').value;
+        const sigungu = document.getElementById('sigunguInput').value;
+        const targetDong = "{{ umdNm if umdNm else '' }}";
+
+        if (region && sigungu) {
+            fetchStatistics().then(() => {
+                if (targetDong && targetDong !== "") {
+                    selectDongByName(targetDong);
+                }
+            });
+        }
+    };
+
+    function selectDongByName(dongName) {
+        const targetIndex = processedStats.findIndex(s => s.name === dongName);
+
+        if (targetIndex !== -1) {
+            showDetail(dongName, targetIndex);
+            setTimeout(() => {
+                const rowElement = document.getElementById(`stats-row-${targetIndex}`);
+                if (rowElement) {
+                    rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+        } else {
+            console.warn(`입력된 동 [${dongName}]을 목록에서 찾을 수 없습니다.`);
+        }
+    }
+
+    async function fetchStatistics() {
+        const region = document.getElementById('regionInput').value;
+        const sigungu = document.getElementById('sigunguInput').value;
+        const categories = Array.from(document.querySelectorAll('input[name="category"]:checked')).map(cb => cb.value);
+
+        document.getElementById('dongSearchInput').value = '';
+        closeDetail();
+
+        let url = new URL('/api/trade/auction_statistics', window.location.origin);
+        url.searchParams.append('type', 'sanga');
+        url.searchParams.append('region', region);
+        url.searchParams.append('sigungu_name', sigungu);
+        categories.forEach(cat => url.searchParams.append('category', cat));
+
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '<tr><td colspan="11" class="loading"><i class="fa-solid fa-spinner fa-spin"></i> 분석 중...</td></tr>';
+
+        try {
+            const response = await fetch(url);
+            const json = await response.json();
+
+            if (json.status === "success" && json.results.length > 0) {
+                currentData = json.results;
+                groupByDong(json.results);
+                renderTable(processedStats);
+                return true;
+            } else {
+                currentData = [];
+                processedStats = [];
+                tbody.innerHTML = '<tr><td colspan="11" class="loading">데이터가 없습니다.</td></tr>';
+                return false;
+            }
+        } catch (error) {
+            currentData = [];
+            processedStats = [];
+            tbody.innerHTML = `<tr><td colspan="11" class="loading">${error.message}</td></tr>`;
+            return false;
+        }
+    }
+
+    function toNumber(val) {
+        if (val === null || val === undefined || val === '') return 0;
+        return parseInt(String(val).replace(/,/g, '').replace(/[^\d.-]/g, '')) || 0;
+    }
+
+    function groupByDong(results) {
+        const groups = {};
+
+        results.forEach(item => {
+            const dong = item.eub_myeon_dong || '기타';
+
+            if (!groups[dong]) {
+                groups[dong] = {
+                    name: dong,
+                    count: 0,
+                    totalMinPrice: 0,
+                    totalBuildingM2: 0,
+                    totalLandM2: 0,
+                    r1: 0, r2: 0, r3: 0, r4: 0, r5: 0, r6: 0
+                };
+            }
+
+            const g = groups[dong];
+            const minPrice = toNumber(item.min_price);
+            const buildingM2 = parseFloat(item.building_m2 || 0) || 0;
+            const landM2 = parseFloat(item.land_m2 || 0) || 0;
+
+            g.count++;
+            g.totalMinPrice += minPrice;
+            g.totalBuildingM2 += buildingM2;
+            g.totalLandM2 += landM2;
+
+            if (minPrice <= 100000000) g.r1++;
+            else if (minPrice <= 200000000) g.r2++;
+            else if (minPrice <= 300000000) g.r3++;
+            else if (minPrice <= 500000000) g.r4++;
+            else if (minPrice <= 1000000000) g.r5++;
+            else g.r6++;
+        });
+
+        processedStats = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    }
+
+    function renderTable(dataList) {
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '';
+
+        if (!dataList || dataList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" class="loading">데이터가 없습니다.</td></tr>';
+            return;
+        }
+
+        dataList.forEach((s, index) => {
+            const avgMinPrice = s.count > 0 ? Math.round(s.totalMinPrice / s.count) : 0;
+            const avgBuildingM2 = s.count > 0 ? (s.totalBuildingM2 / s.count).toFixed(1) : '0.0';
+            const avgLandM2 = s.count > 0 ? (s.totalLandM2 / s.count).toFixed(1) : '0.0';
+
+            tbody.insertAdjacentHTML('beforeend', `
+                <tr id="stats-row-${index}">
+                    <td><span class="dong-link" onclick="showDetail('${s.name}', ${index})">${s.name}</span></td>
+                    <td><span class="badge-count">${s.count}</span></td>
+                    <td><strong>${formatKoreanPrice(avgMinPrice)}</strong></td>
+                    <td>${avgBuildingM2}㎡</td>
+                    <td>${s.r1}</td>
+                    <td>${s.r2}</td>
+                    <td>${s.r3}</td>
+                    <td>${s.r4}</td>
+                    <td>${s.r5}</td>
+                    <td>${s.r6}</td>
+                </tr>
+            `);
+        });
+    }
+
+    let originalDetailList = [];
+
+    function showDetail(dongName, rowIndex) {
+        const allRows = document.querySelectorAll('#statsBody tr');
+        allRows.forEach(row => { row.style.backgroundColor = ''; row.style.fontWeight = 'normal'; });
+
+        const selectedRow = document.getElementById(`stats-row-${rowIndex}`);
+        if (selectedRow) {
+            selectedRow.style.backgroundColor = '#eef2ff';
+            selectedRow.style.fontWeight = 'bold';
+        }
+
+        const sigungu = document.getElementById('sigunguInput').value;
+        document.getElementById('detailPanel').style.display = 'block';
+
+        const filtered = currentData.filter(item => (item.eub_myeon_dong || '기타') === dongName);
+
+        originalDetailList = filtered.map(item => {
+            const address = `${item.region || ''} ${item.sigungu_name || ''} ${item.eub_myeon_dong || ''} ${item.address1 || ''} ${item.address2 || ''}`.replace(/\s+/g, ' ').trim();
+
+            return {
+                case_number: item.case_number || '',
+                category: item.category || '-',
+                building_m2: parseFloat(item.building_m2 || 0) || 0,
+                building_py: parseFloat(item.building_py || 0) || 0,
+                land_m2: parseFloat(item.land_m2 || 0) || 0,
+                land_py: parseFloat(item.land_py || 0) || 0,
+                appraisal_price: toNumber(item.appraisal_price),
+                min_price: toNumber(item.min_price),
+                sale_price: toNumber(item.sale_price),
+                floor: item.floor || '-',
+                dangi_name: item.dangi_name || '-',
+                sales_date: item.sales_date || '-',
+                latitude: item.latitude || 0,
+                longitude: item.longitude || 0,
+                address: address
+            };
+        });
+
+        const detailHeader = document.querySelector('.detail-header');
+        detailHeader.innerHTML = `
+            <div style="display:flex; align-items:center;">
+                <span id="detailTitle" style="font-size:0.9rem; font-weight:bold;">
+                    <i class="fa-solid fa-location-dot"></i> ${sigungu}-${dongName}
+                </span>
+            </div>
+            <div style="display:flex; align-items:center;">
+                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.2rem;" onclick="closeDetail()"></i>
+            </div>
+        `;
+
+        currentDetailList = [...originalDetailList];
+        currentDetailList.sort((a, b) => String(b.sales_date).localeCompare(String(a.sales_date)));
+        renderDetailBody();
+    }
+
+    function renderDetailBody() {
+        const detailBody = document.getElementById('detailBody');
+        detailBody.innerHTML = '';
+
+        if (!currentDetailList || currentDetailList.length === 0) {
+            detailBody.innerHTML = `<tr><td colspan="9" class="loading">상세 데이터가 없습니다.</td></tr>`;
+            return;
+        }
+
+        currentDetailList.forEach(d => {
+            detailBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td style="text-align:left; font-weight:600;">${d.category}</td>
+                    <td>${d.building_py ? d.building_py.toFixed(1) + '평' : '-'}</td>
+                    <td><strong>${formatKoreanPrice(d.min_price)}</strong></td>
+                    <td>${d.appraisal_price > 0 ? formatKoreanPrice(d.appraisal_price) : '-'}</td>
+                    <td>${d.sale_price > 0 ? formatKoreanPrice(d.sale_price) : '-'}</td>
+                    <td>${d.floor}</td>
+                    <td style="text-align:left;">${d.dangi_name}</td>
+                    <td style="font-size:0.75rem;">${d.sales_date}</td>
+                    <td>
+                        <i class="fa-solid fa-map-location-dot"
+                           style="color: #4361ee; cursor: pointer; font-size: 1.1rem;"
+                           onclick="openMapNaverLatLon('${d.latitude}', '${d.longitude}', '${d.address.replace(/'/g, "\\'")}')"
+                           title="지도보기"></i>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
+    function sortDetail(key) {
+        if (detailSortState.key === key) {
+            detailSortState.asc = !detailSortState.asc;
+        } else {
+            detailSortState.key = key;
+            detailSortState.asc = true;
+        }
+
+        currentDetailList.sort((a, b) => {
+            let v1 = a[key];
+            let v2 = b[key];
+
+            if (['category', 'dangi_name', 'sales_date', 'floor'].includes(key)) {
+                v1 = String(v1 || '');
+                v2 = String(v2 || '');
+                return detailSortState.asc ? v1.localeCompare(v2, 'ko') : v2.localeCompare(v1, 'ko');
+            } else {
+                v1 = Number(v1 || 0);
+                v2 = Number(v2 || 0);
+                return detailSortState.asc ? v1 - v2 : v2 - v1;
+            }
+        });
+
+        renderDetailBody();
+    }
+
+    function closeDetail() {
+        document.getElementById('detailPanel').style.display = 'none';
+    }
+
+    function filterByDong() {
+        const key = document.getElementById('dongSearchInput').value.toLowerCase();
+        renderTable(processedStats.filter(s => s.name.toLowerCase().includes(key)));
+    }
+
+    function toggleStatsSort() {
+        isStatsAsc = !isStatsAsc;
+        processedStats.sort((a, b) => isStatsAsc ? a.name.localeCompare(b.name, 'ko') : b.name.localeCompare(a.name, 'ko'));
+        document.getElementById('statsSortIcon').className = isStatsAsc ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+        filterByDong();
+    }
+
+    function openMapNaverLatLon(lat, lon, address) {
+        const width = 1200;
+        const height = 900;
+        const left = (screen.width - width) / 2;
+        const top = (screen.height - height) / 2;
+
+        let url = "";
+        const latNum = parseFloat(lat || 0);
+        const lonNum = parseFloat(lon || 0);
+
+        if ((!address || address.includes('*') || address.trim() === "") && latNum && lonNum) {
+            url = `https://map.naver.com/v5/search/${lonNum},${latNum}?c=${lonNum},${latNum},17,0,0,0,dh`;
+        } else if (address && address.trim() !== "") {
+            url = 'https://map.naver.com/v5/search/' + encodeURIComponent(address);
+        } else {
+            alert("위치 정보가 없습니다.");
+            return;
+        }
+
+        window.open(url, '_blank', `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    function formatKoreanPrice(amount) {
+        amount = Number(amount || 0);
+
+        if (amount >= 100000000) {
+            const eok = Math.floor(amount / 100000000);
+            const remain = amount % 100000000;
+            const man = Math.floor(remain / 10000);
+
+            if (man > 0) {
+                return `${eok}억 ${man.toLocaleString()}만`;
+            }
+            return `${eok}억`;
+        } else if (amount >= 10000) {
+            return `${Math.floor(amount / 10000).toLocaleString()}만`;
+        }
+        return amount.toLocaleString();
+    }
+
+    function downloadExcel() {
+        const table = document.getElementById("statsTable");
+        const wb = XLSX.utils.table_to_book(table, { sheet: "경매통계", raw: true });
+        XLSX.writeFile(wb, `${document.getElementById('sigunguInput').value || '지역'}_경매통계.xlsx`);
+    }
+</script>
+
+</body>
+</html>
