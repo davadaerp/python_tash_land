@@ -272,13 +272,27 @@ async function waitForElement(selector, timeout = 10000) {
     });
 }
 
+function isNaverLandPage() {
+    const host = window.location.hostname || '';
+    const href = window.location.href || '';
+
+    return (
+        host.endsWith('naver.com') &&
+        (
+            href.startsWith('https://new.land.naver.com/offices') ||
+            href.startsWith('https://new.land.naver.com/houses') ||
+            href.startsWith('https://new.land.naver.com/complexes') ||
+            href.startsWith('https://fin.land.naver.com/')
+        )
+    );
+}
+
 // 페이지가 로드되면 실행
 window.addEventListener('load', function() {
-    if (window.location.href.startsWith('https://new.land.naver.com/offices') ||
-        window.location.href.startsWith('https://new.land.naver.com/houses') ||
-        window.location.href.startsWith('https://new.land.naver.com/complexes')) {
+        if (!isNaverLandPage()) {
+            console.log('[landcore_newland] naver.com 페이지가 아니므로 DOM 감시를 실행하지 않습니다.');
+            return;
+        }
         setTimeout(extractPropertyInfo,50);
-
         observeMutations(); // DOM 변경 감시 시작
-    }
 });

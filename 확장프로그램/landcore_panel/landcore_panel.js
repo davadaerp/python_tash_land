@@ -15,6 +15,15 @@ function isNewVersion() {
     return location.hostname === 'fin.land.naver.com';
 }
 
+function isNaverDomain() {
+    const host = location.hostname || '';
+    return host === 'new.land.naver.com' || host === 'fin.land.naver.com';
+}
+
+function isSupportedAnalysisPage() {
+    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage();
+}
+
 function isTankAuctionListPage() {
     return location.href.startsWith('https://www.tankauction.com/ca/caList.php') ||
            location.href.startsWith('https://www.tankauction.com/pa/paList.php');
@@ -48,6 +57,12 @@ setTimeout(() => {
         extractPropertyInfoDetailTank();
         return;
     }
+
+    if (!isNaverDomain()) {
+        console.log('[landcore_panel] naver.com 페이지가 아니므로 자동 감시를 실행하지 않습니다:', location.href);
+        return;
+    }
+
     // 일반 네이버 부동산 페이지
     startPersistentWatcher();
 }, 1500);
@@ -129,6 +144,11 @@ function startPersistentWatcher() {
  * 분석 결과를 사이드패널로 자동 전송
  */
 function sendAnalysisToPanel() {
+    if (!isNaverDomain()) {
+        console.log('[landcore_panel] naver.com 페이지가 아니므로 AUTO_ANALYSIS_UPDATE 전송을 건너뜁니다.');
+        return;
+    }
+
     try {
         const payload = buildAnalysisResponseData();
         chrome.runtime.sendMessage({
@@ -149,13 +169,22 @@ function sendAnalysisToPanel() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // START_ANALYSIS: 현재 화면의 매물 분석 (스크롤 없음 - 법적 안전)
     if (message.type === 'START_ANALYSIS') {
+        if (!isSupportedAnalysisPage()) {
+            sendResponse({ success: false, error: '지원 페이지가 아닙니다. 네이버부동산 또는 탱크옥션에서만 분석 가능합니다.' });
+            return true;
+        }
+
+        if (!isNaverDomain() && !isTankAuctionListPage() && !isTankAuctionDetailPage()) {
+            sendResponse({ success: false, error: '지원 페이지가 아닙니다.' });
+            return true;
+        }
+
         console.log('📊 분석 시작 요청 수신');
 
         (async () => {
             try {
                 await autoScrollToLoadAllListings();
 
-                //const payload = analyzeCurrentPage();
                 const payload = buildAnalysisResponseData();
                 console.log('✅ 분석 완료, 응답 전송');
                 sendResponse({ success: true, data: payload });
@@ -170,6 +199,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // GET_LISTING_DETAIL: 현재 열린 상세정보 팝업에서 데이터 추출
     if (message.type === 'GET_LISTING_DETAIL') {
+        if (!isNaverDomain()) {
+            sendResponse({ success: false, error: '네이버부동산 페이지에서만 상세정보 추출이 가능합니다.' });
+            return true;
+        }
+
         console.log('📋 상세정보 추출 요청 수신');
 
         try {
@@ -183,23 +217,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // GET_MEMO_DATA: 메모용 상세정보 추출 (주소, 중개사 정보 포함)
-    if (message.type === 'GET_MEMO_DATA') {
-        console.log('📝 메모용 데이터 추출 요청 수신');
-
-        try {
-            const memoData = extractMemoData();
-            console.log('✅ 메모용 데이터 추출 완료:', memoData);
-            sendResponse({ success: true, data: memoData });
-        } catch (error) {
-            console.error('❌ 메모용 데이터 추출 오류:', error);
-            sendResponse({ success: false, error: error.message || '추출 실패' });
-        }
-        return true;
-    }
-
     // SHOW_BADGES: 매물 목록에 평당가/평수 배지 표시
     if (message.type === 'SHOW_BADGES') {
+        if (!isNaverDomain()) {
+            sendResponse({ success: false, error: '네이버부동산 페이지에서만 배지 표시가 가능합니다.' });
+            return true;
+        }
+
         console.log('🏷️ 배지 표시 요청 수신');
 
         try {
