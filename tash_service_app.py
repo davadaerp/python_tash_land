@@ -1082,6 +1082,83 @@ def get_lawdcds_data():
     return jsonify(payload)
 
 
+from flask import request, jsonify
+
+@app.route('/api/lawdcd/single', methods=['GET'])
+def api_get_lawdcd_single():
+    """
+    lawd_name 기반 법정동코드 단건 조회 API
+
+    요청:
+        GET /api/lawdcd/single?lawd_name=경기도 김포시 운양동
+    응답:
+        {
+            "result": "Success",
+            "lawdCd": "411000001",
+            "lawdName": "경기도 김포시 운양동",
+            "regions": "경기도,김포시,운양동"
+        }
+    """
+    try:
+        arg_lawd_name = request.args.get('lawd_name', '').strip()
+        print('==== api_get_lawdcd_single()', arg_lawd_name)
+
+        # 1. 파라미터 체크 (변수명 오타 수정: lawd_name -> arg_lawd_name)
+        if not arg_lawd_name:
+            return jsonify({
+                "result": "Fail",
+                "message": "lawd_name 파라미터가 필요합니다."
+            }), 400
+
+        # 공백 기준으로 분리
+        regions = arg_lawd_name.split()
+
+        # 2. 시/도 명칭 제거 로직
+        # regions의 개수가 3개면 (예: "인천 서구 원당동") 앞의 1개를 버림
+        if len(regions) >= 3:
+            processed_regions = regions[1:]
+        # regions의 개수가 2개면 (예: "서구 원당동") 그대로 사용
+        else:
+            processed_regions = regions
+
+        # 다시 공백으로 합치기
+        lawd_name = ' '.join(processed_regions)
+
+        print('==== 처리된 주소:', lawd_name)
+
+        # 3. 기존 함수 호출
+        row = get_lawd_by_name(lawd_name)
+        # 3. 조회 결과 없음
+        if not row:
+            return jsonify({
+                "result": "Fail",
+                "message": "일치하는 법정동 정보를 찾지 못했습니다."
+            }), 404
+
+        # 4. 값 추출
+        lawd_cd = row.get("lawd_cd", "")
+        resolved_lawd_name = (row.get("lawd_name") or "").strip()
+
+        # 5. regions 생성 (공백 → 콤마)
+        regions = resolved_lawd_name.replace(" ", ",")
+
+        print(f"🔍 api_get_lawdcd_single() : {lawd_cd}, 법정동명: {resolved_lawd_name}, regions: {regions}")
+
+        # 6. 최종 반환
+        return jsonify({
+            "result": "Success",
+            "lawd_cd": lawd_cd,
+            "lawd_name": resolved_lawd_name,
+            "regions": regions
+        })
+
+    except Exception as e:
+        return jsonify({
+            "result": "Fail",
+            "message": f"법정동 조회 중 오류 발생: {str(e)}"
+        }), 500
+
+
 #===== 네이버 아파트 매물 데이타 처리 =============
 @app.route('/api/apt', methods=['GET'])
 def get_apt_data():
@@ -1351,9 +1428,7 @@ def get_commerical_area_info_data():
     lawd_cd = request.args.get('lawd_cd', '')
     lawd_name = request.args.get('lawd_name', '')   #경기도 김포시 운양동(4157010300)
 
-    # 2. 앞 5자리 추출 + 00000 (시군구 상위 코드 생성)
-    # [핵심] [:5]는 0번부터 4번 인덱스까지 자르라는 의미입니다.
-    #sigungu_code = lawd_cd[:5] + "00000"  # 결과: 4157000000
+    #print(f"🔍get_commerical_area_info_data 법정동코드: {lawd_cd}, 법정동명: {lawd_name}")
 
     # 법정동코드 테이블에서 조회(public_data.db lawd_code 테이블)
     # 법정동코드 또는 법정동명 기준 조회 분기 처리
@@ -1369,9 +1444,9 @@ def get_commerical_area_info_data():
 
     # 최종 코드/이름 재세팅 (name으로 찾았을 경우 대비)
     lawd_cd = res["lawd_cd"]
-    lawd_nm = res["lawd_name"] # 경기도 김포시 운양동
+    lawd_name = res["lawd_name"] # 경기도 김포시 운양동
 
-    print(f"🔍get_commerical_area_info_data 법정동코드: {lawd_cd}, 법정동명: {lawd_nm}")
+    print(f"🔍get_commerical_area_info_data 법정동코드: {lawd_cd}, 법정동명: {lawd_name}")
 
     # 3. DB 조회 함수 호출 (이미 JSON 형태의 리스트를 반환함)
     json_records = search_by_ldong(lawd_cd, limit=5000)
@@ -1676,8 +1751,18 @@ def ext_tool_realtor_pop(user_id):
     return render_template("crawling_realtor_message_pop.html")
 
 @app.route("/api/ext_tool/map", methods=["GET"])
-def ext_tool_map():
-    return render_template("extool_map_popup.html")
+@kakao_extool_auth_required
+def ext_tool_map(user_id):
+    menu = request.args.get("menu", "")
+
+    # 인증토큰
+    access_token = request.args.get("tk", "")
+
+    # NPL 경매데이타 검색
+    if menu == 'npl_map_popup':
+        return render_template("extool_npl_map_popup.html", access_token=access_token)
+    else:
+        return render_template("extool_map_popup.html", access_token=access_token)
 
 @app.route('/api/sms_send', methods=['POST'])
 def sms_send():
@@ -2095,7 +2180,8 @@ def get_pastapt_property_download():
 #==================================
 # 확장프로그램에서 실거래 빌라/상가 통계분석자료처리
 @app.route("/api/trade/statistics", methods=["GET"])
-def ext_tool_statistics_pop():
+@kakao_extool_auth_required
+def ext_tool_statistics_pop(user_id):
     # 메뉴유형(menu): villa, sanga
     menu = request.args.get("menu", "sanga")
     # 초기 탭유형(type): public, auction
@@ -2109,6 +2195,10 @@ def ext_tool_statistics_pop():
 
     print("=== ext_tool_statistics_pop:", menu, type, region, sigungu, umdNm)
 
+    #= 토큰키
+    access_token = request.args.get("tk", "")
+    print('access_token: ' + access_token)
+
     # ✅ 이제는 공통 탭 메인 html만 호출
     return render_template(
         "statistics_trade_main_popup.html",
@@ -2116,16 +2206,21 @@ def ext_tool_statistics_pop():
         type=type,
         region=region,
         sigungu=sigungu,
-        umdNm=umdNm
+        umdNm=umdNm,
+        access_token=access_token
     )
 
 @app.route("/templates_proxy/<template_name>", methods=["GET"])
-def templates_proxy(template_name):
+@kakao_extool_auth_required
+def templates_proxy(template_name, user_id):
     menu = request.args.get("menu", "sanga")
     type = request.args.get("type", "public")
     region = request.args.get("region", "")
     sigungu = request.args.get("sigungu", "")
     umdNm = request.args.get("umdNm", "")
+
+    # 인증토큰 => kakao_extool_auth_required tk
+    access_token = request.args.get("tk", "")
 
     allow_list = {
         "statistics_villa_public_popup.html",
@@ -2143,7 +2238,8 @@ def templates_proxy(template_name):
         type=type,
         region=region,
         sigungu=sigungu,
-        umdNm=umdNm
+        umdNm=umdNm,
+        access_token=access_token
     )
 
 #===================================================

@@ -7,98 +7,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>랜드코어</title>
   <link rel="stylesheet" href="panel.css">
-  <style>
-    /* 사용자 정보 바 스타일 */
-    .user-info-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: rgba(255, 255, 255, 0.15);
-      padding: 4px 10px;
-      border-radius: 20px;
-      margin-left: auto; /* 로고와 간격을 띄움 */
-      margin-right: 10px;
-    }
-
-    .user-detail {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-
-    .user-nickname {
-      font-size: 12px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .sms-badge {
-      font-size: 10px;
-      color: #f0f0f0;
-      opacity: 0.9;
-    }
-
-    .logout-mini-btn {
-      background: none;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      color: #fff;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .logout-mini-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    .login-msg-card {
-      background: #fffbe6;
-      border: 1px solid #ffe58f;
-      padding: 8px;
-      text-align: center;
-      font-size: 12px;
-      border-radius: 8px;
-      margin: 10px;
-    }
-
-    .login-mini-link {
-      background: #faad14;
-      color: #fff;
-      border: none;
-      padding: 2px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-left: 5px;
-    }
-  </style>
 </head>
 
 <body>
   <div class="panel-container">
     <!-- 헤더 -->
     <header class="panel-header">
+      <!-- 로그인 성공 상태: header-top-row 위쪽에 노출 -->
+      <div id="top-user-strip" class="top-user-strip hidden">
+        <div class="top-user-strip-inner">
+          <div class="top-user-strip-left">
+            <div class="top-user-toggle-wrap">
+              <a href="#" id="nickname-toggle" class="nickname-toggle">
+                <span class="top-user-person-icon">👤</span>
+                <span id="nickname" class="top-user-name">-</span>
+              </a>
+
+              <div id="user-info-panel" class="user-info-panel hidden">
+                <button type="button" id="user-info-close" class="user-info-close">×</button>
+
+                <div class="user-info-panel-body">
+                  <div class="user-info-row">
+                    <span class="user-info-label">이름</span>
+                    <span id="panel-nickname" class="user-info-value">-</span>
+                  </div>
+
+                  <div class="user-info-row">
+                    <span class="user-info-label">구독개월-남은일자</span>
+                    <span id="sub-status" class="user-info-value">0개월-0일</span>
+                  </div>
+
+                  <div class="user-info-row">
+                    <span class="user-info-label">문자충전수</span>
+                    <span id="sms-count" class="user-info-value">0</span>
+                  </div>
+
+                  <div class="user-info-action-row">
+                    <button id="btn-mypage" class="account-mini-btn">마이페이지</button>
+                    <button id="btn-charge" class="account-mini-btn">문자충전</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="top-user-strip-right">
+            <a href="#" id="btn-logout" class="logout-text-link">로그아웃</a>
+          </div>
+        </div>
+      </div>
+
       <div class="header-content centered">
         <div class="header-top-row">
           <h1 class="logo">랜드코어 분석기</h1>
-
-          <div class="header-btn-group">
-            <button id="guide-btn" class="guide-btn">📖 사용가이드</button>
-          </div>
         </div>
-        <!-- 사용자 정보 바 -->
-        <div class="header-top-row">
-          <div id="user-info-bar" class="user-info-bar hidden">
-            <div class="user-detail">
-              <span id="nickname" class="user-nickname">-</span>
-              <span class="sms-badge">SMS <span id="sms-count">0</span></span>
+        <div class="panel-account-wrap">
+          <!-- 로그인 성공 상태: header-top-row 위쪽에 노출 -->
+          <div id="user-section" class="user-session-wrap hidden">
+            <div id="login-links" class="link-buttons hidden">
+              <a href="#" id="naver-land-btn" class="link-btn">네이버부동산</a>
+              <a href="https://www.youtube.com/@랜드코어-win" target="_blank" class="link-btn">유튜브채널</a>
+              <a href="https://open.kakao.com/o/go3wU1ei" target="_blank" class="link-btn">오픈채팅방</a>
+              <a href="#" id="guide-btn" class="link-btn guide-link-btn">📖 사용메뉴얼</a>
             </div>
           </div>
-        </div>
-        <div class="link-buttons">
-          <a href="#"  id="naver-land-btn" class="link-btn">네이버부동산</a>
-          <a href="https://www.youtube.com/@랜드코어-win" target="_blank" class="link-btn">유튜브채널</a>
-          <a href="https://open.kakao.com/o/go3wU1ei" target="_blank" class="link-btn">오픈채팅방</a>
+          <!-- 비로그인 상태 -->
+          <div id="login-section" class="account-card hidden">
+            <div class="account-card-desc">랜드코어에 오신걸 환영합니다.</div>
+            <button id="btn-login" class="account-login-btn">카카오 로그인</button>
+          </div>
         </div>
       </div>
     </header>
@@ -139,6 +116,7 @@
             <button type="button" class="tool-dropdown-item" data-analysis-menu="realdeal">📊 실거래분석</button>
             <button type="button" class="tool-dropdown-item" data-analysis-menu="commercial">🏪 업종분석</button>
             <button type="button" class="tool-dropdown-item" data-analysis-menu="statistics">📈 통계분석</button>
+            <button type="button" class="tool-dropdown-item tool-dropdown-item-property-search" data-analysis-menu="propertySearch">🔎 매물검색</button>
           </div>
         </div>
 
@@ -175,7 +153,9 @@
           매물 분석하기
         </button>
         <button id="reset-btn" class="reset-btn" title="초기화">
-          ↺
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5V1L7 6L12 11V7C15.31 7 18 9.69 18 13C18 16.31 15.31 19 12 19C9.33 19 7.07 17.36 6.24 15H4.17C5.06 18.39 8.26 21 12 21C16.42 21 20 17.42 20 13C20 8.58 16.42 5 12 5Z" fill="currentColor"/>
+            </svg>
         </button>
       </div>
       <div id="status-bar" class="status-bar hidden"></div>
@@ -200,19 +180,15 @@
       <div id="area-chart" class="area-chart-container"></div>
     </div>
 
-    <!-- 부동산 TOP 3 섹션 -->
-    <!--
+    <!-- 부동산 중개사 섹션 -->
     <div class="top-agencies-section">
-      <div class="section-header">
-        <span>🏆 부동산 TOP 3</span>
+      <button type="button" id="top-agencies-toggle" class="section-header top-agencies-toggle" aria-expanded="false">
+        <span>🏠🧑‍💼 중개사 상위목록</span>
+        <span id="top-agencies-toggle-icon" class="top-agencies-toggle-icon">▼</span>
+      </button>
+
+      <div id="top-agencies" class="top-agencies-list hidden">
       </div>
-      <div id="top-agencies" class="top-agencies-list">
-      </div>
-    </div>
-    -->
-    <!-- 히스토리 (숨김 처리하거나 하단에 배치) -->
-    <div class="history-section hidden">
-      <div id="history-list"></div>
     </div>
 
     <!-- 푸터 -->
@@ -223,6 +199,7 @@
   </div>
 
   <script src="panel.js"></script>
+  <script src="popup_kakao.js"></script>
 </body>
 
 </html>

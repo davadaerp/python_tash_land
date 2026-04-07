@@ -490,63 +490,63 @@ def main():
     MODE = "CSV"
 
     # 리스트 형태로 여러 지역을 입력합니다.
-    #TARGET_REGIONS = ["강원", "경기", "경남", "경북", "광주", "대구", "대전", "부산", "서울", "세종", "울산", "인천", "전남", "전북", "제주", "충남", "충북"]
-    TARGET_REGIONS = ["경기"]
+    TARGET_REGIONS = ["강원", "경기", "경남", "경북", "광주", "대구", "대전", "부산", "서울", "세종", "울산", "인천", "전남", "전북", "제주", "충남", "충북"]
+    #TARGET_REGIONS = ["경기"]
 
-    # init_db()
-    #
-    # # 1. 수집 전 기존 데이터를 모두 삭제하고 싶다면 여기서 한 번 수행 (선택 사항)
-    # delete_all_data()
-    #
-    # total_all_regions = 0
-    # final_stdrYm = "N/A"
-    #
-    # if MODE.upper() == "API":
-    #     print("=== [모드: API] 실시간 수집 시작 ===")
-    #     final_stdrYm, total_all_regions = call_api_paged(divId="", ldongCd="9301", end_page=5)
-    #
-    # else:
-    #     print(f"=== [모드: CSV] 로컬 파일 다중 처리 시작 ({', '.join(TARGET_REGIONS)}) ===")
-    #
-    #     for region in TARGET_REGIONS:
-    #         print(f"\n[*] '{region}' 지역 처리 중...")
-    #         # process_csv_by_region이 (stdrYm, count)를 반환하도록 수정된 버전을 사용해야 합니다.
-    #         res_ym, res_count = process_csv_by_region(region)
-    #
-    #         if res_count > 0:
-    #             total_all_regions += res_count
-    #             final_stdrYm = res_ym  # 마지막으로 성공한 지역의 기준년월 저장
-    #         else:
-    #             print(f"[-] '{region}' 지역은 파일을 찾지 못했거나 데이터가 없습니다.")
-    #
-    # # 3. 최종 공통 결과 출력
-    # print("\n" + "=" * 50)
-    # if total_all_regions > 0:
-    #     print(f"최종 합계 보고")
-    #     print(f"- 기준월: {final_stdrYm}")
-    #     print(f"- 대상 지역: {', '.join(TARGET_REGIONS)}")
-    #     print(f"- 총 저장 건수: {total_all_regions:,}건")  # 천단위 콤마 표기
-    # else:
-    #     print("수집 및 저장된 데이터가 하나도 없습니다.")
-    # print("=" * 50)
-    # print("=== 모든 작업 완료 ===")
+    init_db()
+
+    # 1. 수집 전 기존 데이터를 모두 삭제하고 싶다면 여기서 한 번 수행 (선택 사항)
+    delete_all_data()
+
+    total_all_regions = 0
+    final_stdrYm = "N/A"
+
+    if MODE.upper() == "API":
+        print("=== [모드: API] 실시간 수집 시작 ===")
+        final_stdrYm, total_all_regions = call_api_paged(divId="", ldongCd="9301", end_page=5)
+
+    else:
+        print(f"=== [모드: CSV] 로컬 파일 다중 처리 시작 ({', '.join(TARGET_REGIONS)}) ===")
+
+        for region in TARGET_REGIONS:
+            print(f"\n[*] '{region}' 지역 처리 중...")
+            # process_csv_by_region이 (stdrYm, count)를 반환하도록 수정된 버전을 사용해야 합니다.
+            res_ym, res_count = process_csv_by_region(region)
+
+            if res_count > 0:
+                total_all_regions += res_count
+                final_stdrYm = res_ym  # 마지막으로 성공한 지역의 기준년월 저장
+            else:
+                print(f"[-] '{region}' 지역은 파일을 찾지 못했거나 데이터가 없습니다.")
+
+    # 3. 최종 공통 결과 출력
+    print("\n" + "=" * 50)
+    if total_all_regions > 0:
+        print(f"최종 합계 보고")
+        print(f"- 기준월: {final_stdrYm}")
+        print(f"- 대상 지역: {', '.join(TARGET_REGIONS)}")
+        print(f"- 총 저장 건수: {total_all_regions:,}건")  # 천단위 콤마 표기
+    else:
+        print("수집 및 저장된 데이터가 하나도 없습니다.")
+    print("=" * 50)
+    print("=== 모든 작업 완료 ===")
 
     # 3. [추가된 기능] 법정동 코드로 검색 테스트
     # 예시: 인천 부평동(2823710100), 김포시 운양동(4157010300) 또는 API에서 방금 넣은 데이터의 법정동 코드 사용
-    test_ldong = "4157010300"
-
-    # 데이터 조회 호출
-    search_results = search_by_ldong(test_ldong, limit=50)
-
-    print("-" * 50)
-    if search_results:
-        print(f"✅ 총 {len(search_results)}개의 데이터를 찾았습니다.")
-
-        # JSON 형태의 데이터 출력 테스트
-        for item in search_results:
-            print(f"[{item['stdrYm']}] {item['bizesNm']} | {item['indsSclsNm']} | {item['rdnmAdr']} | (경도: {item['lon']}, 위도: {item['lat']})")
-    else:
-        print("❌ 표시할 데이터가 없습니다. 먼저 수집(API/CSV)을 진행하세요.")
+    # test_ldong = "4157010300"
+    #
+    # # 데이터 조회 호출
+    # search_results = search_by_ldong(test_ldong, limit=50)
+    #
+    # print("-" * 50)
+    # if search_results:
+    #     print(f"✅ 총 {len(search_results)}개의 데이터를 찾았습니다.")
+    #
+    #     # JSON 형태의 데이터 출력 테스트
+    #     for item in search_results:
+    #         print(f"[{item['stdrYm']}] {item['bizesNm']} | {item['indsSclsNm']} | {item['rdnmAdr']} | (경도: {item['lon']}, 위도: {item['lat']})")
+    # else:
+    #     print("❌ 표시할 데이터가 없습니다. 먼저 수집(API/CSV)을 진행하세요.")
 
     print("-" * 50)
     print("=== 작업 완료 ===")

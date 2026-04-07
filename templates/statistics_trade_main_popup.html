@@ -117,8 +117,18 @@
     const sigungu = "{{ sigungu if sigungu else '' }}";
     const umdNm = "{{ umdNm if umdNm else '' }}";
 
+    // 토큰
+    const access_token = "{{ access_token }}";
+
     function getMenuLabel() {
         return menu === "villa" ? "빌라" : "상가";
+    }
+
+    function updateTabLabels() {
+        const menuLabel = getMenuLabel();
+
+        document.getElementById("tab-public").textContent = `${menuLabel}-실거래`;
+        document.getElementById("tab-auction").textContent = `${menuLabel}-경매`;
     }
 
     function buildFrameUrl(tabType) {
@@ -141,7 +151,8 @@
             type: tabType,
             region: region,
             sigungu: sigungu,
-            umdNm: umdNm
+            umdNm: umdNm,
+            tk: access_token
         });
 
         return `/templates_proxy/${targetHtml}?${qs.toString()}`;
@@ -171,6 +182,7 @@
         // document.getElementById("menuTitle").textContent = getMenuLabel();
         // document.getElementById("regionTitle").textContent = ` ${sigungu}${umdNm ? ' ' + umdNm : ''}`;
 
+        updateTabLabels();
         changeTab(initType);
     };
 </script>

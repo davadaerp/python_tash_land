@@ -39,6 +39,7 @@ def create_npl_table():
                 category TEXT,
                 address1 TEXT,
                 address2 TEXT,
+                lawd_cd TEXT,
                 region TEXT,
                 sigungu_code TEXT,
                 sigungu_name TEXT,
@@ -127,7 +128,7 @@ def npl_insert_single(entry):
     insert_query = f"""
         INSERT OR REPLACE INTO {TABLE_NAME} (
             case_number,
-            category, address1, address2, region,
+            category, address1, address2, lawd_cd, region,
             sigungu_code, sigungu_name, eub_myeon_dong,
             building, floor, building_m2, building_py,
             land_m2, land_py, appraisal_price,
@@ -143,7 +144,7 @@ def npl_insert_single(entry):
             expected_price,
             latitude, longitude,
             tid
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     try:
         cursor.execute(insert_query, (
@@ -151,6 +152,7 @@ def npl_insert_single(entry):
             entry.get("category"),
             entry.get("address1"),
             entry.get("address2"),
+            entry.get("lawd_cd"),
             entry.get("region"),
             entry.get("sigungu_code"),
             entry.get("sigungu_name"),
@@ -210,6 +212,7 @@ def npl_update_single(entry):
             category = ?,
             address1 = ?,
             address2 = ?,
+            lawd_cd = ?,
             region = ?,
             sigungu_code = ?,
             sigungu_name = ?,
@@ -255,6 +258,7 @@ def npl_update_single(entry):
             entry.get("category"),
             entry.get("address1"),
             entry.get("address2"),
+            entry.get("lawd_cd"),
             entry.get("region"),
             entry.get("sigungu_code"),
             entry.get("sigungu_name"),
@@ -363,9 +367,9 @@ def npl_read_db(lawdCd="", region="", sggNm="", umdNm="", categories=None, oppos
     if sggNm:
         query += " AND sigungu_name LIKE ?"
         params.append(f"%{sggNm}%")
-    # if umdNm:
-    #     query += " AND eub_myeon_dong LIKE ?"
-    #     params.append(f"%{umdNm}%")
+    if umdNm:
+        query += " AND eub_myeon_dong LIKE ?"
+        params.append(f"%{umdNm}%")
     if categories:
         placeholders = ','.join('?' for _ in categories)
         query += f" AND category IN ({placeholders})"

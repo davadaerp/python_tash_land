@@ -573,6 +573,43 @@
       color: #0f172a;
       font-weight: 900;
     }
+
+    /* [추가] 클러스터용 원 스타일 */
+    .cluster-marker-s,
+    .cluster-marker-m,
+    .cluster-marker-l {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      color:#fff;
+      font-weight:800;
+      box-shadow:0 4px 14px rgba(0,0,0,0.22);
+      border:3px solid rgba(255,255,255,0.95);
+      user-select:none;
+    }
+
+    .cluster-marker-s {
+      width:40px;
+      height:40px;
+      font-size:13px;
+      background:linear-gradient(135deg, #60a5fa, #2563eb);
+    }
+
+    .cluster-marker-m {
+      width:50px;
+      height:50px;
+      font-size:15px;
+      background:linear-gradient(135deg, #34d399, #059669);
+    }
+
+    .cluster-marker-l {
+      width:60px;
+      height:60px;
+      font-size:17px;
+      background:linear-gradient(135deg, #f97316, #ef4444);
+    }
+
   </style>
 </head>
 <body>
@@ -798,23 +835,100 @@
       });
     }
 
+    // 2. 마커 생성 시 map 옵션 제거 (클러스터러가 제어하게 함)
     function createCountMarker(group) {
       const meta = typeMeta(group.items);
-      const count = group.items.length;
       const pos = new naver.maps.LatLng(group.lat, group.lng);
 
       const marker = new naver.maps.Marker({
         position: pos,
-        map,
         icon: {
-          content: `<div class="count-marker ${meta.marker}" title="${group.address}">${count}</div>`,
-          anchor: new naver.maps.Point(17, 17) /* 원 34px 기준 */
+          content: `<div class="count-marker ${meta.marker}">${group.items.length}</div>`,
+          anchor: new naver.maps.Point(17, 17)
         }
       });
 
+      marker.__group = group;
       marker.addListener('click', () => openCustomPopup(group, pos));
       markers.push(marker);
-      bounds.extend(pos);
+
+      return marker;
+    }
+
+    // [추가] 기존 마커 및 클러스터러를 완전히 지우는 함수
+    function clearMarkers() {
+        if (clusterer) {
+          clusterer.setMap(null);
+          clusterer = null;
+        }
+
+        markers.forEach(marker => {
+          if (marker) marker.setMap(null);
+        });
+        markers = [];
+    }
+
+    function initClusterer() {
+      if (!markers.length) return;
+
+      clusterer = new MarkerClustering({
+        minClusterSize: 2,
+        maxZoom: 16,
+        map: map,
+        markers: markers,
+        disableClickZoom: false,
+        gridSize: 80,
+        icons: [
+          {
+            content: '<div class="cluster-marker-s"></div>',
+            anchor: new naver.maps.Point(20, 20)
+          },
+          {
+            content: '<div class="cluster-marker-m"></div>',
+            anchor: new naver.maps.Point(25, 25)
+          },
+          {
+            content: '<div class="cluster-marker-l"></div>',
+            anchor: new naver.maps.Point(30, 30)
+          }
+        ],
+        indexGenerator: [10, 30, 100],
+        stylingFunction: function(clusterMarker, count) {
+          const el = clusterMarker.getElement();
+          if (!el) return;
+
+          const div = el.querySelector('div');
+          if (!div) return;
+
+          div.textContent = count;
+        }
+      });
+    }
+
+    function updateMarkers(groupedData) {
+      clearMarkers();
+
+      if (!Array.isArray(groupedData) || !groupedData.length) return;
+
+      bounds = new naver.maps.LatLngBounds();
+
+      groupedData.forEach(group => {
+        if (!group || !group.lat || !group.lng) return;
+
+        createCountMarker(group);
+        bounds.extend(new naver.maps.LatLng(group.lat, group.lng));
+      });
+
+      initClusterer();
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, {
+          top: 40,
+          right: 40,
+          bottom: 40,
+          left: 40
+        });
+      }
     }
 
     /* 행 HTML 생성 (선택 필터에 맞게) */
@@ -1237,10 +1351,11 @@
 
     /* ===== 렌더링 파이프라인 ===== */
     function plotByType(type) {
-      markers.forEach(m => m.setMap(null));
-      markers = [];
-      bounds = new naver.maps.LatLngBounds();
-      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
+      clearMarkers();
+      if (currentOverlay) {
+        currentOverlay.setMap(null);
+        currentOverlay = null;
+      }
 
       if (!Array.isArray(addresses) || addresses.length === 0) return;
 
@@ -1251,12 +1366,19 @@
 
       let doneCount = 0;
       const total = groups.length;
+      const resolvedGroups = [];
+
       groups.forEach(g => {
         geocodeIfNeeded(g, (result) => {
           doneCount++;
-          if (!result) return;
-          createCountMarker(g);
-          if (doneCount === total && markers.length) map.fitBounds(bounds);
+
+          if (result && result.lat && result.lng) {
+            resolvedGroups.push(result);
+          }
+
+          if (doneCount === total) {
+            updateMarkers(resolvedGroups);
+          }
         });
       });
     }

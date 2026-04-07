@@ -1,5 +1,7 @@
 /**
  * landcore - Excel Style Panel JS
+ * 1. 실시간 분석 업데이트 수신 및 처리
+ * 2. 분석도구 제공으로 실거래, 업종분석, 통계분석, 매물검색 팝업 열기
  */
 
 // DOM Elements
@@ -22,9 +24,13 @@ const historyList = document.getElementById('history-list');
 //
 const siteShortcutBtn = document.getElementById('site-shortcut-btn');
 const siteShortcutMenu = document.getElementById('site-shortcut-menu');
+// 상위목록 중개사 섹션
+const topAgenciesToggle = document.getElementById('top-agencies-toggle');
+const topAgenciesSection = document.getElementById('top-agencies');
 
 // API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
 const LANDCORE_URL = "https://www.landcore.co.kr";
+//const LANDCORE_URL = 'http://127.0.0.1:5000';
 
 // 네이버 부동산 상가 페이지 URL (마지막 위치 기억)
 const NAVER_LAND_URL = 'https://new.land.naver.com/offices?a=SG:SMS&b=A1:B2&e=RETAIL&ad=true';
@@ -40,7 +46,7 @@ let currentDetailView = 'list'; // 'list' | 'cheapest'
 
 // 정렬 상태
 let currentListSort = {
-    field: 'pricePerPyeong',   // 'floor' | 'pricePerPyeong' | 'area'
+    field: 'pricePerPyeong',   // 'floor' | 'pricePerPyeong' | 'area' | 'price'
     direction: 'asc'           // 'asc' | 'desc'
 };
 // 현재 층 필터 상태 (예: '전체', '1층', '2층', '상층')
@@ -49,7 +55,11 @@ let currentFloorFilter = '전체';
 let currentRegionInfo = {
     region: '',
     sigungu: '',
-    umdNm: ''
+    umdNm: '',
+    lawdCd: '',     // 법정동코드 (예: 41135000)
+    lawdName: '',   // 경기도 김포시 운양동
+    regions: '',    // 경기도,김포시,운양동
+    tabGubun: ''    // apt | villa | sanga
 };
 
 // 초기화
@@ -58,7 +68,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     //updateUserSession();
 
     console.log('Panel Initialized');
-    await checkCurrentTab();
+    // 여기 정의하면 NPL팝업 열릴때 계속실행되어버림 ㅠ.ㅠ
+    //await ensureNaverLandTabOnPanelOpen();
     loadHistory();
 
     analyzeBtn.addEventListener('click', startAnalysis);
@@ -71,9 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     nplBtn?.addEventListener('click', openNplSearchFromPanel);
     //memoBtn.addEventListener('click', openMemo);
     naverLandBtn.addEventListener('click', openNaverLand);
-    guideBtn.addEventListener('click', openGuide);
+    guideBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openGuide();
+    });
     //
     siteShortcutBtn?.addEventListener('click', toggleSiteShortcutMenu);
+    topAgenciesToggle?.addEventListener('click', toggleTopAgenciesSection);
 
     // 결과 영역 내 목록/최저가 전환 및 정렬 처리
     resultsContainer.addEventListener('click', (e) => {
@@ -169,6 +184,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 openCommericalAreaPopupFromPanel();
             } else if (menuType === 'statistics') {
                 openLandRealStatisticsPopupFromPanel();
+            } else if (menuType === 'propertySearch') {
+                // 네이버매물검색
+                openPropertySearchPopupFromPanel();
             }
             return;
         }
@@ -203,10 +221,11 @@ function renderAreaChart(listings, type = '월세') {
 
     // 제목 업데이트, 해당 타입(매매/월세)만 필터링
     const floorLabel = currentFloorFilter || '전체';
-    chartTitle.textContent = `✏️ ${type} 평수 분포(${floorLabel})`;
-
     const typeFilteredListings = (listings || []).filter(l => l.type === type);
     const filteredListings = filterListingsByFloor(typeFilteredListings, floorLabel);
+    const selectedCount = filteredListings.length || 0;
+
+    chartTitle.textContent = `✏️ ${type} 평수 분포(${floorLabel}/${selectedCount}건)`;
 
     if (filteredListings.length === 0) {
         chartContainer.innerHTML = `<div class="empty-msg" style="padding:20px; color:#999; text-align:center;">${type} ${floorLabel} 데이터가 없습니다.</div>`;
@@ -259,38 +278,14 @@ function renderAreaChart(listings, type = '월세') {
     chartContainer.innerHTML = barsHTML;
 }
 
-
-/**
- * 로그인 정보를 스토리지에서 가져와 UI 업데이트
- */
-function updateUserSession() {
-    const userInfoBar = document.getElementById('user-info-bar');
-    const loginMsg = document.getElementById('login-needed-msg');
-
-    chrome.storage.local.get(['access_token', 'nickname', 'sms_count'], (items) => {
-        if (items.access_token) {
-            // 로그인 상태
-            document.getElementById('nickname').textContent = items.nickname || '사용자';
-            document.getElementById('sms-count').textContent = items.sms_count || '0';
-
-            userInfoBar?.classList.remove('hidden');
-            loginMsg?.classList.add('hidden');
-        } else {
-            // 비로그인 상태
-            userInfoBar?.classList.add('hidden');
-            loginMsg?.classList.remove('hidden');
-
-            // 로그인 안되어 있으면 분석 버튼 비활성화 등의 처리 가능
-            // analyzeBtn.disabled = true;
-        }
-    });
-}
-
 /**
  * 실시간 분석 업데이트 처리
  */
 async function handleAutoUpdate(data) {
     lastAnalysisData = data;
+
+    // 지역 + 탭구분 반영
+    setCurrentRegionInfo(data);
 
     // 분석 데이터에 포함된 지역정보를 바로 반영
     applyRegionLabelFromAnalysisData(data);
@@ -310,16 +305,62 @@ async function handleAutoUpdate(data) {
 
 /**
  * 네이버 부동산 상가 페이지 열기
+ * - 이미 열려있으면 alert
+ * - 없으면 현재 활성 탭을 네이버부동산으로 이동
  */
 function openNaverLand() {
-    chrome.tabs.create({ url: NAVER_LAND_URL });
+    chrome.tabs.query({ currentWindow: true }, async (tabs) => {
+        if (chrome.runtime.lastError) {
+            alert('탭 조회 중 오류 발생');
+            return;
+        }
+
+        // 이미 열려 있는 네이버부동산 탭 찾기
+        const exists = tabs.find(tab => {
+            const url = tab.url || '';
+            return url.includes('land.naver.com');
+        });
+
+        if (exists) {
+            alert('네이버부동산 사이트가 이미 열려있습니다.');
+            return;
+        }
+
+        // 현재 활성 탭 찾기
+        const activeTab = tabs.find(tab => tab.active);
+        if (!activeTab?.id) {
+            alert('현재 활성 탭을 찾을 수 없습니다.');
+            return;
+        }
+
+        try {
+            const response = await chrome.runtime.sendMessage({
+                type: 'MOVE_TAB_TO_NAVER_LAND',
+                tabId: activeTab.id,
+                url: NAVER_LAND_URL
+            });
+
+            if (!response?.success) {
+                alert(response?.error || '네이버부동산 이동 실패');
+                return;
+            }
+
+            setStatus('ready', '현재 탭을 네이버부동산으로 이동했습니다.');
+        } catch (error) {
+            console.error('openNaverLand MOVE_TAB_TO_NAVER_LAND 오류:', error);
+            alert('네이버부동산 이동 중 오류가 발생했습니다.');
+        }
+
+        // 없으면 새로 열기 => 이전버전
+        //chrome.tabs.create({ url: NAVER_LAND_URL });
+    });
 }
 
 /**
  * 사용가이드 페이지 열기
  */
 function openGuide() {
-    const guideUrl = chrome.runtime.getURL('tools/guide.html');
+    const guideUrl = chrome.runtime.getURL('guide/UserGuide.html');
     chrome.tabs.create({ url: guideUrl });
 }
 
@@ -387,6 +428,31 @@ function toggleSiteShortcutMenu(e) {
     siteShortcutMenu?.classList.toggle('hidden');
 }
 
+// 상위목록 중개사 섹션 토글
+function toggleTopAgenciesSection() {
+    if (!topAgenciesSection || !topAgenciesToggle) return;
+
+    const isHidden = topAgenciesSection.classList.contains('hidden');
+
+    if (isHidden) {
+        topAgenciesSection.classList.remove('hidden');
+        topAgenciesToggle.setAttribute('aria-expanded', 'true');
+    } else {
+        topAgenciesSection.classList.add('hidden');
+        topAgenciesToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    syncTopAgenciesToggleIcon();
+}
+
+function syncTopAgenciesToggleIcon() {
+    const iconEl = document.getElementById('top-agencies-toggle-icon');
+    if (!iconEl || !topAgenciesSection) return;
+
+    const isExpanded = !topAgenciesSection.classList.contains('hidden');
+    iconEl.textContent = isExpanded ? '▲' : '▼';
+}
+
 /**
  * 실거래, 업종분석, 통계분석 열기
  */
@@ -402,8 +468,24 @@ async function openLandRealAuctionPopupFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regions = getCurrentRegionsString() || "경기도,김포시,운양동";
-    const menu = 'sanga_real_deal';
+    // 외부에서 탭 구분이 명확히 넘어오면 그걸 우선, 그렇지 않으면 현재 탭 상태에서 구분, 둘 다 없으면 기본값 'sanga'로 설정
+    const selectedTabGubun = getCurrentTabGubun() || 'sanga';
+
+    // 테스트용 확인
+    alert(`현재 탭 구분: ${selectedTabGubun}`);
+
+    let menu = "sanga_real_deal";
+    if (selectedTabGubun === 'sanga') {
+        menu = 'sanga_real_deal';
+    } else if (selectedTabGubun === 'villa') {
+        menu = 'villa_real_deal';
+    } else if (selectedTabGubun === 'apt') {
+        menu = 'apt_real_deal';
+    }
+
+    // 🔥 여기 수정
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo.regions || "경기도,김포시,운양동";
     const extUrl = `${LANDCORE_URL}/api/ext_tool?menu=${menu}&regions=${encodeURIComponent(regions)}&tk=${encodeURIComponent(auth.access_token)}`;
 
     const popupWidth = 950;
@@ -424,23 +506,33 @@ async function openCommericalAreaPopupFromPanel() {
     if (!auth.ok) return;
 
     try {
-        const region = currentRegionInfo?.region || '';
-        const sigungu = currentRegionInfo?.sigungu || '';
-        const umdNm = currentRegionInfo?.umdNm || '';
+        // 외부에서 탭 구분이 명확히 넘어오면 그걸 우선, 그렇지 않으면 현재 탭 상태에서 구분, 둘 다 없으면 기본값 'sanga'로 설정
+        const selectedTabGubun = getCurrentTabGubun() || 'sanga';
 
-        if (!region || !sigungu || !umdNm) {
-            throw new Error('지역 선택값이 올바르지 않습니다.');
+        // 테스트용 확인
+        console.log(`현재 탭 구분: ${selectedTabGubun}`);
+
+        if (selectedTabGubun !== 'sanga') {
+            alert('업종상권분석은 상가에서만 지원됩니다.');
+            return;
         }
+        //
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        console.log('getCurrentRegionsString 리턴값:', regionInfo);
 
-        // landcore.js와 동일하게 lawName 구성
-        const lawdCd = '';
-        const lawName = `${region} ${sigungu} ${umdNm}`;
-        console.log(`업종상권분석 호출 - lawdCd: ${lawdCd}, lawName: ${lawName}`);
+        let lawdCd = regionInfo?.lawdCd || '';
+        let lawdName = regionInfo?.lawdName || '';
+        const regions = regionInfo?.regions || '';
+
+        // 둘 다 없으면 여기서 중단
+        if (!lawdCd && !lawdName) {
+            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        }
 
         // 상권정보 원본 조회
         const commercialItems = await fetchCommercialAreaInfoForPanel(
             lawdCd,
-            lawName,
+            lawdName,
             auth.access_token
         );
 
@@ -452,18 +544,16 @@ async function openCommericalAreaPopupFromPanel() {
         // 지도팝업으로 전달할 payload 구성
         const payload = {
             options: [{
-                region: lawName,
+                region: lawdName,
                 floor: "전체",
                 area: "전체"
             }],
-            addresses: [{
-                type: "region",
-                address: lawName,
-                buildingName: lawName,
-                latitude: 0,
-                longitude: 0
-            }],
-            commercialAreaItems: Array.isArray(commercialItems) ? commercialItems : []
+            addresses: [],
+            commercialAreaItems: Array.isArray(commercialItems) ? commercialItems : [],
+
+            // [추가] 업종분석 전용 초기 표시 설정
+            initialMapMode: "commercial",
+            initialCommercialPoiGroup: "교육사업"
         };
 
         console.log("Commercial area payload for popup:", payload);
@@ -472,9 +562,10 @@ async function openCommericalAreaPopupFromPanel() {
         const popupHeight = 1100;
         const left = window.screenX + (window.outerWidth - popupWidth) / 2;
         const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
-
+        //
+        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?menu=map_popup&tk=${encodeURIComponent(auth.access_token)}`;
         const popup = window.open(
-            `${LANDCORE_URL}/api/ext_tool/map?menu=map_popup`,
+            extUrl,
             'commercialAreaMapPopup',
             `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
         );
@@ -502,11 +593,13 @@ async function openCommericalAreaPopupFromPanel() {
 }
 
 // 상권정보 조회 API 호출 (패널에서 지역정보 전달)
-async function fetchCommercialAreaInfoForPanel(lawdCd, lawName, accessToken = '') {
+async function fetchCommercialAreaInfoForPanel(lawdCd, lawdName, accessToken = '') {
     const url = new URL(`${LANDCORE_URL}/api/sanga/commerical_area_info`);
 
+    console.log('fetchCommercialAreaInfoForPanel 호출 - lawdCd:', lawdCd, 'lawdName:', lawdName);
+
     if (lawdCd) url.searchParams.set('lawd_cd', lawdCd);
-    if (lawName) url.searchParams.set('lawd_name', lawName);
+    if (lawdName) url.searchParams.set('lawd_name', lawdName);    // 경기도 김포시 운양동
 
     const headers = {};
     if (accessToken) {
@@ -532,10 +625,22 @@ async function openLandRealStatisticsPopupFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regions = getCurrentRegionsString() || "경기도,김포시,운양동";
+    // 외부에서 탭 구분이 명확히 넘어오면 그걸 우선, 그렇지 않으면 현재 탭 상태에서 구분, 둘 다 없으면 기본값 'sanga'로 설정
+    const selectedTabGubun = getCurrentTabGubun() || 'sanga';
+
+    // 테스트용 확인
+    console.log(`현재 탭 구분: ${selectedTabGubun}`);
+
+    if (selectedTabGubun === 'apt') {
+        alert('아파트 통계분석은 준비중입니다.');
+        return;
+    }
+
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo.regions;     // 경기도,김포시,운양동
 
     const urlParams = new URLSearchParams({
-        menu: 'sanga',
+        menu: selectedTabGubun,
         type: 'public',
         regions,
         tk: auth.access_token
@@ -555,42 +660,35 @@ async function openLandRealStatisticsPopupFromPanel() {
     );
 }
 
-/**
- * 매물 메모장 열기
- * 현재 열린 매물 상세정보를 추출하여 메모 페이지에 전달
- */
-async function openMemo() {
-    let params = new URLSearchParams();
+// 매물검색 팝업 열기 (패널에서 지역정보 전달)
+async function openPropertySearchPopupFromPanel() {
+    // 로그인 및 구독 상태 체크
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
 
-    try {
-        // 상세정보 팝업에서 데이터 추출
-        const response = await chrome.runtime.sendMessage({ type: 'GET_MEMO_DATA' });
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo?.regions || "경기도,김포시,운양동";
 
-        if (response?.success && response.data) {
-            const data = response.data;
+    // menu => apt_search, sanga_search
+    const urlParams = new URLSearchParams({
+        menu: 'sanga_search',
+        regions: regions,
+        tk: auth.access_token,
+        customTag: 'propertySearch'
+    });
 
-            // URL 파라미터로 전달
-            if (data.propertyName) params.set('propertyName', data.propertyName);
-            if (data.price) params.set('price', data.price);
-            if (data.rent) params.set('rent', data.rent);
-            if (data.area) params.set('area', data.area);
-            if (data.floor) params.set('floor', data.floor);
-            if (data.address) params.set('address', data.address);
-            if (data.features) params.set('features', data.features);
-            if (data.propertyNo) params.set('propertyNo', data.propertyNo);
-            if (data.agencyName) params.set('agencyName', data.agencyName);
-            if (data.agencyPhone) params.set('agencyPhone', data.agencyPhone);
-            if (data.agencyMobile) params.set('agencyMobile', data.agencyMobile);
-            if (data.agencyAddress) params.set('agencyAddress', data.agencyAddress);
-        }
-    } catch (error) {
-        console.warn('상세정보 추출 실패, 빈 메모장 열기:', error);
-    }
+    const extUrl = `${LANDCORE_URL}/api/ext_tool?${urlParams.toString()}`;
 
-    // 메모 페이지 열기
-    const memoUrl = chrome.runtime.getURL('tools/memo.html');
-    const fullUrl = params.toString() ? `${memoUrl}?${params}` : memoUrl;
-    chrome.tabs.create({ url: fullUrl });
+    const popupWidth = 1480;
+    const popupHeight = 1200;
+    const left = (screen.width - popupWidth) / 2;
+    const top = (screen.height - popupHeight) / 2;
+
+    window.open(
+        extUrl,
+        "propertySearchPopup",
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
 }
 
 /**
@@ -607,14 +705,14 @@ async function openBaehu() {
 /**
  * 수익률 계산기 실행 (토큰 및 구독 상태 체크 포함)
  */
-async function openCalculator(tabGubun = "sanga", extraParams = {}) {
+async function openCalculator(extraParams = {}) {
     // 로그인 및 구독 상태 체크
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
     // 1. 저장소에서 데이터 가져오기 (비동기)
-    chrome.storage.local.get(["access_token", "is_subscribed", "apt_key", "villa_key", "sanga_key"], (items) => {
-        const { access_token, is_subscribed } = items;
+    chrome.storage.local.get(["access_token", "is_subscribed", "apt_key", "villa_key", "sanga_key"], async (items) => {
+        const {access_token, is_subscribed} = items;
 
         // 2. 권한 검사
         // if (!access_token) {
@@ -631,16 +729,23 @@ async function openCalculator(tabGubun = "sanga", extraParams = {}) {
         let menu = '';
         let popupWidth = 950;
         let popupHeight = 970;
-        let regions = getCurrentRegionsString() || "경기도,김포시,운양동";
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        const regions = regionInfo.regions || "경기도,김포시,운양동";
 
-        if (tabGubun === 'sanga') {
+        // 외부에서 탭 구분이 명확히 넘어오면 그걸 우선, 그렇지 않으면 현재 탭 상태에서 구분, 둘 다 없으면 기본값 'sanga'로 설정
+        const selectedTabGubun = getCurrentTabGubun() || 'sanga';
+
+        // 테스트용 확인
+        alert(`현재 탭 구분: ${selectedTabGubun}`);
+
+        if (selectedTabGubun === 'sanga') {
             menu = 'sanga_profit';
-            popupWidth = 970;
-            popupHeight = 790;
+            popupWidth = 980;
+            popupHeight = 840;
         } else {
             menu = 'general_profit';
-            popupWidth = 620;
-            popupHeight = 780;
+            popupWidth = 640;
+            popupHeight = 775;
         }
 
         // 4. 파라미터 통합 (기본값 + 토큰 + 외부 주입값)
@@ -679,7 +784,8 @@ async function openSmsSendFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regions = getCurrentRegionsString() || "경기도,김포시,운양동";
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo.regions || "경기도,김포시,운양동";
 
     const urlParams = new URLSearchParams({
         menu: 'realtor',
@@ -707,7 +813,8 @@ async function openFormDownloadFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regions = getCurrentRegionsString() || "경기도,김포시,운양동";
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo.regions || "경기도,김포시,운양동";
 
     const urlParams = new URLSearchParams({
         menu: 'form_down',
@@ -731,11 +838,12 @@ async function openFormDownloadFromPanel() {
 }
 
 //
-async function openNplSearchFromPanel() {
+async function openNplSearchFromPanel_old() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regions = getCurrentRegionsString() || "경기도,김포시,운양동";
+    const regionInfo = await getCurrentRegionsString(auth.access_token);
+    const regions = regionInfo.regions || "경기도,김포시,운양동";
 
     const urlParams = new URLSearchParams({
         menu: 'npl_search',
@@ -758,14 +866,167 @@ async function openNplSearchFromPanel() {
     );
 }
 
+// NPL 검색 팝업 열기 (패널에서 지역정보 전달)
+async function openNplSearchFromPanel_popup() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    try {
+        //
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        console.log('getCurrentRegionsString 리턴값:', regionInfo);
+
+        // lawdName: 경기도 김포시 운양동, regions: 경기도,김포시,운양동
+        let lawdCd = regionInfo?.lawdCd || '';
+        let lawdName = regionInfo?.lawdName || '';
+        let umdName = regionInfo?.umdName || '';
+        let regions = regionInfo?.regions || '';
+
+        // 둘 다 없으면 여기서 중단
+        if (!lawdCd && !lawdName) {
+            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        }
+
+        // 지도팝업으로 전달할 payload 구성
+        const payload = {
+            options: [{
+                lawdCd: lawdCd,
+                lawdName: lawdName,
+                umdName:umdName
+            }],
+            addresses: []
+        };
+
+        const popupWidth = 1600;
+        const popupHeight = 1100;
+        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+        const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
+
+        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?menu=npl_map_popup&tk=${encodeURIComponent(auth.access_token)}`;
+        const popup = window.open(
+            extUrl,
+            'nplMapPopup',
+            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+            alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
+            return;
+        }
+
+        const sendPayload = () => {
+            try {
+                popup.postMessage(payload, new URL(LANDCORE_URL).origin);
+            } catch (e) {
+                console.error('상권분석 payload 전송 실패:', e);
+            }
+        };
+
+        popup.onload = sendPayload;
+        setTimeout(sendPayload, 800);
+
+    } catch (err) {
+        console.error('업종상권분석 처리 실패:', err);
+        alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
+    }
+}
+
+// NPL 검색 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
+async function openNplSearchFromPanel() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    try {
+        //
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        console.log('getCurrentRegionsString 리턴값:', regionInfo);
+
+        let lawdCd = regionInfo?.lawdCd || '';
+        let lawdName = regionInfo?.lawdName || '';
+        let umdName = regionInfo?.umdName || '';
+        let regions = regionInfo?.regions || '';
+
+        // 둘 다 없으면 여기서 중단
+        if (!lawdCd && !lawdName) {
+            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        }
+
+        const urlParams = new URLSearchParams({
+          menu: 'npl_map_popup',
+          tk: auth.access_token,
+          lawdCd: lawdCd,
+          lawdName: lawdName,
+          umdName: umdName
+        });
+
+        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
+        chrome.tabs.create({ url: extUrl });
+    } catch (err) {
+        console.error('업종상권분석 처리 실패:', err);
+        alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
+    }
+}
+
+
+/**
+ * 새 분석 시작 전에 이전 분석 UI를 0 기준으로 초기화
+ */
+function resetAnalysisUiForNewRun() {
+    // 분석 상태 초기화
+    currentChartType = '월세';
+    currentDetailView = 'list';
+    currentFloorFilter = '전체';
+    currentListSort = {
+        field: 'pricePerPyeong',
+        direction: 'asc'
+    };
+
+    // 결과 영역은 로딩 메시지로 교체
+    resultsContainer.innerHTML = '<div class="empty-state">데이터를 가져오는 중입니다...</div>';
+
+    // 평수 분포 초기화
+    if (areaChartContainer) {
+        areaChartContainer.innerHTML = '<div class="empty-msg" style="padding:20px; color:#999; text-align:center;">월세 전체 데이터가 없습니다.</div>';
+    }
+
+    const chartTitle = document.getElementById('chart-title');
+    if (chartTitle) {
+        chartTitle.textContent = '✏️ 월세 평수 분포(전체/0건)';
+    }
+
+    // 분석 건수 0으로 초기화
+    const countEl = document.getElementById('analysis-count');
+    if (countEl) {
+        countEl.innerHTML = `
+            <span style="font-size: 14px; font-weight: bold; color: #000;">총 0개 분석:</span> 
+            <span style="font-size: 14px; font-weight: bold; color: #e91e63;">월세 0개</span>, 
+            <span style="font-size: 14px; font-weight: bold; color: #2196f3;">매매 0개</span>
+        `;
+        countEl.classList.remove('hidden');
+    }
+
+    // 상태바 0 기준으로 초기화
+    setStatus('loading', '분석 준비 중 (0개)');
+
+    // TOP 중개사 초기화
+    const agencySection = document.getElementById('top-agencies');
+    if (agencySection) {
+        agencySection.innerHTML = '';
+        agencySection.classList.add('hidden');
+    }
+    if (topAgenciesToggle) {
+        topAgenciesToggle.setAttribute('aria-expanded', 'false');
+    }
+    syncTopAgenciesToggleIcon();
+}
+
 /**
  * 패널 초기화(리셋)
  */
 function resetPanel() {
     resultsContainer.innerHTML = '<div class="empty-state">분석 버튼을 눌러 시작하세요</div>';
     if (areaChartContainer) areaChartContainer.innerHTML = '';
-    const agencySection = document.getElementById('top-agencies');
-    if (agencySection) agencySection.innerHTML = '';
+    //
     const countEl = document.getElementById('analysis-count');
     if (countEl) countEl.classList.add('hidden');
     lastAnalysisData = null;
@@ -780,6 +1041,16 @@ function resetPanel() {
     if (chartTitle) {
         chartTitle.textContent = '✏️ 월세 평수 분포';
     }
+    // 상위목록 중개사 초기화
+    const agencySection = document.getElementById('top-agencies');
+    if (agencySection) {
+        agencySection.innerHTML = '';
+        agencySection.classList.add('hidden');
+    }
+    if (topAgenciesToggle) {
+        topAgenciesToggle.setAttribute('aria-expanded', 'false');
+    }
+    syncTopAgenciesToggleIcon();
     //
     currentDetailView = 'list';
     currentListSort = {
@@ -791,7 +1062,7 @@ function resetPanel() {
 }
 
 /**
- * 현재 탭 상태 확인
+ * 현재 탭 상태 확인--네이버부동산 탭이면 분석 준비, 아니면 경고 및 네이버부동산으로 이동
  */
 async function checkCurrentTab() {
     try {
@@ -812,23 +1083,68 @@ async function checkCurrentTab() {
 }
 
 function setStatus(type, text) {
+    if (!statusBar) {
+        console.warn('[setStatus] status-bar 요소가 없습니다.', { type, text });
+        return;
+    }
+
     statusBar.textContent = text;
     statusBar.className = `status-bar status-${type}`;
+}
+
+/**
+ * 패널이 열릴 때 네이버부동산 탭을 보장
+ * 1) 현재 윈도우에 네이버부동산 탭이 있으면 그 탭으로 이동
+ * 2) 없으면 네이버부동산 새 탭 생성
+ */
+async function ensureNaverLandTabOnPanelOpen() {
+    try {
+        setStatus('loading', '네이버부동산 탭 확인 중...');
+
+        const response = await chrome.runtime.sendMessage({
+            type: 'ENSURE_NAVER_LAND_TAB',
+            url: NAVER_LAND_URL
+        });
+
+        if (response?.success) {
+            if (response.action === 'focus') {
+                setStatus('ready', '기존 네이버부동산 탭으로 이동했습니다.');
+            } else if (response.action === 'create') {
+                setStatus('ready', '네이버부동산 탭을 새로 열었습니다.');
+            } else {
+                setStatus('ready', '분석 준비 완료');
+            }
+        } else {
+            setStatus('error', response?.error || '네이버부동산 탭 확인 실패');
+        }
+    } catch (error) {
+        console.error('ensureNaverLandTabOnPanelOpen 오류:', error);
+        setStatus('error', '네이버부동산 탭 확인 중 오류 발생');
+    }
 }
 
 /**
  * 분석 시작
  */
 async function startAnalysis() {
+    // 분석 시작 전 네이버부동산 탭 보장
+    await ensureNaverLandTabOnPanelOpen();
+
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = '[분석 중...]';
     resultsContainer.innerHTML = '<div class="empty-state">데이터를 가져오는 중입니다...</div>';
+
+    // 새 분석 시작 전 이전 결과를 0 기준으로 초기화
+    resetAnalysisUiForNewRun();
 
     try {
         const response = await chrome.runtime.sendMessage({ type: 'START_ANALYSIS' });
 
         if (response?.success) {
             lastAnalysisData = response.data;
+
+            // 지역 + 탭구분 반영
+            setCurrentRegionInfo(response.data);
 
             displayResults(response.data);
             displayAreaChart(response.data);
@@ -852,6 +1168,7 @@ async function startAnalysis() {
     } catch (error) {
         console.error(error);
         resultsContainer.innerHTML = `<div class="empty-state">오류: ${error.message}</div>`;
+        setStatus('error', '분석 실패 (0개)');
         analyzeBtn.textContent = '매물 분석하기';
         analyzeBtn.disabled = false;
     }
@@ -899,47 +1216,75 @@ function displayResults(data) {
     const byFloor = stats.byFloor || {};
     const floors = ['1층', '2층', '상층'];
 
-    const wolseRowHTML = floors.map(floorKey => {
-        const stat = byFloor[floorKey]?.wolse || { count: 0, trimmedAvg: 0 };
-        const price = stat.count > 0 ? stat.trimmedAvg.toFixed(1) : '-';
-        return `
-            <td class="data-cell">
-                <div class="cell-header">${floorKey}(${stat.count})</div>
-                <div class="cell-value">${price}</div>
-            </td>
-        `;
-    }).join('');
+    const formatStatValue = (value, typeKey) => {
+        const num = Number(value);
+        if (!Number.isFinite(num) || num <= 0) return '-';
 
-    const maemaeRowHTML = floors.map(floorKey => {
-        const stat = byFloor[floorKey]?.maemae || { count: 0, trimmedAvg: 0 };
-        const price = stat.count > 0 ? formatNumber(Math.round(stat.trimmedAvg)) : '-';
-        return `
-            <td class="data-cell">
-                <div class="cell-header">${floorKey}(${stat.count})</div>
-                <div class="cell-value">${price}</div>
-            </td>
-        `;
-    }).join('');
+        if (typeKey === 'wolse') {
+            return num.toFixed(1);
+        }
+        return formatNumber(Math.round(num));
+    };
 
-    const detailSectionHTML = getListingDetailSectionHTML(data.listings, currentChartType, currentDetailView);
+    const buildRows = (typeKey, typeLabel, typeClass) => {
+        return floors.map((floorKey, idx) => {
+            const stat = byFloor[floorKey]?.[typeKey] || {
+                count: 0,
+                trimmedAvg: 0,
+                min: 0,
+                max: 0
+            };
+
+            const minText = stat.count > 0 ? formatStatValue(stat.min, typeKey) : '-';
+            const avgText = stat.count > 0 ? formatStatValue(stat.trimmedAvg, typeKey) : '-';
+            const maxText = stat.count > 0 ? formatStatValue(stat.max, typeKey) : '-';
+
+            return `
+                <tr class="summary-row ${typeClass}">
+                    ${idx === 0 ? `<td class="summary-type-cell" rowspan="3">${typeLabel}</td>` : ''}
+                    <td class="summary-floor-cell">${floorKey}</td>
+                    <td class="summary-min-cell">${minText}</td>
+                    <td class="summary-avg-cell">${avgText}</td>
+                    <td class="summary-max-cell">${maxText}</td>
+                    <td class="summary-count-cell">${stat.count}</td>
+                </tr>
+            `;
+        }).join('');
+    };
 
     const tableHTML = `
-        <table class="excel-table">
-            <tr class="row-wolse">
-                <td class="row-header">월세</td>
-                ${wolseRowHTML}
-            </tr>
-            <tr class="row-maemae">
-                <td class="row-header">매매</td>
-                ${maemaeRowHTML}
-            </tr>
-        </table>
-        <div class="table-note">* 위 표는 최소값 최대값 제외 후 나머지 평균</div>
-        ${detailSectionHTML}
+        <div class="summary-table-section">
+            <table class="summary-result-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>층</th>
+                        <th>최소</th>
+                        <th>평균</th>
+                        <th>최대</th>
+                        <th>건수</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${buildRows('wolse', '월세', 'row-wolse')}
+                    ${buildRows('maemae', '매매', 'row-maemae')}
+                </tbody>
+            </table>
+        </div>
     `;
 
-    resultsContainer.innerHTML = tableHTML;
+    const detailSectionHTML = getListingDetailSectionHTML(
+        data.listings,
+        currentChartType,
+        currentDetailView
+    );
+
+    resultsContainer.innerHTML = `
+        ${tableHTML}
+        ${detailSectionHTML}
+    `;
 }
+
 
 function getListingDetailSectionHTML(listings, selectedType, detailView) {
     const filteredListings = (listings || []).filter(l => l.type === selectedType);
@@ -1132,7 +1477,7 @@ function getListingTableHTML(listings, selectedType) {
                         <th>향</th>
                         <th class="sortable ${getSortClass('pricePerPyeong')}" data-sort-field="pricePerPyeong">평당가</th>
                         <th class="sortable ${getSortClass('area')}" data-sort-field="area">면적</th>
-                        <th>가격</th>
+                        <th class="sortable ${getSortClass('price')}" data-sort-field="price">가격</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1159,6 +1504,9 @@ function sortListingsForDetailTable(listings, field, direction) {
         } else if (field === 'area') {
             av = Number(a.area) || 0;
             bv = Number(b.area) || 0;
+        } else if (field === 'price') {
+            av = getListingPriceSortValue(a);
+            bv = getListingPriceSortValue(b);
         }
 
         if (av < bv) return direction === 'asc' ? -1 : 1;
@@ -1210,22 +1558,90 @@ function formatPricePerPyeong(value) {
 
 function setCurrentRegionInfo(data) {
     const info = data?.regionInfo || {};
+    const nextTabGubun = data?.tabGubun || '';
+
+    const nextRegion = info.region || '';
+    const nextSigungu = info.sigungu || '';
+    const nextUmdNm = info.umdNm || '';
+
+    const changed =
+        currentRegionInfo.region !== nextRegion ||
+        currentRegionInfo.sigungu !== nextSigungu ||
+        currentRegionInfo.umdNm !== nextUmdNm;
 
     currentRegionInfo = {
-        region: info.region || '',
-        sigungu: info.sigungu || '',
-        umdNm: info.umdNm || ''
+        region: nextRegion,
+        sigungu: nextSigungu,
+        umdNm: nextUmdNm,
+        lawdCd: changed ? '' : (currentRegionInfo.lawdCd || ''),
+        lawdName: changed ? '' : (currentRegionInfo.lawdName || ''),
+        regions: changed ? '' : (currentRegionInfo.regions || ''),
+        tabGubun: nextTabGubun || currentRegionInfo.tabGubun || ''
     };
 }
 
-function getCurrentRegionsString() {
-    const parts = [
-        currentRegionInfo.region,
-        currentRegionInfo.sigungu,
-        currentRegionInfo.umdNm
-    ].filter(Boolean);
+// 현재 탭 구분 반환 (예: 'sanga', 'apt', 'villa')
+function getCurrentTabGubun() {
+    return currentRegionInfo?.tabGubun || 'sanga';
+}
 
-    return parts.join(',');
+// 현재 지역 정보를 문자열로 반환 (예: "경기도,김포시,운양동")
+async function getCurrentRegionsString(accessToken = '') {
+
+    // 이미 currentRegionInfo 안에 값이 있으면 재호출 없이 반환
+    if (currentRegionInfo.lawdCd) {
+        return {
+            lawdCd: currentRegionInfo.lawdCd,
+            lawdName: currentRegionInfo.lawdName,
+            regions: currentRegionInfo.regions
+        };
+    }
+
+    const region = currentRegionInfo.region || '';
+    const sigungu = currentRegionInfo.sigungu || '';
+    const umdNm = currentRegionInfo.umdNm || '';
+    const queryLawdName = [region, sigungu, umdNm].filter(Boolean).join(' ').trim();
+
+    console.log('==== getCurrentRegionsString - queryLawdName: ' + queryLawdName);
+
+    const url = new URL(`${LANDCORE_URL}/api/lawdcd/single`);
+    url.searchParams.set('lawd_name', queryLawdName);
+
+    const headers = {};
+    if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers
+    });
+
+    if (!response.ok) {
+        throw new Error(`법정동 조회 실패 (${response.status})`);
+    }
+
+    const result = await response.json();
+    if (result?.result !== 'Success') {
+        throw new Error(result?.message || '법정동 조회 실패');
+    }
+
+    // lawdName: 경기도 김포시 운양동 => regions: "경기도,김포시,운양동"
+    currentRegionInfo = {
+        ...currentRegionInfo,
+        lawdCd: result.lawd_cd || '',
+        lawdName: result.lawd_name || '',
+        regions:  result.regions || ''
+    };
+
+    console.log('==== getCurrentRegionsString: ' + currentRegionInfo)
+
+    return {
+        lawdCd: currentRegionInfo.lawdCd,
+        lawdName: currentRegionInfo.lawdName,
+        umdName: currentRegionInfo.umdNm,
+        regions: currentRegionInfo.regions
+    };
 }
 
 function getCurrentRegionDisplayText() {
@@ -1253,6 +1669,41 @@ function formatListingPrice(item) {
     return '-';
 }
 
+// 가격 정렬을 위한 값 계산 함수
+function getListingPriceSortValue(item) {
+    if (!item) return 0;
+
+    // 월세: "보증금/월세" 형식에서는 월세금액을 우선 기준으로 정렬
+    // 예: 1,500/70, 3,000/60 이면 70이 60보다 크므로 1,500/70이 뒤로 감
+    // 같은 월세금액일 때만 보증금을 2차 기준으로 사용
+    if (item.type === '월세') {
+        let deposit = Number(item.deposit);
+        let monthlyRent = Number(item.monthlyRent);
+
+        // deposit / monthlyRent 값이 비어있을 수 있으므로 fullPrice에서도 보조 파싱
+        if ((!Number.isFinite(deposit) || !Number.isFinite(monthlyRent)) && item.fullPrice) {
+            const parts = String(item.fullPrice)
+                .replace(/\s/g, '')
+                .split('/');
+
+            if (parts.length >= 2) {
+                deposit = Number(String(parts[0]).replace(/,/g, ''));
+                monthlyRent = Number(String(parts[1]).replace(/,/g, ''));
+            }
+        }
+
+        deposit = Number.isFinite(deposit) ? deposit : 0;
+        monthlyRent = Number.isFinite(monthlyRent) ? monthlyRent : 0;
+
+        // 월세 우선 + 보증금 보조 정렬
+        return (monthlyRent * 100000000) + deposit;
+    }
+
+    // 매매: 매매가 기준 정렬
+    const salePrice = Number(item.price) || Number(item.salePrice) || 0;
+    return salePrice;
+}
+
 /**
  * 매매 최저가 매물 HTML 생성
  */
@@ -1278,7 +1729,9 @@ function getCheapestMaemaeHTML(listings) {
 
     return `
         <div class="cheapest-section">
-            <div class="cheapest-header">★ 매매 최저가 매물</div>
+            <div class="cheapest-header">
+               💰 <span style="color:#ff9800; font-weight:bold;">최저가 매물</span>(매매)
+            </div>
             <div class="cheapest-details">
                 <div class="detail-row">
                     <span class="detail-label">가격</span>
@@ -1325,7 +1778,7 @@ function displayAreaChart(data) {
 }
 
 /**
- * 부동산 TOP 3 표시
+ * 부동산 상위목록 표시
  */
 function displayTopAgencies(data) {
     const agencySection = document.getElementById('top-agencies');
@@ -1333,16 +1786,21 @@ function displayTopAgencies(data) {
 
     if (!data || !data.listings || !Array.isArray(data.listings)) {
         agencySection.innerHTML = '';
+        agencySection.classList.add('hidden');
+        if (topAgenciesToggle) {
+            topAgenciesToggle.setAttribute('aria-expanded', 'false');
+        }
+        syncTopAgenciesToggleIcon();
         return;
     }
 
-    // 중개사별 월세/매매 각각 카운트
     const agencyCounts = {};
     data.listings.forEach(l => {
         if (l.agencyName && l.agencyName !== '-' && l.agencyName.length > 1) {
             if (!agencyCounts[l.agencyName]) {
                 agencyCounts[l.agencyName] = { wolse: 0, maemae: 0 };
             }
+
             if (l.type === '월세') {
                 agencyCounts[l.agencyName].wolse++;
             } else if (l.type === '매매') {
@@ -1351,7 +1809,6 @@ function displayTopAgencies(data) {
         }
     });
 
-    // 총 매물 수 기준 TOP 3 추출
     const top3 = Object.entries(agencyCounts)
         .map(([name, counts]) => ({
             name,
@@ -1363,24 +1820,56 @@ function displayTopAgencies(data) {
         .slice(0, 3);
 
     if (top3.length === 0) {
-        agencySection.innerHTML = '';
+        agencySection.innerHTML = '<div class="empty-hint">표시할 부동산 정보가 없습니다.</div>';
+        agencySection.classList.add('hidden');
+        if (topAgenciesToggle) {
+            topAgenciesToggle.setAttribute('aria-expanded', 'false');
+        }
+        syncTopAgenciesToggleIcon();
         return;
     }
 
-    // 헤더는 HTML에 있으므로 리스트만 생성
-    const agencyHTML = `
-        <div class="agency-list">
-            ${top3.map((agency, idx) => `
-                <div class="agency-item">
-                    <span class="agency-rank">${idx + 1}</span>
-                    <span class="agency-name">${agency.name}</span>
-                    <span class="agency-count">월세 ${agency.wolse}개 / 매매 ${agency.maemae}개</span>
+    const rowsHTML = top3.map((agency, idx) => {
+        return `
+            <tr>
+                <td class="top-agency-rank-cell">${idx + 1}</td>
+                <td class="top-agency-name-cell">${agency.name}</td>
+                <td class="top-agency-wolse-count">${agency.wolse}</td>
+                <td class="top-agency-maemae-count">${agency.maemae}</td>
+                <td class="top-agency-total-count">${agency.total}</td>
+            </tr>
+        `;
+    }).join('');
+
+    agencySection.innerHTML = `
+        <div class="listing-detail-section top-agencies-detail-section">
+            <div class="listing-detail-body">
+                <div class="listing-table-wrap">
+                    <table class="listing-detail-table top-agencies-table">
+                        <thead>
+                            <tr>
+                                <th>순위</th>
+                                <th>부동산명</th>
+                                <th>월세</th>
+                                <th>매매</th>
+                                <th>총계</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHTML}
+                        </tbody>
+                    </table>
                 </div>
-            `).join('')}
+            </div>
         </div>
     `;
 
-    agencySection.innerHTML = agencyHTML;
+    // 기본은 접힘 유지
+    agencySection.classList.add('hidden');
+    if (topAgenciesToggle) {
+        topAgenciesToggle.setAttribute('aria-expanded', 'false');
+    }
+    syncTopAgenciesToggleIcon();
 }
 
 /**

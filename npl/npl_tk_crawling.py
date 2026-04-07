@@ -10,13 +10,14 @@ import time
 import re
 import json
 import os
+import requests
 
 from webdriver_manager.chrome import ChromeDriverManager
 
 from jumpo.jumpo_crawling import detail_driver
 #
-from npl_db_utils import npl_save_to_sqlite
-from config import NPL_DB_PATH
+from npl_db_utils import npl_save_to_sqlite, npl_drop_table
+from config import NPL_DB_PATH, MAP_API_KEY, VWORLD_URL
 
 # 저장파일명
 last_file_name = os.path.join(NPL_DB_PATH, "last_npl_date.txt")
@@ -51,7 +52,7 @@ sale_edate = today
 
 # 저장 방식 선택: "csv" 또는 "sqlite"
 SAVE_MODE = "sqlite"  # 원하는 방식으로 변경 가능 (예: "csv")
-#BATCH_SIZE = 500     # 레코드 1000건마다 저장
+#BATCH_SIZE = 100     # 레코드 1000건마다 저장
 BATCH_SIZE = 10     # 레코드 1000건마다 저장
 
 # 글로벌 변수 설정
@@ -406,15 +407,46 @@ def navigate_pages(driver, total_records):
         #     break
 
 # 위.경도 가져오기..
-def get_lat_lng(address: str, api_key: str):
+# 발급받은 API Key
+def get_lat_lng(address: str) -> tuple[float, float]:
     """
-    # (google api 사용은 하루에 2,500건, 초당 10건의 요청에 한해서만 무료입니다. 그 이상 사용하려면 유료로 전환해야 합니다.)
-    주소를 입력받아 위도와 경도를 반환하는 함수.
-    :param address: 주소 (예: '서울특별시 강남구 테헤란로 212')
-    :param api_key: Google Maps API 키
-    :return: 위도, 경도 튜플
+    vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
+    :param address: 조회할 도로명 주소 문자열
+    :return: (latitude, longitude)
+    :raises Exception: API 오류 또는 좌표 미발견 시
     """
-    return 0,0
+    #url = "https://api.vworld.kr/req/address"
+    url = VWORLD_URL
+    params = {
+        "service": "address",
+        "request": "getcoord",  # 좌표 변환 요청
+        "format": "json",  # JSON 응답
+        "crs": "epsg:4326",  # WGS84 좌표계
+        "type": "road",  # road: 도로명, parcel: 지번
+        "address": address,
+        "key": MAP_API_KEY
+    }
+
+    resp = requests.get(url, params=params, timeout=5)
+    resp.raise_for_status()
+
+    data = resp.json()
+    # 응답 구조: data["response"]["status"] == "OK" 인지 확인
+    if data.get("response", {}).get("status") != "OK":
+        # raise Exception(f"API error: {data.get('response', {}).get('error', 'Unknown error')}")
+        return 0.0, 0.0
+
+    # 좌표는 data["response"]["result"]["point"]["y"], ["x"]
+    result = data["response"]["result"]
+    point = result.get("point")
+    if not point or "x" not in point or "y" not in point:
+        # raise Exception("좌표를 찾을 수 없습니다.")
+        return 0.0, 0.0
+
+    lat = float(point["y"])
+    lng = float(point["x"])
+    return lat, lng
+
 
 # 동,층정보 가져오기
 def extract_building_floor(address):
@@ -743,7 +775,7 @@ def extract_info(row_text, idx, npl_info):
         #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
 
         # 법정코드(시군구) 및 읍면동 가져오기
-        sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
+        lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
         # None 값을 빈 문자열로 변환하여 출력
         # print(f"{idx:<5}"
         #       f"{address1:<30}"
@@ -753,9 +785,10 @@ def extract_info(row_text, idx, npl_info):
         #       f"{sigungu_name if sigungu_name else '':<10}"
         #       f"{eub_myeon_dong if eub_myeon_dong else '없음':<10}")
 
-        # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등)
-        latitude, longitude = get_lat_lng(address1, map_api_key)
-        #print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
+        # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등) - 괄호제거
+        lat_lng_address = address2.replace('(', '').replace(')', '')
+        latitude, longitude = get_lat_lng(lat_lng_address)
+        print(f"주소: {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
 
         # 임의경매신청자가 개인인경우(default N)
         # 한글 3자이며 '신협', '금고', '은행' 포함하지 않을 경우 'Y', 아니면 'N'
@@ -801,6 +834,7 @@ def extract_info(row_text, idx, npl_info):
             "category": category,
             "address1": address1,
             "address2": address2,
+            "lawd_cd": lawd_cd,
             "region": sido_name,
             "sigungu_code": sigungu_code,
             "sigungu_name": sigungu_name,
@@ -860,6 +894,8 @@ def load_json_data():
         return json.load(file)
 
 # 시도,시군구,읍면동 파싱처리
+# 차후 public_data에 lawd_code 테이블에서 (법정동코드내역: lawd_cd, lawd_name)
+# public_land_lawd_code_db_utils.py에 get_lawd_by_name(lawd_name)을 호출하여 법정동코드(lawd_cd)를 가져오는 방식으로 변경할 수 있음
 def extract_region_code(address):
     """
     주소에서 시도 코드, 시도 이름, 시군구 코드, 시군구 이름, 그리고 읍/면/동을 추출합니다.
@@ -882,7 +918,7 @@ def extract_region_code(address):
                 city_name = city["시군구 이름"]
                 # 주소에 city_name이 포함되어 있는지 검사 (단순 포함 검사)
                 if city_name in address:
-                    sigungu_code = city["시군구 코드"]
+                    sigungu_code = city["시군구 코드"]   # 법정동코드개념
                     sigungu_name = city_name
                     # 시군구 이름이 나타난 위치 이후의 문자열에서 읍/면/동 추출
                     city_index = address.find(city_name)
@@ -893,8 +929,9 @@ def extract_region_code(address):
                         eub_myeon_dong = match.group(1) if match else None
                     else:
                         eub_myeon_dong = None
+                    lawd_cd = sigungu_code
 
-                    return sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong
+                    return lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong
 
     return None, None, None, None, None
 
@@ -994,6 +1031,9 @@ def main():
         # 카테고리 선택 창 열기
         select_categories(driver)
         time.sleep(1)
+
+        #
+        npl_drop_table()
 
         # 총 건수 가져오기
         total_records = get_total_count(driver)

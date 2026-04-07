@@ -84,7 +84,7 @@
     <header>
         <h1>
             <i class="fa-solid fa-chart-column"></i>
-            상가-실거래 통계 및 상세 내역({% if sigungu %} {{ sigungu }}{% endif %}{% if umdNm %} {{ umdNm }}{% endif %} )
+            실거래 통계 및 상세 내역({% if sigungu %} {{ sigungu }}{% endif %}{% if umdNm %} {{ umdNm }}{% endif %} )
         </h1>
     </header>
 
@@ -177,6 +177,9 @@
     let currentDetailList = [];
     let isStatsAsc = true;
     let detailSortState = { key: '', asc: true };
+
+    // 토큰
+    const access_token = "{{ access_token }}";
 
     window.onload = function() {
         const region = document.getElementById('regionInput').value;
@@ -760,8 +763,9 @@
         const left = window.screenX + (window.outerWidth - popupWidth) / 2;
         const top = window.screenY + (window.outerHeight - popupHeight) / 2;
 
+        const extUrl = `/api/ext_tool/map?menu=map_popup&tk=${encodeURIComponent(access_token)}`;
         const popup = window.open(
-            '/api/ext_tool/map?menu=map_popup',
+            extUrl,
             'mapPopup',
             `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
         );
