@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>NPL검색</title>
+  <title>실거래/경매 검색</title>
   <style>
     body { margin:0; display:flex; flex-direction:column; height:100vh; font-family: ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif; }
     #controls {
@@ -591,10 +591,10 @@
     }
 
     #npl-layout {
-      --npl-left-panel-width: 420px;                  /* 펼침 폭 */
-      --npl-left-panel-collapsed-width: 18px;         /* 접힘 후 보이는 손잡이 폭 */
-      --npl-left-panel-slide-duration: 360ms;         /* 슬라이드 속도 */
-      --npl-left-panel-slide-easing: cubic-bezier(0.22, 1, 0.36, 1);
+      --npl-left-panel-width: 420px;              /* 펼침 폭 */
+      --npl-left-panel-collapsed-width: 22px;     /* 접힘시 살짝 보이는 핸들 폭 */
+      --npl-left-panel-slide-duration: 340ms;     /* 슬라이드 속도 */
+      --npl-left-panel-slide-easing: cubic-bezier(0.22, 1, 0.36, 1); /* 고급 easing */
 
       display: flex;
       width: 100%;
@@ -625,7 +625,8 @@
         width var(--npl-left-panel-slide-duration) var(--npl-left-panel-slide-easing),
         padding var(--npl-left-panel-slide-duration) var(--npl-left-panel-slide-easing),
         border-color var(--npl-left-panel-slide-duration) ease,
-        box-shadow var(--npl-left-panel-slide-duration) ease;
+        box-shadow var(--npl-left-panel-slide-duration) ease,
+        opacity var(--npl-left-panel-slide-duration) ease;
     }
 
     #npl-right-panel {
@@ -636,6 +637,7 @@
       flex-direction: column;
       overflow: hidden;
       background: #fff;
+      transition: margin var(--npl-left-panel-slide-duration) var(--npl-left-panel-slide-easing);
     }
 
     /* 접힌 상태 */
@@ -643,11 +645,13 @@
       width: var(--npl-left-panel-collapsed-width);
       padding-left: 0;
       padding-right: 0;
-      border-right-color: rgba(147, 197, 253, 0.5);
+      padding-top: 14px;
+      padding-bottom: 14px;
+      border-right-color: rgba(147, 197, 253, 0.45);
       box-shadow: 2px 0 14px rgba(37, 99, 235, 0.08);
     }
 
-    /* 내부 콘텐츠 자연스럽게 사라지게 */
+    /* 접힐 때 내부 내용은 자연스럽게 사라짐 */
     #npl-left-panel > * {
       transition:
         opacity 180ms ease,
@@ -656,17 +660,17 @@
 
     #npl-layout.left-panel-collapsed #npl-left-panel > *:not(.npl-left-collapse-rail) {
       opacity: 0;
-      transform: translateX(-18px);
+      transform: translateX(-14px);
       pointer-events: none;
     }
 
-    /* 접힘 상태에서 남는 얇은 핸들 */
+    /* 접힌 뒤에도 보이는 세로 핸들 */
     .npl-left-collapse-rail {
       position: absolute;
-      top: 10px;
+      top: 14px;
       right: 0;
-      bottom: 10px;
-      width: 18px;
+      bottom: 14px;
+      width: 22px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -676,14 +680,14 @@
     .npl-left-collapse-rail::before {
       content: "";
       width: 6px;
-      height: 64px;
+      height: 56px;
       border-radius: 999px;
       background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
       box-shadow:
-        0 0 0 4px rgba(219, 234, 254, 0.9),
-        0 10px 22px rgba(37, 99, 235, 0.18);
+        0 0 0 4px rgba(219, 234, 254, 0.85),
+        0 8px 18px rgba(37, 99, 235, 0.18);
       opacity: 0;
-      transform: scaleY(0.84);
+      transform: scaleY(0.85);
       transition: all 220ms ease;
     }
 
@@ -694,29 +698,38 @@
 
     /* 상단 토글 버튼 */
     .npl-left-toggle-btn {
-      height: 34px;
-      min-width: 112px;
+      height: 36px;
+      min-width: 124px;
       padding: 0 14px;
-      border: 1px solid #bfdbfe;
-      border-radius: 18px;
+      border: 1px solid #93c5fd;
+      border-radius: 999px;
       background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
       color: #1d4ed8;
       font-size: 13px;
       font-weight: 900;
+      letter-spacing: -0.2px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 7px;
-      white-space: nowrap;
-      box-shadow: 0 3px 10px rgba(37,99,235,0.10);
-      transition: all .18s ease;
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.10);
+      transition:
+        transform .18s ease,
+        box-shadow .18s ease,
+        background .18s ease,
+        border-color .18s ease;
     }
 
     .npl-left-toggle-btn:hover {
-      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-      border-color: #93c5fd;
       transform: translateY(-1px);
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-color: #60a5fa;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+    }
+
+    .npl-left-toggle-btn:active {
+      transform: translateY(0);
     }
 
     .npl-left-toggle-btn .arrow {
@@ -728,22 +741,14 @@
       transform: rotate(180deg);
     }
 
+    /* 접힌 상태에서 버튼을 더 심플하게 */
     #npl-layout.left-panel-collapsed .npl-left-toggle-btn {
-      min-width: 40px;
-      padding: 0 10px;
+      min-width: 42px;
+      padding: 0 12px;
     }
 
     #npl-layout.left-panel-collapsed .npl-left-toggle-btn .label {
       display: none;
-    }
-
-    /* 접힌 상태에서도 rail 클릭 가능하게 */
-    #npl-layout.left-panel-collapsed #npl-left-panel {
-      cursor: pointer;
-    }
-
-    #npl-layout.left-panel-collapsed #npl-left-panel .npl-left-collapse-rail {
-      pointer-events: auto;
     }
 
     #npl-right-panel #controls {
@@ -876,13 +881,24 @@
     }
 
     .npl-search-actions {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin-top: 12px;
     }
 
+    .npl-search-actions.has-4-buttons {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .npl-search-actions.has-3-buttons {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .npl-primary-btn,
     .npl-secondary-btn {
+      width: 100%;
+      min-width: 0;
       height: 40px;
       border: none;
       border-radius: 12px;
@@ -890,44 +906,57 @@
       font-weight: 800;
       cursor: pointer;
       transition: all .18s ease;
+      box-sizing: border-box;
     }
 
-    .npl-primary-btn {
-      flex: 1;
-      background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+    /* =========================
+       [수정] 검색 / 관심추가 / 관심편집 버튼 아이콘형
+    ========================= */
+    .npl-search-btn,
+    .npl-add-btn,
+    .npl-edit-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-weight: 900;
+      letter-spacing: -0.2px;
+    }
+
+    .npl-search-btn {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
       color: #fff;
-      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.20);
+      border: 1px solid #2563eb;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.20);
     }
 
-    .npl-primary-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
-    }
-
-    .npl-secondary-btn {
-      width: 92px;
-      background: #f8fafc;
-      color: #334155;
-      border: 1px solid #dbe5ef;
-    }
-
-    .npl-secondary-btn:hover {
-      background: #eef4fa;
+    .npl-search-btn:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
       transform: translateY(-1px);
     }
 
-    .npl-search-summary {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: #f8fbff;
-      border: 1px solid #d9e8ff;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 12px;
-      font-weight: 800;
-      color: #1e3a8a;
+    .npl-add-btn {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      color: #1d4ed8;
+      border: 1px solid #93c5fd;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    }
+
+    .npl-add-btn:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      transform: translateY(-1px);
+    }
+
+    .npl-edit-btn {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      color: #c2410c;
+      border: 1px solid #fdba74;
+      box-shadow: 0 4px 12px rgba(194, 65, 12, 0.10);
+    }
+
+    .npl-edit-btn:hover {
+      background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+      transform: translateY(-1px);
     }
 
     /* =========================
@@ -1016,25 +1045,6 @@
       table-layout: fixed;
     }
 
-    /* 전체 */
-    .npl-list-table td {
-      font-size: 13px;
-      font-weight: 400;
-    }
-
-    /* 금액 강조 */
-    .npl-list-table td:nth-child(4),
-    .npl-list-table td:nth-child(5) {
-      font-weight: 700;
-      color: #111;
-    }
-
-    /* 층/평수는 약하게 */
-    .npl-list-table td:nth-child(2),
-    .npl-list-table td:nth-child(3) {
-      color: #666;
-    }
-
     .npl-list-table .npl-col-type {
       width: 20%;
     }
@@ -1108,12 +1118,7 @@
       color: #ea580c;
     }
 
-    .npl-type-pill.is-dagagu {
-      background: #ecfccb;
-      color: #3f6212;
-    }
-
-    .npl-list-table tbody tr {
+        .npl-list-table tbody tr {
       cursor: pointer;
       transition: background .16s ease;
     }
@@ -1180,13 +1185,6 @@
     }
     .npl-map-sample-marker.is-apt .marker-pin::after {
       background: #1d4ed8;
-    }
-
-    .npl-map-sample-marker.is-dagagu .marker-pin {
-      background: linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%);
-    }
-    .npl-map-sample-marker.is-dagagu .marker-pin::after {
-      background: #4d7c0f;
     }
 
     .npl-map-sample-marker .marker-badge {
@@ -1939,6 +1937,272 @@
       font-size: 15px;
     }
 
+
+    /* =========================
+    [추가] 관심물건 추가/편집 버튼
+    ========================= */
+    .npl-add-btn {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      color: #1d4ed8;
+      border: 1px solid #93c5fd;
+      font-weight: 900;
+    }
+
+    .npl-add-btn:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    }
+
+    .npl-edit-btn {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      color: #c2410c;
+      border: 1px solid #fdba74;
+      font-weight: 900;
+    }
+
+    .npl-edit-btn:hover {
+      background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+    }
+
+    /* =========================
+       [추가] 관심물건 팝업
+    ========================= */
+    .wishlist-modal-dim {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.42);
+      z-index: 7000;
+      display: none;
+    }
+
+    .wishlist-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 760px;
+      max-width: 94vw;
+      max-height: 88vh;
+      background: #fff;
+      border: 1px solid #bfdbfe;
+      border-radius: 22px;
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.26);
+      z-index: 7001;
+      overflow: hidden;
+      display: none;
+    }
+
+    .wishlist-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-bottom: 1px solid #bfdbfe;
+    }
+
+    .wishlist-modal-title {
+      font-size: 18px;
+      font-weight: 900;
+      color: #1e3a8a;
+      letter-spacing: -0.2px;
+    }
+
+    .wishlist-modal-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .wishlist-modal-btn {
+      height: 36px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: all .18s ease;
+      white-space: nowrap;
+    }
+
+    .wishlist-save-btn {
+      background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+      color: #fff;
+    }
+
+    .wishlist-save-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .wishlist-delete-btn {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+    }
+
+    .wishlist-close-btn {
+      background: #f8fafc;
+      color: #334155;
+      border: 1px solid #dbe5ef;
+    }
+
+    .wishlist-modal-body {
+      padding: 18px;
+      max-height: calc(88vh - 72px);
+      overflow-y: auto;
+      background: #fff;
+    }
+
+    .wishlist-section {
+      margin-bottom: 16px;
+      padding: 14px;
+      border: 1px solid #e5edf5;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .wishlist-section-title {
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+
+    .wishlist-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .wishlist-grid-1 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .wishlist-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .wishlist-form-group label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #475569;
+    }
+
+    .wishlist-form-group input,
+    .wishlist-form-group select,
+    .wishlist-form-group textarea {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      border: 1px solid #d7e3f1;
+      border-radius: 12px;
+      background: #f7fbff;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #111827;
+      outline: none;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .wishlist-form-group input:focus,
+    .wishlist-form-group select:focus,
+    .wishlist-form-group textarea:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15);
+    }
+
+    .wishlist-form-group textarea {
+      min-height: 76px;
+      resize: vertical;
+    }
+
+    /* =========================
+   [추가] 관심물건 팝업 공통내용 한줄형
+    ========================= */
+    .wishlist-inline-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .wishlist-inline-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid #e5edf5;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+
+    .wishlist-inline-label {
+      flex: 0 0 88px;
+      font-size: 13px;
+      font-weight: 900;
+      color: #1e3a8a;
+      white-space: nowrap;
+    }
+
+    .wishlist-inline-item input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid #d7e3f1;
+      border-radius: 10px;
+      background: #fff;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: #111827;
+      outline: none;
+    }
+
+    .wishlist-inline-item input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15);
+    }
+
+    .wishlist-address-row {
+      display: grid;
+      grid-template-columns: 1fr 180px 90px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .wishlist-search-result-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px dashed #93c5fd;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      .wishlist-grid,
+      .wishlist-address-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    #wishlist-modal-drag-handle {
+      cursor: move;
+      user-select: none;
+    }
+
+    #wishlist-modal-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    #wishlist-modal-drag-handle:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #ffffff 100%);
+    }
+
   </style>
 </head>
 <body>
@@ -1949,7 +2213,7 @@
     ========================= -->
     <aside id="npl-left-panel">
       <div class="npl-left-header">
-        <div id="npl-left-title" class="npl-left-title">🚨 NPL검색(경기도 김포시 운양동)</div>
+        <div id="npl-left-title" class="npl-left-title">🚨 관심물건검색(경기도 김포시 운양동)</div>
       </div>
 
       <div class="npl-search-card">
@@ -2010,6 +2274,7 @@
             </select>
           </div>
 
+          <!--
           <div class="npl-form-group npl-form-group-no-label">
             <select id="npl-building-py-sample" class="npl-field-tone">
               <option value="" selected>전체</option>
@@ -2026,33 +2291,23 @@
               <option value="100">100평 이상</option>
             </select>
           </div>
-        </div>
-
-        <!-- 3행 : 임차권여부 / 개인여부 / 경매신청자 -->
-        <div class="npl-search-row npl-search-row-filter-bottom">
-          <div class="npl-form-group">
-            <select id="npl-tenant-sample" class="npl-field-tone">
-              <option>임차권전체</option>
-              <option selected>포함안함</option>
-              <option>포함함</option>
-            </select>
-          </div>
-
-          <div class="npl-form-group">
-            <select id="npl-personal-sample" class="npl-field-tone">
-              <option selected>전체</option>
-              <option>개인</option>
-              <option>법인</option>
-            </select>
-          </div>
+          -->
           <div class="npl-form-group">
             <input id="npl-auction-applicant-sample" class="npl-field-tone" type="text" placeholder="예: 신협/수협" />
           </div>
         </div>
 
-        <div class="npl-search-actions">
-          <button id="npl-search-sample-btn" type="button" class="npl-primary-btn">🔎 검색</button>
+        <div id="npl-search-actions" class="npl-search-actions has-3-buttons">
+          <button id="npl-search-sample-btn" type="button" class="npl-secondary-btn npl-search-btn">
+            🔍 검색
+          </button>
           <button id="npl-reset-sample-btn" type="button" class="npl-secondary-btn">초기화</button>
+          <button id="npl-add-wishlist-btn" type="button" class="npl-secondary-btn npl-add-btn">
+            ➕ 관심추가
+          </button>
+          <button id="npl-edit-wishlist-btn" type="button" class="npl-secondary-btn npl-edit-btn hidden">
+            ✏️ 관심편집
+          </button>
         </div>
       </div>
 
@@ -2070,7 +2325,7 @@
                 <th id="npl-sort-floor" class="npl-sortable npl-col-floor">층 ▼</th>
                 <th id="npl-sort-py" class="npl-sortable">평수 ▼</th>
                 <th class="npl-col-appraisal">채권청구액</th>
-                <th id="npl-sort-bid-count" class="npl-sortable npl-col-bond">최저가(유찰회수) ▼</th>
+                <th class="npl-col-bond">경매최저가</th>
               </tr>
             </thead>
             <tbody id="npl-sample-list-body">
@@ -2107,11 +2362,10 @@
     ========================= -->
     <section id="npl-right-panel">
       <div id="controls">
-        <button id="npl-left-toggle-btn" type="button" class="npl-left-toggle-btn" title="왼쪽 패널 접기/펼치기">
+        <button id="npl-left-toggle-btn" type="button" class="npl-left-toggle-btn" title="왼쪽 검색패널 열기/닫기">
           <span class="arrow">⟨</span>
           <span class="label">검색패널</span>
         </button>
-
         <div id="current-region-badge" style="display:inline-flex;">
           <span class="icon">📍</span>
           <span class="text">지역을 선택해주세요</span>
@@ -2162,20 +2416,13 @@
             <option value="hide">숨기기</option>
           </select>
         </div>
-
         <div class="npl-control-type-group">
-          <!--
-          <label for="map-asset-type-select" class="map-select-label">
-            <span class="map-icon">🏘️</span> 구분
-          </label>
-          -->
           <select id="map-asset-type-select">
             <option value="상가" selected>상가</option>
             <option value="아파트">아파트</option>
             <option value="빌라">빌라</option>
           </select>
         </div>
-
         <!--
         <div class="legend">
           <span class="legend-marker" style="background:#16a34a;"></span><span>실거래</span>
@@ -2260,7 +2507,42 @@
 
       </div>
 
-      <div id="map"></div>
+      <div id="map" style="position:relative;"></div>
+
+      <div id="initial-map-loading" style="
+        display:none;
+        position:absolute;
+        top:30%;
+        left:70%;
+        transform:translate(-50%, -50%);
+        z-index:2500;
+        min-width:420px;
+        max-width:560px;
+        padding:18px 26px;
+        border-radius:18px;
+        background:rgba(255,255,255,0.97);
+        border:1px solid #dbeafe;
+        box-shadow:0 14px 28px rgba(15,23,42,0.18);
+        text-align:center;
+        font-size:20px;
+        font-weight:900;
+        letter-spacing:-0.3px;
+        white-space:nowrap;
+      ">
+        <span id="initial-map-loading-region" style="
+          color:#2563eb;
+          font-weight:900;
+        ">지역</span>
+        <span style="
+          color:#0f172a;
+          font-weight:800;
+          margin:0 8px;
+        ">+</span>
+        <span id="initial-map-loading-text" style="
+          color:#dc2626;
+          font-weight:900;
+        ">데이타를 가져오는 중입니다...</span>
+      </div>
     </section>
   </div>
 
@@ -2274,13 +2556,13 @@
     let bounds = null;
 
     // =========================
-    // [추가] LEFT 패널 슬라이드 설정
+    // [추가] LEFT 패널 슬라이드 토글 설정
     // =========================
     const NPL_LEFT_PANEL_SLIDE_SETTINGS = {
-      expandedWidth: 420,     // 펼쳐진 폭
-      collapsedWidth: 18,     // 접혔을 때 남는 폭
-      duration: 360,          // 애니메이션 시간(ms)
-      startCollapsed: false   // true면 처음부터 접힌 상태
+      expandedWidth: 420,       // 펼침 폭
+      collapsedWidth: 22,       // 접힘 폭
+      duration: 340,            // ms
+      startCollapsed: false     // true면 처음부터 접힘
     };
     let isNplLeftPanelCollapsed = false;
 
@@ -2333,6 +2615,9 @@
       center: new naver.maps.LatLng(37.5665, 126.9780),
       zoom: 12
     });
+
+    //
+
 
     /* ===== 유틸 ===== */
     function parseDateKey(s) {
@@ -2886,33 +3171,41 @@
     // 유형선택(실거래,경매) 초기 필터 버튼 상태 설정 (전체 활성화)
     bindDealTypeFilterSelect();
 
-    // 상단 실거래/경매 버튼 이벤트 바인딩
+    // 상단 실거래/경매 버튼
+    // 현재 상단에 선택된 위치/법정코드 기준으로 조회
     function bindControlsDealActionButtons() {
       const realBtn = document.getElementById('controls-real-btn');
       const auctionBtn = document.getElementById('controls-auction-btn');
 
       if (realBtn) {
         realBtn.addEventListener('click', async function() {
-          const row = nplSelectedRow || nplSearchRows[0];
-          if (!row) {
-            alert("먼저 NPL 검색목록에서 대상을 선택하세요.");
+          const row = buildCurrentSelectedBaseRow();
+
+          if (!row.lawd_cd || !row.eub_myeon_dong) {
+            alert("상단의 위치/법정코드 정보가 없습니다.");
             return;
           }
+
+          console.log("[상단 실거래 버튼] 현재 선택 기준 조회", row);
           await openNplDealAuctionPopup(row, "real");
         });
       }
 
       if (auctionBtn) {
         auctionBtn.addEventListener('click', async function() {
-          const row = nplSelectedRow || nplSearchRows[0];
-          if (!row) {
-            alert("먼저 NPL 검색목록에서 대상을 선택하세요.");
+          const row = buildCurrentSelectedBaseRow();
+
+          if (!row.lawd_cd || !row.eub_myeon_dong) {
+            alert("상단의 위치/법정코드 정보가 없습니다.");
             return;
           }
+
+          console.log("[상단 경매 버튼] 현재 선택 기준 조회", row);
           await openNplDealAuctionPopup(row, "auction");
         });
       }
     }
+
     bindControlsDealActionButtons();
 
     // 위치(지역)관련 설정
@@ -2984,40 +3277,32 @@
       if (!selectEl) return;
 
       selectEl.addEventListener("change", function () {
-          const prevAssetType = String(selectedAssetType || "").trim();
-          const nextAssetType = normalizeAssetTypeForControl(this.value);
+        const prevAssetType = String(selectedAssetType || "").trim();
+        const nextAssetType = normalizeAssetTypeForControl(this.value);
 
-          if (prevAssetType && nextAssetType && prevAssetType !== nextAssetType) {
-            console.log("[상단 구분선택 변경] 기존 실거래/경매 상태 제거", {
-              prevAssetType,
-              nextAssetType
-            });
-
-            clearDealAuctionDisplayState();
-          }
-          selectedAssetType = nextAssetType;
-
-          const mainEl = document.getElementById("npl-main-category-sample");
-          if (mainEl) {
-            mainEl.value = nextAssetType;
-          }
-
-          console.log("[상단 구분선택 변경 완료]", {
-            selectedAssetType
+        if (prevAssetType && nextAssetType && prevAssetType !== nextAssetType) {
+          console.log("[상단 구분선택 변경] 기존 실거래/경매 상태 제거", {
+            prevAssetType,
+            nextAssetType
           });
+
+          clearDealAuctionDisplayState();
+        }
+
+        selectedAssetType = nextAssetType;
+        // 변경된 자산 유형에 따라 지도 마커 및 팝업 데이터도 동기화
+        setMainCategorySelectValueSafe(nextAssetType);
+
+        console.log("[상단 구분선택 변경 완료]", {
+          selectedAssetType
+        });
       });
     }
 
     // =========================
-    // [추가] 현재 선택 상태 공통 적용
-    // - 지역코드 / 읍면동 / 전체지역명 / 현재구분
+    // [추가] 선택 상태 공통 적용
     // =========================
-    function applySelectedLocationState({
-      lawdCd = "",
-      umdNm = "",
-      fullNm = "",
-      assetType = ""
-    } = {}) {
+    function applySelectedLocationState({ lawdCd = "", umdNm = "", fullNm = "", assetType = "" } = {}) {
       selectedLawdCd = String(lawdCd || "").trim();
       selectedUmdNm = String(umdNm || "").trim();
       selectedFullNm = String(fullNm || "").trim();
@@ -3027,6 +3312,10 @@
       updateCurrentRegionBadge(selectedFullNm || "지역을 선택해주세요");
     }
 
+    // =========================
+    // [추가] 초기 원본 상태 저장
+    // - 최초 1회만 저장하는 구조로 사용 가능
+    // =========================
     function saveInitialSelectionState({ lawdCd = "", umdNm = "", fullNm = "", assetType = "" } = {}) {
       initialSelectionState = {
         lawdCd: String(lawdCd || "").trim(),
@@ -3038,6 +3327,9 @@
       console.log("[초기 원본 상태 저장]", initialSelectionState);
     }
 
+    // =========================
+    // [추가] 초기 원본 상태로 복귀
+    // =========================
     async function restoreInitialSelectionState({ reloadMapData = true } = {}) {
       applySelectedLocationState(initialSelectionState);
 
@@ -3066,16 +3358,19 @@
             );
             if (sggOption) {
               sggEl.value = sggOption.value;
+              // ✅ [수정] applyInitialNplRegionData 와 동일하게 selectedLawdCd 명시적 갱신
+              selectedLawdCd = sggOption.value;
             }
           }
         }
       }
 
       if (lawdEl) lawdEl.value = initialSelectionState.umdNm || "";
+      // ✅ [수정] selectedUmdNm 도 명시적으로 다시 세팅 (applySelectedLocationState 이후 라인 위에서 초기화될 수 있으므로)
+      selectedUmdNm = initialSelectionState.umdNm || "";
 
-      if (mainEl && initialSelectionState.assetType) {
-        mainEl.value = initialSelectionState.assetType;
-      }
+      // 타입도 초기값으로 맞춤
+      setMainCategorySelectValueSafe(initialSelectionState.assetType || "");
 
       syncMapAssetTypeSelect(initialSelectionState.assetType);
       selectedAssetType = normalizeAssetTypeForControl(initialSelectionState.assetType || "상가");
@@ -3086,8 +3381,31 @@
     }
 
     // =====================
-    // [추가] NPL 초기 지역정보 적용 함수
-    // 부모창에서 전달받은 초기 지역정보(lawdCd, lawdName, umdName 등)를 전역 상태에 적용하고 UI 업데이트
+    // [추가] 초기 지도 로딩 상태 표시 함수
+    function setInitialMapLoading(show, regionText = "", message = "데이타를 가져오는 중입니다...") {
+      const loadingEl = document.getElementById("initial-map-loading");
+      const regionEl = document.getElementById("initial-map-loading-region");
+      const textEl = document.getElementById("initial-map-loading-text");
+
+      if (!loadingEl) return;
+
+      if (regionEl) {
+        regionEl.textContent = String(regionText || "지역을 확인중입니다").trim();
+      }
+
+      if (textEl) {
+        textEl.textContent = String(message || "데이타를 가져오는 중입니다...").trim();
+      }
+
+      loadingEl.style.display = show ? "block" : "none";
+    }
+
+    // [수정] NPL 초기 지역정보 적용 함수
+    // 부모창에서 전달받은 초기 지역정보(lawdCd, lawdName, umdName, type 등)를
+    // 1) 현재 선택 상태에 반영
+    // 2) 최초 원본 상태로 저장
+    // 3) UI 반영
+    // 4) 초기 실거래/경매 데이터 로드
     async function applyInitialNplRegionData(data, source = '') {
       if (!data) return false;
 
@@ -3111,13 +3429,6 @@
         return false;
       }
 
-      // 0) 구분 UI 먼저 맞춤
-      if (mainEl && assetType) {
-        mainEl.value = normalizeAssetTypeForControl(assetType);
-      }
-      syncMapAssetTypeSelect(assetType);
-      selectedAssetType = normalizeAssetTypeForControl(assetType || "상가");
-
       // 1) 현재 선택 상태 반영
       applySelectedLocationState({
         lawdCd,
@@ -3127,6 +3438,8 @@
       });
 
       // 2) 최초 원본 상태 저장
+      // - message/url 로 여러번 들어올 수 있어도,
+      //   원본값이 아직 없을 때만 저장
       if (!initialSelectionState.lawdCd && !initialSelectionState.umdNm && !initialSelectionState.fullNm) {
         saveInitialSelectionState({
           lawdCd,
@@ -3172,12 +3485,19 @@
         }
       }
 
-      // 4) 읍면동 세팅
-      if (lawdEl && umdName) {
+      // 4) 읍면동 input 세팅
+      if (lawdEl) {
         lawdEl.value = umdName;
       }
 
-      await fetchNplData();
+      // 5) 타입 세팅
+      setMainCategorySelectValueSafe(normalizeAssetTypeForControl(assetType));
+
+      syncMapAssetTypeSelect(assetType);
+      selectedAssetType = normalizeAssetTypeForControl(assetType || "상가");
+
+      // 6) 초기 데이터 로드
+      await loadInitialDealAuctionMapData();
       return true;
     }
 
@@ -3218,9 +3538,9 @@
       // if (event.origin !== window.location.origin) return;
       const data = event.data;
       console.log('[message] 부모창에서 데이터 수신:', data);
-
       //
-      //await applyInitialNplRegionData(data, "message");
+      await applyInitialNplRegionData(data, "message");
+
     });
 
     // =========================
@@ -3922,6 +4242,7 @@
       if (name.includes("수리")) return "#64748b";
       return "#2563eb";
     }
+
     // 실거래,경매관련 데이타 삭제함
     function clearDealAuctionMarkers() {
       if (Array.isArray(markers)) {
@@ -3964,9 +4285,9 @@
       console.log("[실거래/경매 표시 상태 초기화 완료]");
     }
 
-    // NPL물건 단건 마커/팝업 제거
+    // 관심물건 단건 마커/팝업 제거
     function clearAllMapMarkersForEmptySearch() {
-      // 1) NPL물건 단건 마커/팝업 제거
+      // 1) 관심물건 단건 마커/팝업 제거
       clearNplSampleMarkers();
       closeNplSampleInfoWindow();
 
@@ -4003,7 +4324,6 @@
         dealTypeSelect.value = "all";
       }
     }
-
     // =========================
     // [추가] 상권 POI 마커 제거
     // =========================
@@ -4903,54 +5223,55 @@
     }
 
     // =========================
-    // [추가] LEFT 패널 슬라이드 토글 처리
+    // [추가] LEFT 패널 슬라이드 토글 함수
     // =========================
     function applyNplLeftPanelSlideSettings() {
-      const layoutEl = document.getElementById("npl-layout");
+      const layoutEl = document.getElementById('npl-layout');
       if (!layoutEl) return;
 
-      layoutEl.style.setProperty("--npl-left-panel-width", `${NPL_LEFT_PANEL_SLIDE_SETTINGS.expandedWidth}px`);
-      layoutEl.style.setProperty("--npl-left-panel-collapsed-width", `${NPL_LEFT_PANEL_SLIDE_SETTINGS.collapsedWidth}px`);
-      layoutEl.style.setProperty("--npl-left-panel-slide-duration", `${NPL_LEFT_PANEL_SLIDE_SETTINGS.duration}ms`);
+      layoutEl.style.setProperty('--npl-left-panel-width', `${NPL_LEFT_PANEL_SLIDE_SETTINGS.expandedWidth}px`);
+      layoutEl.style.setProperty('--npl-left-panel-collapsed-width', `${NPL_LEFT_PANEL_SLIDE_SETTINGS.collapsedWidth}px`);
+      layoutEl.style.setProperty('--npl-left-panel-slide-duration', `${NPL_LEFT_PANEL_SLIDE_SETTINGS.duration}ms`);
     }
 
     function updateNplLeftToggleButton() {
-      const btn = document.getElementById("npl-left-toggle-btn");
+      const btn = document.getElementById('npl-left-toggle-btn');
       if (!btn) return;
 
-      btn.title = isNplLeftPanelCollapsed ? "왼쪽 패널 펼치기" : "왼쪽 패널 접기";
+      btn.setAttribute(
+        'title',
+        isNplLeftPanelCollapsed ? '왼쪽 검색패널 열기' : '왼쪽 검색패널 닫기'
+      );
 
-      const labelEl = btn.querySelector(".label");
+      const labelEl = btn.querySelector('.label');
       if (labelEl) {
-        labelEl.textContent = isNplLeftPanelCollapsed ? "열기" : "검색패널";
+        labelEl.textContent = isNplLeftPanelCollapsed ? '열기' : '검색패널';
       }
     }
 
     function syncMapAfterLeftPanelToggle() {
       if (!map) return;
 
-      const center = map.getCenter();
+      const currentCenter = map.getCenter();
 
       setTimeout(() => {
-        naver.maps.Event.trigger(map, "resize");
-        if (center) {
-          map.setCenter(center);
+        naver.maps.Event.trigger(map, 'resize');
+
+        if (currentCenter) {
+          map.setCenter(currentCenter);
         }
       }, NPL_LEFT_PANEL_SLIDE_SETTINGS.duration + 20);
     }
 
-    function setNplLeftPanelCollapsed(collapsed, skipMapSync = false) {
-      const layoutEl = document.getElementById("npl-layout");
+    function setNplLeftPanelCollapsed(collapsed) {
+      const layoutEl = document.getElementById('npl-layout');
       if (!layoutEl) return;
 
       isNplLeftPanelCollapsed = !!collapsed;
-      layoutEl.classList.toggle("left-panel-collapsed", isNplLeftPanelCollapsed);
+      layoutEl.classList.toggle('left-panel-collapsed', isNplLeftPanelCollapsed);
 
       updateNplLeftToggleButton();
-
-      if (!skipMapSync) {
-        syncMapAfterLeftPanelToggle();
-      }
+      syncMapAfterLeftPanelToggle();
     }
 
     function toggleNplLeftPanel() {
@@ -4958,33 +5279,38 @@
     }
 
     function bindNplLeftPanelToggle() {
-      const btn = document.getElementById("npl-left-toggle-btn");
-      const leftPanel = document.getElementById("npl-left-panel");
-      const rail = document.querySelector(".npl-left-collapse-rail");
+      const btn = document.getElementById('npl-left-toggle-btn');
+      const leftPanel = document.getElementById('npl-left-panel');
+      const layoutEl = document.getElementById('npl-layout');
 
-      if (!btn || !leftPanel) return;
+      if (!btn || !leftPanel || !layoutEl) return;
 
       applyNplLeftPanelSlideSettings();
+      setNplLeftPanelCollapsed(!!NPL_LEFT_PANEL_SLIDE_SETTINGS.startCollapsed);
 
-      // 초기 로딩 시에는 지도 center를 다시 맞추지 않음
-      setNplLeftPanelCollapsed(!!NPL_LEFT_PANEL_SLIDE_SETTINGS.startCollapsed, true);
-
-      btn.addEventListener("click", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+      btn.addEventListener('click', function() {
         toggleNplLeftPanel();
       });
 
-      if (rail) {
-        rail.addEventListener("click", function(e) {
-          if (!isNplLeftPanelCollapsed) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setNplLeftPanelCollapsed(false);
-        });
-      }
+      // 접힌 뒤 세로 핸들 영역 클릭 시 다시 열기
+      leftPanel.addEventListener('click', function(e) {
+        if (!isNplLeftPanelCollapsed) return;
+
+        const rail = e.target.closest('.npl-left-collapse-rail');
+        if (!rail) return;
+
+        setNplLeftPanelCollapsed(false);
+      });
+
+      // 더블클릭으로 패널 빠르게 접기/열기
+      leftPanel.addEventListener('dblclick', function() {
+        toggleNplLeftPanel();
+      });
     }
 
+    // =========================
+    // [추가] 거리재기 툴 바인딩
+    // - 클릭으로 측정점 추가, 실시간 선과 구간거리 표시, 우클릭으로 측정 종료 및 최종 결과 표시
     function bindMeasureTool() {
       const measureBtn = document.getElementById('measure-distance-btn');
       const clearBtn = document.getElementById('measure-clear-btn');
@@ -5064,7 +5390,6 @@
       });
 
     }
-
     // 초기 바인딩
     bindMeasureTool();
     bindMapSiteShortcutMenu();
@@ -5120,15 +5445,25 @@
     let nplCategoryMappings = {};
     let selectedLawdCd = "";
     let selectedUmdNm = "";
-    let selectedFullNm = "";      // 예: 경기도 김포시 운양동
-    let selectedAssetType = "";   // 예: 상가 / 빌라 / 아파트 / 다가구
-
+    let selectedAssetType = "";   // 상가 / 빌라 / 아파트
+    // =========================
+    // [추가] 초기 원본 상태
+    // - 화면 최초 오픈 시 전달받은 값 보관
+    // - 관심물건 선택 후 다른 지역으로 바뀌었다가도
+    //   초기화/검색결과없음 시 여기로 복귀
+    // =========================
     let initialSelectionState = {
       lawdCd: "",
       umdNm: "",
       fullNm: "",
-      assetType: "상가"
+      assetType: ""   // 상가 / 빌라 / 아파트
     };
+    //
+    // =========================
+    // [추가] 관심물건 추가/편집 상태
+    // =========================
+    let currentWishlistModalMode = "add";   // add | edit
+    let currentWishlistEditingRow = null;
     //
     let currentNplDealRows = [];
     let currentNplAuctionRows = [];
@@ -5173,7 +5508,6 @@
     //
     let nplSortPyAscending = false;
     let nplSortFloorAscending = false;
-    let nplSortBidCountAscending = false;
     // 평형분석
     let currentNplPyengAnalysisType = "";
 
@@ -5217,6 +5551,10 @@
       return [lawdCd, regionText, umd, type].filter(Boolean).join("|");
     }
 
+    // =========================
+    // [추가] 현재 상단 선택상태 기준 실거래/경매 조회용 row 생성
+    // - 초기화 후 / 상단 버튼 클릭 시 공통 사용
+    // =========================
     function buildCurrentSelectedBaseRow() {
       const safeFullNm = String(selectedFullNm || initialSelectionState.fullNm || "").trim();
       const safeUmdNm = String(selectedUmdNm || initialSelectionState.umdNm || "").trim();
@@ -5281,21 +5619,14 @@
       const regionText = getNplRegionText(row);
       syncCurrentRegionDisplay(row);
       titleEl.textContent = regionText
-        ? `🚨 NPL검색(${regionText})`
-        : "🚨 NPL검색";
+        ? `🚨 관심물건검색(${regionText})`
+        : "🚨 관심물건검색";
     }
 
     function normalizeNplType(category) {
       const text = String(category || "").trim();
 
       if (text.includes("아파트")) return "아파트";
-
-      // [추가] 다가구 분류
-      if (
-        text.includes("다가구주택") ||
-        text.includes("상가주택")
-      ) return "다가구";
-
       if (
         text.includes("연립") ||
         text.includes("다세대") ||
@@ -5304,7 +5635,6 @@
         text.includes("단독주택") ||
         text.includes("오피스텔(주거)")
       ) return "빌라";
-
       return "상가";
     }
 
@@ -5317,7 +5647,6 @@
       const type = normalizeNplType(category);
       if (type === "아파트") return "🏬";
       if (type === "빌라") return "🏠";
-      if (type === "다가구") return "🏘️";
       return "🏢";
     }
 
@@ -5325,7 +5654,6 @@
       const type = normalizeNplType(category);
       if (type === "아파트") return "is-apt";
       if (type === "빌라") return "is-villa";
-      if (type === "다가구") return "is-dagagu";
       return "is-sanga";
     }
 
@@ -5338,18 +5666,23 @@
       //
       const sortPyEl = document.getElementById("npl-sort-py");
       const sortFloorEl = document.getElementById("npl-sort-floor");
-      const sortBidCountEl = document.getElementById("npl-sort-bid-count");
 
       if (searchBtn) {
         searchBtn.addEventListener("click", function () {
+          hideWishlistEditButton();
+
+          // 검색은 관심물건 DB 조회만 수행
+          // 실거래/경매 API 재조회는 여기서 하지 않음
           selectedUmdNm = (lawdEl?.value || "").trim();
           resetCommercialAreaSelectionState();
+
           fetchNplData();
         });
       }
 
       if (resetBtn) {
         resetBtn.addEventListener("click", function () {
+          hideWishlistEditButton();
           resetNplSearchFormAndResult();
         });
       }
@@ -5398,9 +5731,7 @@
           this.textContent = nplSortPyAscending ? "평수 ▲" : "평수 ▼";
 
           if (sortFloorEl) sortFloorEl.textContent = "층 ▼";
-          if (sortBidCountEl) sortBidCountEl.textContent = "최저가(유찰회수) ▼";
           nplSortFloorAscending = false;
-          nplSortBidCountAscending = false;
 
           renderNplSearchRows(nplSearchRows);
         });
@@ -5420,33 +5751,7 @@
           this.textContent = nplSortFloorAscending ? "층 ▲" : "층 ▼";
 
           if (sortPyEl) sortPyEl.textContent = "평수 ▼";
-          if (sortBidCountEl) sortBidCountEl.textContent = "최저가(유찰회수) ▼";
           nplSortPyAscending = false;
-          nplSortBidCountAscending = false;
-
-          renderNplSearchRows(nplSearchRows);
-        });
-      }
-      // [추가] 유찰회수 정렬 기능
-      if (sortBidCountEl) {
-        sortBidCountEl.addEventListener("click", function () {
-          if (!Array.isArray(nplSearchRows) || !nplSearchRows.length) return;
-
-          nplSearchRows.sort((a, b) => {
-            const aBidCount = getNplBidCountSortValue(a);
-            const bBidCount = getNplBidCountSortValue(b);
-            return nplSortBidCountAscending ? aBidCount - bBidCount : bBidCount - aBidCount;
-          });
-
-          nplSortBidCountAscending = !nplSortBidCountAscending;
-          this.textContent = nplSortBidCountAscending
-            ? "최저가(유찰회수) ▲"
-            : "최저가(유찰회수) ▼";
-
-          if (sortPyEl) sortPyEl.textContent = "평수 ▼";
-          if (sortFloorEl) sortFloorEl.textContent = "층 ▼";
-          nplSortPyAscending = false;
-          nplSortFloorAscending = false;
 
           renderNplSearchRows(nplSearchRows);
         });
@@ -5454,6 +5759,8 @@
 
       loadNplTypeCategories();
       resetNplSearchFormAndResult();
+      //
+      syncWishlistActionButtonsLayout();
     })();
 
     // =========================
@@ -5701,6 +6008,34 @@
       });
     }
 
+    function setMainCategorySelectValueSafe(value) {
+      const mainEl = document.getElementById("npl-main-category-sample");
+      if (!mainEl) return;
+
+      const targetValue = String(value ?? "").trim();
+
+      // value가 비어있으면 무조건 첫번째(전체)
+      if (!targetValue) {
+        mainEl.selectedIndex = 0;
+        mainEl.dispatchEvent(new Event("change"));
+        return;
+      }
+
+      // 실제 옵션 중 일치하는 value가 있는지 확인
+      const hasOption = Array.from(mainEl.options || []).some(
+        opt => String(opt.value || "").trim() === targetValue
+      );
+
+      if (hasOption) {
+        mainEl.value = targetValue;
+      } else {
+        // 없으면 공백표시 방지 위해 전체로 강제
+        mainEl.selectedIndex = 0;
+      }
+
+      mainEl.dispatchEvent(new Event("change"));
+    }
+
     async function regionCategoryData(category, sel_code, parent_sel_code) {
       const url = new URL('/api/npl/region_categories', window.location.origin);
       url.searchParams.set('category', category);
@@ -5770,37 +6105,22 @@
       const regionText = regionEl?.selectedOptions?.[0]?.textContent || "";
       const sggNmText = sggEl?.selectedOptions?.[0]?.textContent || "";
       const umdNmText = (lawdEl?.value || "").trim();
-
       const mainCategory = (mainEl?.value || "").trim();
       const subCategory = (subEl?.value || "").trim();
-      const buildingPy = (pyEl?.value || "").trim();
-      const tenantValue = (tenantEl?.value || "전체").trim();
-      const personalValue = (personalEl?.value || "전체").trim();
-      const auctionApplicant = (applicantEl?.value || "").trim();
-
-      const opposabilityStatus =
-        tenantValue === "포함안함" ? "N" :
-        tenantValue === "포함함" ? "Y" : "all";
-
-      const persionalStatus =
-        personalValue === "개인" ? "Y" :
-        personalValue === "법인" ? "N" : "";
 
       const lawdCdPrefix = selectedLawdCd
         ? String(selectedLawdCd).slice(0, 5)
         : "";
 
-      const url = new URL('/api/npl', window.location.origin);
+      // 관심물건조회
+      const url = new URL('/api/user/wishlist', window.location.origin);
       url.searchParams.set('lawdCd', lawdCdPrefix);
       url.searchParams.set('region', regionText);
       url.searchParams.set('sggNm', sggNmText === '전체' ? '' : sggNmText);
       url.searchParams.set('umdNm', umdNmText);
       url.searchParams.set('mainCategory', mainCategory);
       url.searchParams.set('subCategory', subCategory);
-      url.searchParams.set('opposabilityStatus', opposabilityStatus);
-      url.searchParams.set('persionalStatus', persionalStatus);
-      url.searchParams.set('auctionApplicant', auctionApplicant);
-      url.searchParams.set('buildingPy', buildingPy);
+      url.searchParams.set('tk', currentPanelAccessToken);
 
       try {
         const res = await fetch(url.toString(), { method: 'GET' });
@@ -5814,7 +6134,7 @@
         renderNplSearchRows(nplSearchRows);
       } catch (err) {
         console.error(err);
-        alert('NPL 데이터를 가져오는 중 오류가 발생했습니다.');
+        alert('관심물건 데이터를 가져오는 중 오류가 발생했습니다.');
         renderNplSearchRows([]);
       }
     }
@@ -5875,30 +6195,10 @@
       return Number(numMatch[0]);
     }
 
-    function getNplBidCountSortValue(item) {
-      const rawBidCount = String(item?.bid_count || "").trim();
-      if (!rawBidCount) return -1;
-
-      const bidCountNumber = rawBidCount.replace(/[^\d]/g, "");
-      if (!bidCountNumber) return -1;
-
-      return Number(bidCountNumber);
-    }
-
     function formatWonToEokText(value) {
       const num = parseNumberWithCommas(value);
       if (!num) return "-";
       return convertToKoreanAmount(Math.round(num / 10000));
-    }
-
-    // [추가] 목록용 짧은 금액표시
-    // 예: 4억 2,600만원 -> 4억3천
-    function formatWonToShortKoreanText(value) {
-      const num = parseNumberWithCommas(value);
-      if (!num) return "-";
-
-      const manUnit = Math.round(num / 10000); // 만원 단위
-      return convertToKoreanAmountShortNoBaek(manUnit);
     }
 
     function renderNplSearchRows(rows) {
@@ -5908,55 +6208,46 @@
       const safeRows = Array.isArray(rows) ? rows : [];
 
       tbody.innerHTML = safeRows.map((row, index) => {
-      const typeText = normalizeNplType(row.category || "");
-      const typeClass =
-        typeText === "아파트" ? "is-apt" :
-        typeText === "빌라" ? "is-villa" :
-        typeText === "다가구" ? "is-dagagu" :
-        "is-sanga";
+        const typeText = normalizeNplType(row.category || "");
+        const typeClass =
+          typeText === "아파트" ? "is-apt" :
+          typeText === "빌라" ? "is-villa" : "is-sanga";
 
         const floorText = getNplFloorText(row) || "-";
         const pyText = row.building_py ? `${parseFloat(row.building_py).toFixed(1)}` : "-";
-
-        // [수정] 감정평가액, 채권최고액
         const appraisalText = formatWonToEokText(row.appraisal_price);
         const bondMaxText = formatWonToEokText(row.bond_max_amount);
-
-        // [수정] 채권청구액
-        const bondClaimText = formatWonToShortKoreanText(row.bond_claim_amount);
-
-        // [수정] 최저가(유찰회수)
-        const minPriceText = formatWonToShortKoreanText(row.min_price);
-
-        // [수정] bid_count 안에 '유찰 4회' 같은 값이 들어와도 숫자만 추출
-        const rawBidCount = String(row.bid_count || "").trim();
-
-        // 🔥 신건이면 0회로 강제 처리
-        let bidCountNumber = "";
-        if (rawBidCount.includes("신건")) {
-          bidCountNumber = "0";
-        } else {
-          bidCountNumber = rawBidCount.replace(/[^\d]/g, "");
-        }
-        const bidCountText = `(${bidCountNumber || "0"}회)`;
 
         return `
           <tr data-row-index="${index}">
             <td><span class="npl-type-pill ${typeClass}">${typeText}</span></td>
             <td>${floorText}</td>
             <td>${pyText}</td>
-            <td>${bondClaimText}</td>
-            <td>${minPriceText}${bidCountText}</td>
+            <td>${appraisalText}</td>
+            <td>${bondMaxText}</td>
           </tr>
         `;
       }).join("");
 
       updateNplCountBadge(safeRows.length);
-      //
+
+      // 클릭 이벤트 바인딩
       if (safeRows.length === 0) {
-        clearAllMapMarkersForEmptySearch();
-        updateNplTitle(null);
-        updateCurrentRegionBadge("지역을 선택해주세요");
+        clearNplSampleMarkers();
+        closeNplSampleInfoWindow();
+        hideWishlistEditButton();
+
+        // [수정]
+        // 검색 결과가 없어도 실거래/경매를 다시 조회하지 않음
+        // DB 검색 결과만 비우고 종료
+        updateNplCountBadge(0);
+
+        // [핵심] 검색 결과 없으면 초기 원본 지역으로 복귀
+        //restoreInitialSelectionState({ reloadMapData: true });
+
+        const tbody = document.getElementById("npl-sample-list-body");
+        if (tbody) tbody.innerHTML = "";
+
         return;
       }
 
@@ -5967,6 +6258,9 @@
           if (!row) return;
 
           nplSelectedRow = row;
+
+          // 관심물건 검색 시 지역 정보가 없는 경우도 있을 수 있으므로, 지역 정보가 있는 경우에만 편집 버튼 보이도록 처리
+          showWishlistEditButton();
 
           tbody.querySelectorAll("tr").forEach(x => x.classList.remove("is-active"));
           this.classList.add("is-active");
@@ -5990,6 +6284,9 @@
             clearDealAuctionDisplayState();
           }
 
+          // =========================
+          // [추가] 지역 정보 세팅
+          // =========================
           const regionText = row.region || "";
           const sigunguText = row.sigungu_name || "";
           const umdText = row.eub_myeon_dong || "";
@@ -6003,15 +6300,19 @@
             lawdCd: row.sigungu_code ? String(row.sigungu_code) : selectedLawdCd,
             umdNm: row.eub_myeon_dong || "",
             fullNm: lawdName,
-            assetType: nextAssetType
+            assetType: normalizeNplType(row.category || "")
           });
 
           console.log("[리스트 선택 → 현재 선택상태 변경]", {
             selectedLawdCd,
             selectedUmdNm,
             selectedFullNm,
-            selectedAssetType
+            selectedAssetType,
+            initialSelectionState
           });
+
+          // 5. 현재지역 배지 업데이트
+          updateCurrentRegionBadge(lawdName);
 
           // [추가] 주변 패널 닫기 + 업종 선택 초기화
           resetCommercialNearbyUi(true);
@@ -6021,11 +6322,13 @@
       });
 
       // =========================
-      // [수정] 검색 후 첫 번째 레코드 자동 선택
-      // - 가능하면 "좌표가 있는 첫 번째 행"을 자동 선택
-      // - 전부 좌표가 없으면 기존처럼 0번째 선택
+      // [추가] 검색 후 첫 번째 레코드 자동 선택
       // =========================
       if (safeRows.length > 0) {
+        // const firstRowEl = tbody.querySelector('tr[data-row-index="0"]');
+        // if (firstRowEl) {
+        //   firstRowEl.click();
+        // }
         let autoIndex = safeRows.findIndex(row => nplHasLatLng(row));
         if (autoIndex < 0) autoIndex = 0;
 
@@ -6383,7 +6686,8 @@
       openPopup();
     }
 
-    function resetNplSearchFormAndResult() {
+    // 관심물건 검색 초기화 (지도 마커, 검색 결과, 선택 상태 등)
+    async function resetNplSearchFormAndResult() {
       const region = document.getElementById("npl-region-sample");
       const sgg = document.getElementById("npl-sgg-sample");
       const lawd = document.getElementById("npl-lawd-sample");
@@ -6396,42 +6700,57 @@
       const tbody = document.getElementById("npl-sample-list-body");
       const sortPyEl = document.getElementById("npl-sort-py");
       const sortFloorEl = document.getElementById("npl-sort-floor");
-      const sortBidCountEl = document.getElementById("npl-sort-bid-count");
 
-      if (region) region.value = "all";
+      // 좌측 검색조건 초기화
+      if (region) region.value = region.value || "all";
       if (sgg) sgg.innerHTML = '<option value="all">전체</option>';
       if (lawd) lawd.value = "";
-      if (mainType) mainType.value = "";
-      if (subType) subType.innerHTML = '<option value="">전체</option>';
+
+      if (mainType) {
+        setMainCategorySelectValueSafe("");
+      }
+
+      if (subType) {
+        subType.selectedIndex = 0;
+      }
+
       if (sizeType) sizeType.value = "";
       if (tenant) tenant.value = "포함안함";
       if (personal) personal.value = "전체";
       if (applicant) applicant.value = "";
       if (sortPyEl) sortPyEl.textContent = "평수 ▼";
       if (sortFloorEl) sortFloorEl.textContent = "층 ▼";
-      if (sortBidCountEl) sortBidCountEl.textContent = "최저가(유찰회수) ▼";
-
       if (tbody) tbody.innerHTML = "";
 
       nplSearchRows = [];
       nplSelectedRow = null;
-      selectedLawdCd = "";
-      selectedUmdNm = "";   // 운양동
-      selectedFullNm = "";  // 경기도 김포시 운양동
-      selectedAssetType = "";
       nplSortPyAscending = false;
       nplSortFloorAscending = false;
-      nplSortBidCountAscending = false;
 
       updateNplCountBadge(0);
-      updateNplTitle(null);
-      updateCurrentRegionBadge("지역을 선택해주세요");
-      clearNplSampleMarkers();
 
-      // [추가] 주변 UI 초기 상태
-      updateCommercialSelectedGroupBadge("");
-      const nearbyWrap = document.getElementById("commercial-nearby-wrap");
-      if (nearbyWrap) nearbyWrap.classList.remove("open");
+      // 기존 표시물 완전 제거
+      clearNplSampleMarkers();
+      clearAllMapMarkersForEmptySearch();
+
+      // ===== [핵심 수정] 이전 실거래/경매 상태 완전 초기화 =====
+      currentNplDealFilteredRows = [];
+      currentNplAuctionFilteredRows = [];
+      currentNplDealRows = [];
+      currentNplAuctionRows = [];
+      currentNplDealAuctionBaseRow = null;
+      currentNplDealAuctionRegionKey = "";
+      currentNplDealAuctionPopupTab = "real";
+
+      resetNplDealAuctionFilterState("");
+
+      const dealTypeSelect = document.getElementById("deal-type-filter-select");
+      if (dealTypeSelect) {
+        dealTypeSelect.value = "all";
+      }
+
+      // 최초 로딩 상태로 복귀 + 실거래/경매 재로딩
+      await restoreInitialSelectionState({ reloadMapData: true });
     }
 
     // 국토부 데이터의 실거래 정보 조회 (지도 팝업 내 "실거래" 버튼 클릭 시)
@@ -6439,21 +6758,20 @@
       // const lawdCd = "41570";
       // const lawdNm = "경기도 김포시";
       // const umdNm = "운양동";
-      const lawdCd = selectedLawdCd;
+      // lawdCd는 5자리까지만 사용 (시군구 기준)
+      const lawdCd = String(selectedLawdCd || "").substring(0, 5);
       const lawdNm = getNplLawdNmForDeal(row);
       const umdNm = selectedUmdNm;
       const years_count = 3;
 
       if (!lawdCd || !umdNm) return [];
 
-      // NPL 데이터의 실거래 조회 API 경로 결정
       let apiPath = "";
       const type = normalizeNplType(row?.category || "");
 
       if (type === "아파트") {
         apiPath = "/api/apt/land_data";
       } else if (type === "빌라" || type === "다가구") {
-        // 다가구도 빌라 실거래 API와 동일 계열로 처리
         apiPath = "/api/villa/land_data";
       } else {
         apiPath = "/api/sanga/land_data";
@@ -6476,16 +6794,10 @@
       console.log("[fetchNplRelatedDealData] 원본 응답 data =", data);
 
       const mappedRows = (Array.isArray(data) ? data : []).map(itemData => {
-        console.log("[실거래 원본 1건]", itemData);
-
         itemData.dealDate =
           `${itemData.dealYear}-${String(itemData.dealMonth).padStart(2, "0")}-${String(itemData.dealDay).padStart(2, "0")}`;
 
-        // =========================
-        // [핵심수정]
-        // 아파트/빌라/다가구의 면적 필드 우선순위 보정
-        // - apt_real_deal / villa_real_deal 기준으로 excluUseAr 우선 반영
-        // =========================
+        // 면적 필드 우선순위 보정
         const rawAreaSqm =
           itemData.excluUseAr ??
           itemData.buildingAr ??
@@ -6515,20 +6827,14 @@
         const longitude =
           parseFloat(itemData.longitude || itemData.lon || itemData.x || 0) || 0;
 
-        // =========================
-        // [핵심수정]
-        // 용도/건물명 표기 우선순위
-        // - 아파트: aptNm
-        // - 빌라/다가구: mhouseNm
-        // - 상가/기타: buildingUse
-        // =========================
+        // 용도/건물명 우선순위
         const useText =
           (itemData.aptNm || "").trim() ||
           (itemData.mhouseNm || "").trim() ||
           (itemData.buildingUse || "").trim() ||
           "-";
 
-        const mappedRow = {
+        return {
           type: "real",
           raw: itemData,
           date: itemData.dealDate,
@@ -6549,23 +6855,37 @@
           latitude: latitude,
           longitude: longitude
         };
-
-        console.log("[실거래 가공 row]", mappedRow);
-        return mappedRow;
       });
 
       console.log("[실거래 가공 전체]", mappedRows);
-
       return mappedRows;
     }
 
     // 국토부 데이터의 경매 정보 조회 (지도 팝업 내 "경매" 버튼 클릭 시)
     async function fetchNplRelatedAuctionData(row) {
-        const lawdCd = selectedLawdCd;
-        const umdNm = selectedUmdNm;
+        // ✅ [수정] 전역변수가 비어있을 경우 row 파라미터로 fallback
+        const lawdCd = String(
+          selectedLawdCd ||
+          row?.lawd_cd ||
+          row?.sigungu_code ||
+          initialSelectionState.lawdCd ||
+          ""
+        ).trim();
+
+        const umdNm = String(
+          selectedUmdNm ||
+          row?.eub_myeon_dong ||
+          initialSelectionState.umdNm ||
+          ""
+        ).trim();
         const mainCategory = getNplAuctionMainCategory(row);
 
-        if (!lawdCd || !umdNm) return [];
+        if (!lawdCd || !umdNm) {
+          console.warn("[fetchNplRelatedAuctionData] lawdCd 또는 umdNm 없음 → 빈 배열 반환", {
+            lawdCd, umdNm, selectedLawdCd, selectedUmdNm, row
+          });
+          return [];
+        }
 
         const url = new URL("/api/auction", window.location.origin);
         url.searchParams.set("lawdCd", lawdCd);
@@ -6585,6 +6905,14 @@
 
         console.log("[fetchNplRelatedAuctionData] 응답 데이터 =", data);
 
+        // [수정] address fallback 구성용 기본 지역 텍스트
+        // row(baseRow) 에서 region/sigungu_name/eub_myeon_dong 을 조합해 기본 주소 생성
+        const baseAddressText = [
+          row?.region || "",
+          row?.sigungu_name || "",
+          row?.eub_myeon_dong || umdNm || ""
+        ].filter(Boolean).join(" ").trim();
+
         const mappedRows = (Array.isArray(data) ? data : []).map(item => {
           const amount = Number(item.sale_price || 0) / 10000;
           const area = parseFloat(item.building_py || 0) || 0;
@@ -6594,6 +6922,15 @@
             parseFloat(item.latitude || item.lat || item.y || 0) || 0;
           const longitude =
             parseFloat(item.longitude || item.lon || item.lng || item.x || 0) || 0;
+
+          // [수정 핵심] address1 이 없을 때 baseAddressText 로 fallback
+          // address1 예: "경기도 김포시 운양동 123-4 (운양동, 테스트빌딩)"
+          // baseAddressText 예: "경기도 김포시 운양동"
+          // 둘 다 없으면 umdNm(읍면동명)만이라도 사용 → geocodeIfNeeded 에서 geocode 시도 가능
+          const addressText = (item.address1 || "").trim()
+            || baseAddressText
+            || umdNm
+            || "";
 
           const mappedRow = {
               type: "auction",
@@ -6607,7 +6944,7 @@
               priceText: `${convertToKoreanAmountShortNoBaek(amount)}${item.sale_percent ? `(${item.sale_percent})` : ""}`,
               appraisalText: item.appraisal_price ? convertToKoreanAmount(parseNumberWithCommas(item.appraisal_price) / 10000) : "-",
               minText: item.min_price ? convertToKoreanAmount(parseNumberWithCommas(item.min_price) / 10000) : "-",
-              address: item.address1 || "",
+              address: addressText,
               buildingName: item.dangi_name || "-",
               latitude: latitude,
               longitude: longitude
@@ -6620,6 +6957,54 @@
         console.log("[경매 가공 전체]", mappedRows);
         return mappedRows;
     }
+
+    // 지도 초기 로딩 / 초기화 복귀 시
+    // 현재 선택된 위치/법정코드 기준으로 실거래 + 경매 조회 후
+    // 지도보기 "전체" 상태로 표시
+    async function loadInitialDealAuctionMapData() {
+      const baseRow = buildCurrentSelectedBaseRow();
+
+      if (!baseRow.lawd_cd || !baseRow.eub_myeon_dong) {
+        console.warn("[loadInitialDealAuctionMapData] 초기 지역값 부족", {
+          selectedLawdCd,
+          selectedUmdNm,
+          selectedFullNm,
+          baseRow
+        });
+        return;
+      }
+
+      try {
+        const loadingRegionText = String(baseRow.address1 || baseRow.eub_myeon_dong || "해당 지역").trim();
+        setInitialMapLoading(true, loadingRegionText, "데이타를 가져오는 중입니다...");
+
+        currentNplDealAuctionBaseRow = baseRow;
+        currentNplDealAuctionRegionKey = getNplDealAuctionRegionKey(baseRow);
+
+        resetNplDealAuctionFilterState(currentNplDealAuctionRegionKey);
+        currentNplDealFilteredRows = [];
+        currentNplAuctionFilteredRows = [];
+
+        console.log("[초기지도] 실거래 조회 시작", baseRow);
+        currentNplDealRows = await fetchNplRelatedDealData(baseRow);
+
+        console.log("[초기지도] 경매 조회 시작", baseRow);
+        currentNplAuctionRows = await fetchNplRelatedAuctionData(baseRow);
+
+        console.log("[초기지도] 실거래 건수 =", currentNplDealRows.length);
+        console.log("[초기지도] 경매 건수 =", currentNplAuctionRows.length);
+
+        // 지도보기 전체 개념으로 다시 표시
+        setNplDealAuctionMapData("all");
+      } catch (err) {
+        console.error(err);
+        alert("초기 실거래/경매 데이터를 가져오는 중 오류가 발생했습니다.");
+        clearDealAuctionMarkers();
+      } finally {
+        setInitialMapLoading(false);
+      }
+    }
+
 
     function removeNplDealAuctionPopup() {
       removeNplPyengAnalysisModal();
@@ -6766,15 +7151,22 @@
     }
 
     function nplBuildRealAreaText(item) {
-      const sqm = item.raw?.buildingAr || item.raw?.excluUseAr || item.raw?.exclusiveArea || item.raw?.area || "";
+      const sqm =
+        item.raw?.excluUseAr ||
+        item.raw?.buildingAr ||
+        item.raw?.exclusiveArea ||
+        item.raw?.area ||
+        "";
+
       const py = item.area || "";
+
       if (!sqm && !py) return "-";
 
       const sqmText = sqm ? parseFloat(sqm).toFixed(1) : "-";
       const pyText = py ? parseFloat(py).toFixed(1) : "-";
 
       return `
-        <span class="npl-da-area-sqm">${sqmText}</span>/
+        <span class="npl-da-area-sqm">${sqmText}</span> /
         <span class="npl-da-area-py">${pyText}</span>
       `;
     }
@@ -7156,25 +7548,26 @@
             ${opt.areas.map(v => `<option value="${v}">${v}평대</option>`).join("")}
           </select>
           ${isApartmentType ? `
-          <input
-            id="npl-real-filter-apt-name"
-            type="text"
-            value="${String(prevAptNameVal || "").replace(/"/g, "&quot;")}"
-            placeholder="아파트명 입력 후 Enter"
-            style="
-              width:180px;
-              height:34px;
-              padding:0 10px;
-              border:1px solid #d7e3f1;
-              border-radius:10px;
-              background:#f8fbff;
-              font-size:13px;
-              font-weight:700;
-              color:#0f172a;
-              outline:none;
-            "
-          />
-        ` : ``}
+            <label for="npl-real-filter-apt-name">아파트명</label>
+            <input
+              id="npl-real-filter-apt-name"
+              type="text"
+              value="${String(prevAptNameVal || "").replace(/"/g, "&quot;")}"
+              placeholder="아파트명 입력 후 Enter"
+              style="
+                width:180px;
+                height:34px;
+                padding:0 10px;
+                border:1px solid #d7e3f1;
+                border-radius:10px;
+                background:#f8fbff;
+                font-size:13px;
+                font-weight:700;
+                color:#0f172a;
+                outline:none;
+              "
+            />
+          ` : ``}
           <button type="button" id="npl-real-pyeng-btn" class="npl-da-analysis-btn">평형분석</button>
 
           <span id="npl-real-filter-count" class="npl-da-filter-count">0건</span>
@@ -7223,7 +7616,7 @@
       if (realAreaEl && Array.from(realAreaEl.options).some(opt => opt.value === prevAreaVal)) {
         realAreaEl.value = prevAreaVal;
       }
-      // 아파트명 필터는 텍스트 입력이므로, 이전값이 있으면 그대로 복원. 옵션과 달리 유효성 체크는 하지 않음
+      // 아파트 타입인 경우에만 아파트명 필터값 복원
       if (isApartmentType) {
         const aptInputEl = document.getElementById("npl-real-filter-apt-name");
         if (aptInputEl) {
@@ -7249,9 +7642,7 @@
             <td>${item.date || "-"}</td>
             <td>${item.buildYear || "-"}</td>
             <td>${nplFloorLabel(item.floor)}</td>
-            <td>
-              ${nplBuildRealAreaText(item)}
-            </td>
+            <td>${nplBuildRealAreaText(item)}</td>
             <td class="npl-da-col-right"><span class="npl-da-price-main">${item.priceText || "-"}</span></td>
             <td style="text-align:center;"><span class="npl-da-price-sub">@${item.unitPriceText || "-"}</span></td>
             <td class="npl-da-col-left">${item.useText || "-"}</td>
@@ -7706,6 +8097,7 @@
       setNplDealAuctionTab(initialTab);
 
       // 같은 지역이면 기존 데이터 재사용, 아니면 새로 조회
+      currentNplDealAuctionBaseRow = row;
       const nextRegionKey = getNplDealAuctionRegionKey(row);
       const canReuse =
         currentNplDealAuctionRegionKey &&
@@ -7768,27 +8160,108 @@
           ? currentNplAuctionFilteredRows
           : (currentNplAuctionRows || []);
       } else {
+        // type === "all": 실거래 + 경매 합산
         rows = [
-          ...((currentNplDealFilteredRows && currentNplDealFilteredRows.length) ? currentNplDealFilteredRows : (currentNplDealRows || [])),
-          ...((currentNplAuctionFilteredRows && currentNplAuctionFilteredRows.length) ? currentNplAuctionFilteredRows : (currentNplAuctionRows || []))
+          ...((currentNplDealFilteredRows && currentNplDealFilteredRows.length)
+            ? currentNplDealFilteredRows
+            : (currentNplDealRows || [])),
+          ...((currentNplAuctionFilteredRows && currentNplAuctionFilteredRows.length)
+            ? currentNplAuctionFilteredRows
+            : (currentNplAuctionRows || []))
         ];
       }
 
-      addresses = rows
-        .filter(item => item.latitude && item.longitude)
-        .map(item => ({
-          type: item.type,
-          address: item.address || getNplRowAddress(currentNplDealAuctionBaseRow || {}),
-          buildingName: item.buildingName || item.useText || "",
-          date: item.date || "",
-          year: "",
-          floor: item.floor ? `${item.floor}층` : "",
-          area: item.area ? `${item.area}평` : "",
-          unitPrice: item.unitPriceText || "-",
-          price: item.priceText || "-",
-          latitude: item.latitude,
-          longitude: item.longitude
-        }));
+      // [수정] address fallback 구성용 기본 지역 텍스트
+      // currentNplDealAuctionBaseRow 가 없을 때도 selectedFullNm / selectedUmdNm 으로 보완
+      const baseRow = currentNplDealAuctionBaseRow || {};
+      const fallbackAddress = [
+        baseRow.region || (selectedFullNm || "").split(/\s+/)[0] || "",
+        baseRow.sigungu_name || (selectedFullNm || "").split(/\s+/)[1] || "",
+        baseRow.eub_myeon_dong || selectedUmdNm || ""
+      ].filter(Boolean).join(" ").trim();
+
+      addresses = (rows || [])
+        .map(item => {
+          const raw = item.raw || {};
+
+          const latitude = parseFloat(
+            item.latitude ??
+            item.lat ??
+            raw.latitude ??
+            raw.lat ??
+            raw.y ??
+            0
+          ) || 0;
+
+          const longitude = parseFloat(
+            item.longitude ??
+            item.lng ??
+            item.lon ??
+            raw.longitude ??
+            raw.lng ??
+            raw.lon ??
+            raw.x ??
+            0
+          ) || 0;
+
+          // [수정] itemType 결정 — type==="all" 시 빈 문자열 방지
+          // 우선순위: item.type → item.raw.type → 경매 고유 필드 판별 → 기본 "real"
+          let itemType = String(item.type || "").trim();
+          if (!itemType) {
+            const rawType = String(raw.type || "").trim();
+            if (rawType === "real" || rawType === "auction") {
+              itemType = rawType;
+            } else if (type === "real") {
+              itemType = "real";
+            } else if (type === "auction") {
+              itemType = "auction";
+            } else {
+              // type === "all": 경매는 caseNumber / case_number / sales_date 필드를 가짐
+              const isAuction = !!(
+                item.caseNumber ||
+                raw.case_number ||
+                raw.sales_date ||
+                item.date && raw.sales_date !== undefined
+              );
+              itemType = isAuction ? "auction" : "real";
+            }
+          }
+
+          // [수정] address 결정 — item.address 가 있으면 우선 사용, 없으면 fallbackAddress
+          const addressText = String(item.address || "").trim() || fallbackAddress;
+
+          // [수정] floor 가공 — 이미 "층"이 포함된 경우 중복 방지 ("1층층" → "1층")
+          const rawFloor = String(item.floor || "").trim();
+          const floorText = rawFloor
+            ? (rawFloor.endsWith("층") ? rawFloor : `${rawFloor}층`)
+            : "";
+
+          return {
+            type: itemType,
+            address: addressText,
+            buildingName: item.buildingName || item.useText || "",
+            date: item.date || "",
+            year: "",
+            floor: floorText,
+            area: item.area ? `${item.area}평` : "",
+            unitPrice: item.unitPriceText || "-",
+            price: item.priceText || "-",
+            latitude,
+            longitude
+          };
+        })
+        // [핵심 수정]
+        // 좌표가 있으면 통과
+        // 좌표가 없어도 주소가 있으면 plotByType -> geocodeIfNeeded()가 처리할 수 있도록 남긴다
+        .filter(item => {
+          const hasLatLng = item.latitude > 0 && item.longitude > 0;
+          const hasAddress = !!String(item.address || "").trim();
+          return hasLatLng || hasAddress;
+        });
+
+      console.log("[setNplDealAuctionMapData] type =", type);
+      console.log("[setNplDealAuctionMapData] rows =", rows);
+      console.log("[setNplDealAuctionMapData] addresses =", addresses);
 
       const selectEl = document.getElementById("deal-type-filter-select");
       if (selectEl) {
@@ -7799,6 +8272,8 @@
         clearDealAuctionMarkers();
         return;
       }
+
+      clearDealAuctionMarkers();
       plotByType(type);
     }
 
@@ -7947,6 +8422,436 @@
       updateCommercialSelectedGroupBadge("");
     }
 
+
+    // =========================
+    // [추가] 관심물건 팝업 유틸
+    // =========================
+    let wishlistModalDragState = {
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      modalLeft: 0,
+      modalTop: 0
+    };
+
+    function getWishlistModalElements() {
+      return {
+        dim: document.getElementById("wishlist-modal-dim"),
+        modal: document.getElementById("wishlist-modal"),
+        title: document.getElementById("wishlist-modal-title"),
+        saveBtn: document.getElementById("wishlist-save-btn"),
+        deleteBtn: document.getElementById("wishlist-delete-btn")
+      };
+    }
+
+    function getCurrentSearchConditionValues() {
+      const regionEl = document.getElementById("npl-region-sample");
+      const sggEl = document.getElementById("npl-sgg-sample");
+      const lawdEl = document.getElementById("npl-lawd-sample");
+      const mainEl = document.getElementById("npl-main-category-sample");
+      const subEl = document.getElementById("npl-sub-category-sample");
+      const applicantEl = document.getElementById("npl-auction-applicant-sample");
+
+      return {
+        region: regionEl?.selectedOptions?.[0]?.textContent || "",
+        sgg: sggEl?.selectedOptions?.[0]?.textContent || "",
+        umd: (lawdEl?.value || "").trim(),
+        mainCategory: (mainEl?.value || "").trim(),
+        subCategory: (subEl?.value || "").trim(),
+        auctionApplicant: (applicantEl?.value || "").trim()
+      };
+    }
+
+    function getWishlistFormData() {
+      return {
+        addressSearch: document.getElementById("wishlist-address-search")?.value || "",
+        addressDetail: document.getElementById("wishlist-address-detail")?.value || "",
+        category: document.getElementById("wishlist-category")?.value || "",
+        floor: document.getElementById("wishlist-floor")?.value || "",
+        buildingPy: document.getElementById("wishlist-building-py")?.value || "",
+        caseNumber: document.getElementById("wishlist-case-number")?.value || "",
+        appraisalPrice: document.getElementById("wishlist-appraisal-price")?.value || "",
+        bondMaxAmount: document.getElementById("wishlist-bond-max-amount")?.value || "",
+        latitude: document.getElementById("wishlist-latitude")?.value || "",
+        longitude: document.getElementById("wishlist-longitude")?.value || "",
+        address1: document.getElementById("wishlist-address1")?.value || "",
+        address2: document.getElementById("wishlist-address2")?.value || "",
+        note: document.getElementById("wishlist-note")?.value || ""
+      };
+    }
+
+    function setWishlistFormData(data = {}) {
+      document.getElementById("wishlist-address-search").value = data.addressSearch || "";
+      document.getElementById("wishlist-address-detail").value = data.addressDetail || "";
+      document.getElementById("wishlist-category").value = data.category || "";
+      document.getElementById("wishlist-floor").value = data.floor || "";
+      document.getElementById("wishlist-building-py").value = data.buildingPy || "";
+      document.getElementById("wishlist-case-number").value = data.caseNumber || "";
+      document.getElementById("wishlist-appraisal-price").value = data.appraisalPrice || "";
+      document.getElementById("wishlist-bond-max-amount").value = data.bondMaxAmount || "";
+      document.getElementById("wishlist-latitude").value = data.latitude || "";
+      document.getElementById("wishlist-longitude").value = data.longitude || "";
+      document.getElementById("wishlist-address1").value = data.address1 || "";
+      document.getElementById("wishlist-address2").value = data.address2 || "";
+      document.getElementById("wishlist-note").value = data.note || "";
+    }
+
+    function buildWishlistPayloadFromRow(row) {
+      return {
+        addressSearch: [row?.region || "", row?.sigungu_name || "", row?.eub_myeon_dong || ""].filter(Boolean).join(" "),
+        addressDetail: row?.address2 || "",
+        category: row?.category || "",
+        floor: getNplFloorText(row),
+        buildingPy: row?.building_py || "",
+        caseNumber: row?.case_number || "",
+        appraisalPrice: row?.appraisal_price || "",
+        bondMaxAmount: row?.bond_max_amount || "",
+        latitude: row?.latitude || row?.lat || "",
+        longitude: row?.longitude || row?.lng || "",
+        address1: row?.address1 || "",
+        address2: row?.address2 || "",
+        note: row?.notice_text || row?.extra_info || ""
+      };
+    }
+
+    function openWishlistModal(mode = "add", row = null) {
+      const els = getWishlistModalElements();
+      if (!els.modal || !els.dim) return;
+
+      currentWishlistModalMode = mode;
+      currentWishlistEditingRow = row || null;
+
+      const searchCond = getCurrentSearchConditionValues();
+
+      if (mode === "edit" && row) {
+        els.title.textContent = "관심물건편집";
+        els.deleteBtn.classList.remove("hidden");
+        setWishlistFormData(buildWishlistPayloadFromRow(row));
+      } else {
+        els.title.textContent = "관심물건추가";
+        els.deleteBtn.classList.add("hidden");
+        setWishlistFormData({
+          addressSearch: [searchCond.region, searchCond.sgg, searchCond.umd].filter(Boolean).join(" "),
+          addressDetail: "",
+          category: "",
+          floor: "",
+          buildingPy: "",
+          caseNumber: "",
+          appraisalPrice: "",
+          bondMaxAmount: "",
+          latitude: "",
+          longitude: "",
+          address1: "",
+          address2: "",
+          note: ""
+        });
+      }
+
+      resetWishlistModalPosition();
+      els.dim.style.display = "block";
+      els.modal.style.display = "block";
+    }
+
+    function closeWishlistModal() {
+      const els = getWishlistModalElements();
+      if (!els.modal || !els.dim) return;
+
+      els.dim.style.display = "none";
+      els.modal.style.display = "none";
+      resetWishlistModalPosition();
+    }
+
+    function resetWishlistModalPosition() {
+      const modal = document.getElementById("wishlist-modal");
+      if (!modal) return;
+
+      modal.style.left = "50%";
+      modal.style.top = "50%";
+      modal.style.transform = "translate(-50%, -50%)";
+    }
+
+    function bindWishlistModalDrag() {
+      const modal = document.getElementById("wishlist-modal");
+      const handle = document.getElementById("wishlist-modal-drag-handle");
+      if (!modal || !handle) return;
+
+      handle.addEventListener("mousedown", function (e) {
+        if (e.target.closest(".wishlist-modal-actions")) return;
+
+        const rect = modal.getBoundingClientRect();
+
+        wishlistModalDragState.isDragging = true;
+        wishlistModalDragState.startX = e.clientX;
+        wishlistModalDragState.startY = e.clientY;
+        wishlistModalDragState.modalLeft = rect.left;
+        wishlistModalDragState.modalTop = rect.top;
+
+        modal.style.left = `${rect.left}px`;
+        modal.style.top = `${rect.top}px`;
+        modal.style.transform = "none";
+
+        document.body.style.userSelect = "none";
+      });
+
+      document.addEventListener("mousemove", function (e) {
+        if (!wishlistModalDragState.isDragging) return;
+
+        const dx = e.clientX - wishlistModalDragState.startX;
+        const dy = e.clientY - wishlistModalDragState.startY;
+
+        modal.style.left = `${wishlistModalDragState.modalLeft + dx}px`;
+        modal.style.top = `${wishlistModalDragState.modalTop + dy}px`;
+      });
+
+      document.addEventListener("mouseup", function () {
+        if (!wishlistModalDragState.isDragging) return;
+
+        wishlistModalDragState.isDragging = false;
+        document.body.style.userSelect = "";
+      });
+    }
+
+    // =========================
+    // [추가] 관심물건 저장/삭제 API 연동
+    // =========================
+    async function saveWishlistItemApi(payload, mode = "add") {
+      const apiUrl = mode === "edit"
+        ? "/api/user/wishlist/update"
+        : "/api/user/wishlist/save";
+
+      const requestBody = {
+        ...payload,
+        tk: currentPanelAccessToken,
+        mode
+      };
+
+      console.log("[관심물건 저장 API 요청]", apiUrl, requestBody);
+
+      // =========================
+      // [샘플] 실제 POST 저장 API
+      // =========================
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!res.ok) {
+        throw new Error(`관심물건 저장 실패: ${res.status}`);
+      }
+
+      return await res.json();
+    }
+
+    async function deleteWishlistItemApi(payload) {
+      const apiUrl = "/api/user/wishlist/delete";
+
+      const requestBody = {
+        ...payload,
+        tk: currentPanelAccessToken
+      };
+
+      console.log("[관심물건 삭제 API 요청]", apiUrl, requestBody);
+
+      // =========================
+      // [샘플] 실제 삭제 API
+      // - 요청사항은 저장은 POST 명시
+      // - 삭제는 샘플로 POST 방식 사용
+      // =========================
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!res.ok) {
+        throw new Error(`관심물건 삭제 실패: ${res.status}`);
+      }
+
+      return await res.json();
+    }
+
+    async function handleWishlistSave() {
+      const formData = getWishlistFormData();
+      console.log("[관심물건 저장/수정 payload]", formData);
+
+      try {
+        if (currentWishlistModalMode === "edit") {
+          const ok = confirm("저장하시겠습니까?");
+          if (!ok) return;
+
+          await saveWishlistItemApi({
+            ...formData,
+            rowId: currentWishlistEditingRow?.id || "",
+            caseNumber: formData.caseNumber || currentWishlistEditingRow?.case_number || ""
+          }, "edit");
+
+          alert("수정되었습니다.");
+          closeWishlistModal();
+          hideWishlistEditButton();
+          await fetchNplData();
+          return;
+        }
+
+        const ok = confirm("저장하시겠습니까?");
+        if (!ok) return;
+
+        await saveWishlistItemApi(formData, "add");
+
+        alert("저장되었습니다.");
+        closeWishlistModal();
+        hideWishlistEditButton();
+        await fetchNplData();
+      } catch (err) {
+        console.error(err);
+        alert("관심물건 저장 중 오류가 발생했습니다.");
+      }
+    }
+
+    async function handleWishlistDelete() {
+      if (currentWishlistModalMode !== "edit") return;
+
+      const ok = confirm("삭제하시겠습니까?");
+      if (!ok) return;
+
+      try {
+        await deleteWishlistItemApi({
+          rowId: currentWishlistEditingRow?.id || "",
+          caseNumber: currentWishlistEditingRow?.case_number || ""
+        });
+
+        alert("삭제되었습니다.");
+        closeWishlistModal();
+        hideWishlistEditButton();
+        await fetchNplData();
+      } catch (err) {
+        console.error(err);
+        alert("관심물건 삭제 중 오류가 발생했습니다.");
+      }
+    }
+
+    // =========================
+    // [추가] 주소검색 이벤트 구조만 우선 구성
+    // =========================
+    function bindWishlistAddressSearchEvent() {
+      const inputEl = document.getElementById("wishlist-address-search");
+      const btnEl = document.getElementById("wishlist-address-search-btn");
+      const resultEl = document.getElementById("wishlist-address-search-result");
+
+      if (inputEl) {
+        inputEl.addEventListener("input", function () {
+          const keyword = (this.value || "").trim();
+          console.log("[관심물건 주소검색 input 이벤트]", keyword);
+
+          if (resultEl) {
+            resultEl.textContent = keyword
+              ? `주소검색 키워드 입력됨: ${keyword} / 차후 API 또는 autocomplete 이벤트 연결 가능`
+              : "주소 키워드 입력 이벤트를 차후 연결할 수 있도록 기본 구조만 구성됨";
+          }
+        });
+      }
+
+      if (btnEl) {
+        btnEl.addEventListener("click", function () {
+          const keyword = (inputEl?.value || "").trim();
+          console.log("[관심물건 주소검색 버튼 클릭]", keyword);
+
+          if (resultEl) {
+            resultEl.textContent = keyword
+              ? `검색 버튼 클릭: ${keyword} / 차후 실제 주소검색 연동 예정`
+              : "검색어를 입력하세요.";
+          }
+        });
+      }
+    }
+
+    function syncWishlistActionButtonsLayout() {
+      const actionsEl = document.getElementById("npl-search-actions");
+      const editBtn = document.getElementById("npl-edit-wishlist-btn");
+      if (!actionsEl || !editBtn) return;
+
+      const isEditVisible = !editBtn.classList.contains("hidden");
+
+      actionsEl.classList.remove("has-3-buttons", "has-4-buttons");
+      actionsEl.classList.add(isEditVisible ? "has-4-buttons" : "has-3-buttons");
+    }
+
+    function hideWishlistEditButton() {
+      const editBtn = document.getElementById("npl-edit-wishlist-btn");
+      if (!editBtn) return;
+
+      editBtn.classList.add("hidden");
+      syncWishlistActionButtonsLayout();
+    }
+
+    function showWishlistEditButton() {
+      const editBtn = document.getElementById("npl-edit-wishlist-btn");
+      if (!editBtn) return;
+
+      editBtn.classList.remove("hidden");
+      syncWishlistActionButtonsLayout();
+    }
+
+    function bindWishlistModalEvents() {
+      const addBtn = document.getElementById("npl-add-wishlist-btn");
+      const editBtn = document.getElementById("npl-edit-wishlist-btn");
+      const closeBtn = document.getElementById("wishlist-close-btn");
+      const saveBtn = document.getElementById("wishlist-save-btn");
+      const deleteBtn = document.getElementById("wishlist-delete-btn");
+      const dim = document.getElementById("wishlist-modal-dim");
+
+      if (addBtn) {
+        addBtn.addEventListener("click", function () {
+          openWishlistModal("add", null);
+        });
+      }
+
+      if (editBtn) {
+        editBtn.addEventListener("click", function () {
+          if (!nplSelectedRow) {
+            alert("먼저 검색리스트에서 관심물건을 선택하세요.");
+            return;
+          }
+          openWishlistModal("edit", nplSelectedRow);
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function () {
+          closeWishlistModal();
+        });
+      }
+
+      if (saveBtn) {
+        saveBtn.addEventListener("click", function () {
+          handleWishlistSave();
+        });
+      }
+
+      if (deleteBtn) {
+        deleteBtn.addEventListener("click", function () {
+          handleWishlistDelete();
+        });
+      }
+
+      if (dim) {
+        dim.addEventListener("click", function () {
+          closeWishlistModal();
+        });
+      }
+      bindWishlistAddressSearchEvent();
+    }
+
+    // DOMContentLoaded 이벤트에서 관심물건 모달 관련 이벤트 바인딩 및 드래그 기능 활성화
+    document.addEventListener("DOMContentLoaded", function () {
+      bindWishlistModalEvents();
+      bindWishlistModalDrag();
+    });
+
     // 테스트용
     // window.postMessage({addresses:[ ... ]}, "*");
 
@@ -7957,5 +8862,115 @@
     //   {address:'서울 중구 세종대로 110, 1층 101호(중구,테스트빌딩)', type:'auction', date:'2025-08-27', floor:'1층 101호', area:'33평', unitPrice:'-', price:'120,000,000', apt_name:'테스트빌딩'}
     // ]}, "*");
   </script>
+  <!-- =========================
+    [추가] 관심물건 추가/편집 팝업
+  ========================= -->
+  <div id="wishlist-modal-dim" class="wishlist-modal-dim"></div>
+
+  <div id="wishlist-modal" class="wishlist-modal">
+    <div id="wishlist-modal-drag-handle" class="wishlist-modal-header">
+      <div id="wishlist-modal-title" class="wishlist-modal-title">관심물건추가</div>
+
+      <div class="wishlist-modal-actions">
+        <button id="wishlist-save-btn" type="button" class="wishlist-modal-btn wishlist-save-btn">저장</button>
+        <button id="wishlist-delete-btn" type="button" class="wishlist-modal-btn wishlist-delete-btn hidden">삭제</button>
+        <button id="wishlist-close-btn" type="button" class="wishlist-modal-btn wishlist-close-btn">닫기</button>
+      </div>
+    </div>
+
+    <div class="wishlist-modal-body">
+      <div class="wishlist-section">
+        <div class="wishlist-section-title">주소검색</div>
+
+        <div class="wishlist-address-row">
+          <div class="wishlist-form-group">
+            <label for="wishlist-address-search">주소검색</label>
+            <input id="wishlist-address-search" type="text" placeholder="예: 경기도 김포시 운양동" />
+          </div>
+
+          <div class="wishlist-form-group">
+            <label for="wishlist-address-detail">상세주소</label>
+            <input id="wishlist-address-detail" type="text" placeholder="예: 101동 1203호" />
+          </div>
+
+          <div class="wishlist-form-group">
+            <label>&nbsp;</label>
+            <button id="wishlist-address-search-btn" type="button" class="wishlist-modal-btn wishlist-save-btn">검색</button>
+          </div>
+        </div>
+
+        <div id="wishlist-address-search-result" class="wishlist-search-result-box">
+          주소 키워드 입력 이벤트를 차후 연결할 수 있도록 기본 구조만 구성됨
+        </div>
+      </div>
+
+      <div class="wishlist-section">
+        <div class="wishlist-section-title">공통내용</div>
+
+        <div class="wishlist-inline-list">
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">물건구분</span>
+            <input id="wishlist-category" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">층</span>
+            <input id="wishlist-floor" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">평수</span>
+            <input id="wishlist-building-py" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">사건번호</span>
+            <input id="wishlist-case-number" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">감정가</span>
+            <input id="wishlist-appraisal-price" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">채권최고액</span>
+            <input id="wishlist-bond-max-amount" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">위도</span>
+            <input id="wishlist-latitude" type="text" />
+          </div>
+
+          <div class="wishlist-inline-item">
+            <span class="wishlist-inline-label">경도</span>
+            <input id="wishlist-longitude" type="text" />
+          </div>
+        </div>
+      </div>
+
+      <div class="wishlist-section">
+        <div class="wishlist-section-title">기타</div>
+
+        <div class="wishlist-grid-1">
+          <div class="wishlist-form-group">
+            <label for="wishlist-address1">주소1</label>
+            <input id="wishlist-address1" type="text" />
+          </div>
+
+          <div class="wishlist-form-group">
+            <label for="wishlist-address2">주소2</label>
+            <input id="wishlist-address2" type="text" />
+          </div>
+
+          <div class="wishlist-form-group">
+            <label for="wishlist-note">비고</label>
+            <textarea id="wishlist-note" placeholder="추가 메모"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

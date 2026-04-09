@@ -31,6 +31,9 @@ from io import BytesIO
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from license.make_license import generate_fixed_key
 from master.user_hist_db_utils import add_subscription_hist, user_hist_read_db, count_user_trial_hist_db
+from master.user_wishlist_db_utils import wishlist_read_db
+
+from master.user_wishlist_db_utils import wishlist_read_db
 from pubdata.public_land_commerical_area_info_db_utils import search_by_ldong
 from pubdata.public_land_sanga_db_utils import public_read_sanga_by_region
 from pubdata.public_land_villa_db_utils import public_read_villa_by_region
@@ -931,6 +934,7 @@ def user_hist(user_id):
 
     return jsonify(user_hist_info)
 
+
 #==========================================================
 # 사용자 아이디 중복체크
 @app.route('/api/user/dup_check', methods=['POST'])
@@ -1045,6 +1049,44 @@ def get_users_data():
     print(data)
 
     return jsonify(data)
+
+
+# 나에관심물건 관심물건(경매/공매) 데이타 조회
+@app.route('/api/user/wishlist', methods=['GET'])
+@kakao_extool_auth_required
+def get_user_interest_property(user_id):
+    #
+    lawdCd = request.args.get('lawdCd', '')
+    region = request.args.get('region', '')
+    sggNm = request.args.get('sggNm', '')
+    umdNm = request.args.get('umdNm', '')
+    mainCategory = request.args.get('mainCategory', '')
+    subCategory = request.args.get('subCategory', '')
+
+    if region == '전체':
+        region = ''
+    if sggNm == '전체':
+        sggNm = ''
+    if umdNm == '전체':
+        umdNm = ''
+
+    print(
+        f"DB - 법정동코드: {lawdCd}, 지역명: {region}, 시군구명: {sggNm}, 법정동명: {umdNm}, 메인 카테고리: {mainCategory}, 서브 카테고리: {subCategory}")
+
+    categories = []
+    if mainCategory == '' and subCategory == '':
+        categories = ''
+    elif mainCategory != '' and subCategory == '':
+        categories = category_mappings[mainCategory]
+    else:
+        # subCategory 단일값을 배열 형태로
+        categories = [subCategory]
+
+    # 나에 관심물건 데이타 읽기
+    data = wishlist_read_db(user_id, lawdCd, region, sggNm, umdNm, categories)
+
+    return jsonify(data)
+
 
 #==== 크롤링db에 법정동코드 테이를 목록가져오기 autocomplete용(국토부대체) ========
 @app.route('/api/lawdcd/autocomplete')
@@ -1758,8 +1800,10 @@ def ext_tool_map(user_id):
     # 인증토큰
     access_token = request.args.get("tk", "")
 
-    # NPL 경매데이타 검색
-    if menu == 'npl_map_popup':
+    # WISHLIST(관심물건)/NPL 경매데이타 검색
+    if menu == 'wishlist_map_popup':
+        return render_template("extool_wishlist_map_popup.html", access_token=access_token)
+    elif menu == 'npl_map_popup':
         return render_template("extool_npl_map_popup.html", access_token=access_token)
     else:
         return render_template("extool_map_popup.html", access_token=access_token)

@@ -559,7 +559,7 @@
     document.getElementById('sendButton').addEventListener('click', () => {
       if (selectedItems.length === 0) { alert('전송할 대상이 없습니다.'); return; }
       if (!messageTitle.value.trim() || !messageContent.value.trim()) { alert('제목과 메시지를 입력해주세요.'); return; }
-      if (fileList.length === 0) { alert('첨부파일을 선택해주세요.'); return; }
+      //if (fileList.length === 0) { alert('첨부파일을 선택해주세요.'); return; }
 
       document.getElementById('previewTitle').textContent =
         document.querySelector('input[name="sendChannel"]:checked').nextSibling.textContent.trim() + " 전송 미리보기";
@@ -588,8 +588,8 @@
 
     // 실제 전송 (확인)  — 기존 핸들러 전체 교체
     document.getElementById('confirmSend').addEventListener('click', () => {
-        alert('준비중입니다.');
-        return;
+        // alert('준비중입니다.');
+        // return;
 
       // 제목/메시지/파일/대상 체크(미리보기 전에 이미 했겠지만 안전 차원에서 한 번 더)
       const titleEl = document.getElementById('message-title');
@@ -605,10 +605,10 @@
         alert('제목과 메시지를 입력해주세요.');
         return;
       }
-      if (!Array.isArray(fileList) || fileList.length === 0) {
-        alert('첨부파일을 선택해주세요.');
-        return;
-      }
+      // if (!Array.isArray(fileList) || fileList.length === 0) {
+      //   alert('첨부파일을 선택해주세요.');
+      //   return;
+      // }
 
       // ===== 전송 타입별 레이블 맵
       const typeLabels = {
