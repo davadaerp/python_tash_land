@@ -2203,6 +2203,71 @@
       background: linear-gradient(135deg, #dbeafe 0%, #ffffff 100%);
     }
 
+
+    /* =========================
+    [추가] 관심물건 팝업 개편형
+    ========================= */
+    .wishlist-row-block {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .wishlist-row-block.has-search-btn {
+      grid-template-columns: 110px minmax(0, 1fr) 96px;
+    }
+
+    .wishlist-row-label {
+      font-size: 13px;
+      font-weight: 900;
+      color: #1e3a8a;
+      white-space: nowrap;
+    }
+
+    .wishlist-row-control,
+    .wishlist-row-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .wishlist-row-control input,
+    .wishlist-row-control select,
+    .wishlist-row-inline input,
+    .wishlist-row-inline select {
+      height: 38px;
+      border: 1px solid #d7e3f1;
+      border-radius: 12px;
+      background: #f7fbff;
+      padding: 0 12px;
+      font-size: 13px;
+      color: #111827;
+    }
+
+    .wishlist-field-compact {
+      width: 92px !important;
+      max-width: 92px !important;
+      min-width: 92px !important;
+      text-align: center;
+    }
+
+    .wishlist-field-money {
+      width: 170px !important;
+      max-width: 170px !important;
+      text-align: right !important;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .wishlist-field-money {
+      width: 170px !important;
+      max-width: 170px !important;
+      text-align: right !important;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -5922,11 +5987,6 @@
       return !!(lat && lng);
     }
 
-    function formatNumberWithComma(v) {
-      const num = Number(v || 0);
-      return num ? num.toLocaleString("ko-KR") : "0";
-    }
-
     function calculateEvaluationDate(startDecisionDateStr) {
       if (!startDecisionDateStr) {
         return {
@@ -5959,7 +6019,6 @@
         evaluationDate
       };
     }
-
 
     async function loadNplTypeCategories() {
       try {
@@ -8422,10 +8481,26 @@
       updateCommercialSelectedGroupBadge("");
     }
 
+    // DOMContentLoaded 이벤트에서 관심물건 모달 관련 이벤트 바인딩 및 드래그 기능 활성화
+    document.addEventListener("DOMContentLoaded", function () {
+      bindWishlistModalEvents();
+      bindWishlistModalDrag();
+    });
 
-    // =========================
-    // [추가] 관심물건 팝업 유틸
-    // =========================
+    // 테스트용
+    // window.postMessage({addresses:[ ... ]}, "*");
+
+    // 테스트용
+    // window.postMessage({addresses:[
+    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-30', floor:'10층', area:'33.7평', unitPrice:'36,000,000', price:'1,200,000,000', apt_name:'테스트빌딩'},
+    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-28', floor:'12층', area:'25평', unitPrice:'32,000,000', price:'800,000,000', apt_name:'테스트빌딩'},
+    //   {address:'서울 중구 세종대로 110, 1층 101호(중구,테스트빌딩)', type:'auction', date:'2025-08-27', floor:'1층 101호', area:'33평', unitPrice:'-', price:'120,000,000', apt_name:'테스트빌딩'}
+    // ]}, "*");
+
+    // ================================================
+    // [테스트] 관심물건 팝업 저장/수정/삭제 API 테스트 함수
+    // - 실제 API 연동 시, 아래 함수들은 handleWishlistSave() / handleWishlistDelete() 내부에서 호출됨
+    // ================================================
     let wishlistModalDragState = {
       isDragging: false,
       startX: 0,
@@ -8459,58 +8534,6 @@
         mainCategory: (mainEl?.value || "").trim(),
         subCategory: (subEl?.value || "").trim(),
         auctionApplicant: (applicantEl?.value || "").trim()
-      };
-    }
-
-    function getWishlistFormData() {
-      return {
-        addressSearch: document.getElementById("wishlist-address-search")?.value || "",
-        addressDetail: document.getElementById("wishlist-address-detail")?.value || "",
-        category: document.getElementById("wishlist-category")?.value || "",
-        floor: document.getElementById("wishlist-floor")?.value || "",
-        buildingPy: document.getElementById("wishlist-building-py")?.value || "",
-        caseNumber: document.getElementById("wishlist-case-number")?.value || "",
-        appraisalPrice: document.getElementById("wishlist-appraisal-price")?.value || "",
-        bondMaxAmount: document.getElementById("wishlist-bond-max-amount")?.value || "",
-        latitude: document.getElementById("wishlist-latitude")?.value || "",
-        longitude: document.getElementById("wishlist-longitude")?.value || "",
-        address1: document.getElementById("wishlist-address1")?.value || "",
-        address2: document.getElementById("wishlist-address2")?.value || "",
-        note: document.getElementById("wishlist-note")?.value || ""
-      };
-    }
-
-    function setWishlistFormData(data = {}) {
-      document.getElementById("wishlist-address-search").value = data.addressSearch || "";
-      document.getElementById("wishlist-address-detail").value = data.addressDetail || "";
-      document.getElementById("wishlist-category").value = data.category || "";
-      document.getElementById("wishlist-floor").value = data.floor || "";
-      document.getElementById("wishlist-building-py").value = data.buildingPy || "";
-      document.getElementById("wishlist-case-number").value = data.caseNumber || "";
-      document.getElementById("wishlist-appraisal-price").value = data.appraisalPrice || "";
-      document.getElementById("wishlist-bond-max-amount").value = data.bondMaxAmount || "";
-      document.getElementById("wishlist-latitude").value = data.latitude || "";
-      document.getElementById("wishlist-longitude").value = data.longitude || "";
-      document.getElementById("wishlist-address1").value = data.address1 || "";
-      document.getElementById("wishlist-address2").value = data.address2 || "";
-      document.getElementById("wishlist-note").value = data.note || "";
-    }
-
-    function buildWishlistPayloadFromRow(row) {
-      return {
-        addressSearch: [row?.region || "", row?.sigungu_name || "", row?.eub_myeon_dong || ""].filter(Boolean).join(" "),
-        addressDetail: row?.address2 || "",
-        category: row?.category || "",
-        floor: getNplFloorText(row),
-        buildingPy: row?.building_py || "",
-        caseNumber: row?.case_number || "",
-        appraisalPrice: row?.appraisal_price || "",
-        bondMaxAmount: row?.bond_max_amount || "",
-        latitude: row?.latitude || row?.lat || "",
-        longitude: row?.longitude || row?.lng || "",
-        address1: row?.address1 || "",
-        address2: row?.address2 || "",
-        note: row?.notice_text || row?.extra_info || ""
       };
     }
 
@@ -8611,164 +8634,6 @@
       });
     }
 
-    // =========================
-    // [추가] 관심물건 저장/삭제 API 연동
-    // =========================
-    async function saveWishlistItemApi(payload, mode = "add") {
-      const apiUrl = mode === "edit"
-        ? "/api/user/wishlist/update"
-        : "/api/user/wishlist/save";
-
-      const requestBody = {
-        ...payload,
-        tk: currentPanelAccessToken,
-        mode
-      };
-
-      console.log("[관심물건 저장 API 요청]", apiUrl, requestBody);
-
-      // =========================
-      // [샘플] 실제 POST 저장 API
-      // =========================
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!res.ok) {
-        throw new Error(`관심물건 저장 실패: ${res.status}`);
-      }
-
-      return await res.json();
-    }
-
-    async function deleteWishlistItemApi(payload) {
-      const apiUrl = "/api/user/wishlist/delete";
-
-      const requestBody = {
-        ...payload,
-        tk: currentPanelAccessToken
-      };
-
-      console.log("[관심물건 삭제 API 요청]", apiUrl, requestBody);
-
-      // =========================
-      // [샘플] 실제 삭제 API
-      // - 요청사항은 저장은 POST 명시
-      // - 삭제는 샘플로 POST 방식 사용
-      // =========================
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!res.ok) {
-        throw new Error(`관심물건 삭제 실패: ${res.status}`);
-      }
-
-      return await res.json();
-    }
-
-    async function handleWishlistSave() {
-      const formData = getWishlistFormData();
-      console.log("[관심물건 저장/수정 payload]", formData);
-
-      try {
-        if (currentWishlistModalMode === "edit") {
-          const ok = confirm("저장하시겠습니까?");
-          if (!ok) return;
-
-          await saveWishlistItemApi({
-            ...formData,
-            rowId: currentWishlistEditingRow?.id || "",
-            caseNumber: formData.caseNumber || currentWishlistEditingRow?.case_number || ""
-          }, "edit");
-
-          alert("수정되었습니다.");
-          closeWishlistModal();
-          hideWishlistEditButton();
-          await fetchNplData();
-          return;
-        }
-
-        const ok = confirm("저장하시겠습니까?");
-        if (!ok) return;
-
-        await saveWishlistItemApi(formData, "add");
-
-        alert("저장되었습니다.");
-        closeWishlistModal();
-        hideWishlistEditButton();
-        await fetchNplData();
-      } catch (err) {
-        console.error(err);
-        alert("관심물건 저장 중 오류가 발생했습니다.");
-      }
-    }
-
-    async function handleWishlistDelete() {
-      if (currentWishlistModalMode !== "edit") return;
-
-      const ok = confirm("삭제하시겠습니까?");
-      if (!ok) return;
-
-      try {
-        await deleteWishlistItemApi({
-          rowId: currentWishlistEditingRow?.id || "",
-          caseNumber: currentWishlistEditingRow?.case_number || ""
-        });
-
-        alert("삭제되었습니다.");
-        closeWishlistModal();
-        hideWishlistEditButton();
-        await fetchNplData();
-      } catch (err) {
-        console.error(err);
-        alert("관심물건 삭제 중 오류가 발생했습니다.");
-      }
-    }
-
-    // =========================
-    // [추가] 주소검색 이벤트 구조만 우선 구성
-    // =========================
-    function bindWishlistAddressSearchEvent() {
-      const inputEl = document.getElementById("wishlist-address-search");
-      const btnEl = document.getElementById("wishlist-address-search-btn");
-      const resultEl = document.getElementById("wishlist-address-search-result");
-
-      if (inputEl) {
-        inputEl.addEventListener("input", function () {
-          const keyword = (this.value || "").trim();
-          console.log("[관심물건 주소검색 input 이벤트]", keyword);
-
-          if (resultEl) {
-            resultEl.textContent = keyword
-              ? `주소검색 키워드 입력됨: ${keyword} / 차후 API 또는 autocomplete 이벤트 연결 가능`
-              : "주소 키워드 입력 이벤트를 차후 연결할 수 있도록 기본 구조만 구성됨";
-          }
-        });
-      }
-
-      if (btnEl) {
-        btnEl.addEventListener("click", function () {
-          const keyword = (inputEl?.value || "").trim();
-          console.log("[관심물건 주소검색 버튼 클릭]", keyword);
-
-          if (resultEl) {
-            resultEl.textContent = keyword
-              ? `검색 버튼 클릭: ${keyword} / 차후 실제 주소검색 연동 예정`
-              : "검색어를 입력하세요.";
-          }
-        });
-      }
-    }
-
     function syncWishlistActionButtonsLayout() {
       const actionsEl = document.getElementById("npl-search-actions");
       const editBtn = document.getElementById("npl-edit-wishlist-btn");
@@ -8796,71 +8661,385 @@
       syncWishlistActionButtonsLayout();
     }
 
-    function bindWishlistModalEvents() {
-      const addBtn = document.getElementById("npl-add-wishlist-btn");
-      const editBtn = document.getElementById("npl-edit-wishlist-btn");
-      const closeBtn = document.getElementById("wishlist-close-btn");
-      const saveBtn = document.getElementById("wishlist-save-btn");
-      const deleteBtn = document.getElementById("wishlist-delete-btn");
-      const dim = document.getElementById("wishlist-modal-dim");
-
-      if (addBtn) {
-        addBtn.addEventListener("click", function () {
-          openWishlistModal("add", null);
-        });
-      }
-
-      if (editBtn) {
-        editBtn.addEventListener("click", function () {
-          if (!nplSelectedRow) {
-            alert("먼저 검색리스트에서 관심물건을 선택하세요.");
-            return;
-          }
-          openWishlistModal("edit", nplSelectedRow);
-        });
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener("click", function () {
-          closeWishlistModal();
-        });
-      }
-
-      if (saveBtn) {
-        saveBtn.addEventListener("click", function () {
-          handleWishlistSave();
-        });
-      }
-
-      if (deleteBtn) {
-        deleteBtn.addEventListener("click", function () {
-          handleWishlistDelete();
-        });
-      }
-
-      if (dim) {
-        dim.addEventListener("click", function () {
-          closeWishlistModal();
-        });
-      }
-      bindWishlistAddressSearchEvent();
+    function safeDigitsOnly(value) {
+      return String(value || "").replace(/[^\d]/g, "");
     }
 
-    // DOMContentLoaded 이벤트에서 관심물건 모달 관련 이벤트 바인딩 및 드래그 기능 활성화
-    document.addEventListener("DOMContentLoaded", function () {
-      bindWishlistModalEvents();
-      bindWishlistModalDrag();
-    });
+    function formatNumberWithComma(value) {
+      const digits = safeDigitsOnly(value);
+      if (!digits) return "";
+      return Number(digits).toLocaleString("ko-KR");
+    }
 
-    // 테스트용
-    // window.postMessage({addresses:[ ... ]}, "*");
+    function buildWishlistSubCategoryOptions(category) {
+        const selectEl = document.getElementById("wishlist-sub-category");
+        if (!selectEl) return;
 
-    // 테스트용
-    // window.postMessage({addresses:[
-    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-30', floor:'10층', area:'33.7평', unitPrice:'36,000,000', price:'1,200,000,000', apt_name:'테스트빌딩'},
-    //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-28', floor:'12층', area:'25평', unitPrice:'32,000,000', price:'800,000,000', apt_name:'테스트빌딩'},
-    //   {address:'서울 중구 세종대로 110, 1층 101호(중구,테스트빌딩)', type:'auction', date:'2025-08-27', floor:'1층 101호', area:'33평', unitPrice:'-', price:'120,000,000', apt_name:'테스트빌딩'}
-    // ]}, "*");
+        const subCategoryMap = {
+          "아파트": ["아파트", "주상복합", "오피스텔(주거)"],
+          "상가": ["근린상가", "단지내상가", "복합상가", "오피스상가"],
+          "빌라": ["빌라", "연립", "다세대", "도시형생활주택"],
+          "다가구": ["다가구", "단독주택", "다가구주택"]
+        };
+
+        const safeCategory = String(category || "").trim();
+        const options = subCategoryMap[safeCategory] || [safeCategory || "선택"];
+
+        selectEl.innerHTML = options.map(item => `<option value="${item}">${item}</option>`).join("");
+      }
+
+      function bindWishlistCategoryChangeEvent() {
+        const mainEl = document.getElementById("wishlist-category");
+        if (!mainEl) return;
+
+        mainEl.addEventListener("change", function () {
+          buildWishlistSubCategoryOptions(this.value);
+        });
+      }
+
+      function updateWishlistAreaM2View() {
+        const pyInput = document.getElementById("wishlist-building-py");
+        const viewEl = document.getElementById("wishlist-building-m2-view");
+        if (!pyInput || !viewEl) return;
+
+        const py = parseFloat(String(pyInput.value || "").replace(/[^\d.]/g, ""));
+        if (!isFinite(py) || py <= 0) {
+          viewEl.textContent = "면적 자동계산";
+          viewEl.dataset.value = "";
+          return;
+        }
+
+        const m2 = py * 3.305785;
+        viewEl.dataset.value = m2.toFixed(2);
+        viewEl.textContent = `${m2.toFixed(2)}㎡`;
+      }
+
+      function bindWishlistNumericFormatter() {
+        ["wishlist-appraisal-price", "wishlist-bond-max-amount", "wishlist-bond-claim-amount"].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+
+          el.addEventListener("input", function () {
+            this.value = formatNumberWithComma(this.value);
+          });
+        });
+
+        const pyEl = document.getElementById("wishlist-building-py");
+        if (pyEl) {
+          pyEl.addEventListener("input", function () {
+            this.value = String(this.value || "").replace(/[^\d.]/g, "");
+            updateWishlistAreaM2View();
+          });
+        }
+      }
+
+      function parseAddressSearchText(addressText) {
+        const raw = String(addressText || "").trim();
+
+        if (!raw) {
+          return {
+            region: "",
+            sigungu: "",
+            umd: ""
+          };
+        }
+
+        // 공백 기준 분리
+        const parts = raw.split(/\s+/).filter(Boolean);
+
+        // 예:
+        // "경기도 김포시 운양동"
+        // "서울특별시 강남구 역삼동"
+        // "부산광역시 해운대구 우동"
+        return {
+          region: parts[0] || "",
+          sigungu: parts[1] || "",
+          umd: parts.slice(2).join(" ") || ""
+        };
+      }
+
+      function getWishlistFormData() {
+        const addressSearch = document.getElementById("wishlist-address-search")?.value || "";
+        const parsedAddress = parseAddressSearchText(addressSearch);
+
+        return {
+          addressSearch,
+          addressDetail: document.getElementById("wishlist-address-detail")?.value || "",
+          category: document.getElementById("wishlist-category")?.value || "",
+          subCategory: document.getElementById("wishlist-sub-category")?.value || "",
+          floor: document.getElementById("wishlist-floor")?.value || "",
+          buildingPy: document.getElementById("wishlist-building-py")?.value || "",
+          buildingM2: document.getElementById("wishlist-building-m2-view")?.dataset.value || "",
+          caseNumber: document.getElementById("wishlist-case-number")?.value || "",
+          auctionApplicant: document.getElementById("wishlist-auction-applicant")?.value || "",
+          auctionMethod: document.getElementById("wishlist-auction-method")?.value || "임의경매",
+          appraisalPrice: document.getElementById("wishlist-appraisal-price")?.value || "",
+          bondMaxAmount: document.getElementById("wishlist-bond-max-amount")?.value || "",
+          bondClaimAmount: document.getElementById("wishlist-bond-claim-amount")?.value || "",
+          note: document.getElementById("wishlist-note")?.value || "",
+          region: parsedAddress.region,
+          sigunguName: parsedAddress.sigungu,
+          eubMyeonDong: parsedAddress.umd
+        };
+      }
+
+      function setWishlistFormData(data = {}) {
+        document.getElementById("wishlist-address-search").value = data.addressSearch || "";
+        document.getElementById("wishlist-address-detail").value = data.addressDetail || "";
+
+        const categoryEl = document.getElementById("wishlist-category");
+        if (categoryEl) {
+          categoryEl.value = data.category || "아파트";
+        }
+
+        buildWishlistSubCategoryOptions(data.category || "아파트");
+        const subEl = document.getElementById("wishlist-sub-category");
+        if (subEl) {
+          subEl.value = data.subCategory || subEl.options?.[0]?.value || "";
+        }
+
+        document.getElementById("wishlist-floor").value = data.floor || "";
+        document.getElementById("wishlist-building-py").value = data.buildingPy || "";
+        document.getElementById("wishlist-case-number").value = data.caseNumber || "";
+        document.getElementById("wishlist-case-number").disabled = currentWishlistModalMode === "edit";
+        document.getElementById("wishlist-auction-applicant").value = data.auctionApplicant || "";
+        document.getElementById("wishlist-auction-method").value = data.auctionMethod || "임의경매";
+        document.getElementById("wishlist-appraisal-price").value = formatNumberWithComma(data.appraisalPrice || "");
+        document.getElementById("wishlist-bond-max-amount").value = formatNumberWithComma(data.bondMaxAmount || "");
+        document.getElementById("wishlist-bond-claim-amount").value = formatNumberWithComma(data.bondClaimAmount || "");
+        //
+        document.getElementById("wishlist-note").value = data.note || "";
+        updateWishlistAreaM2View();
+
+        const resultEl = document.getElementById("wishlist-address-search-result");
+        if (resultEl) {
+          resultEl.textContent = data.addressSearch
+            ? `선택주소: ${data.addressSearch}${data.addressDetail ? " / " + data.addressDetail : ""}`
+            : "주소검색 후 선택 결과가 표시됩니다.";
+        }
+      }
+
+      function buildWishlistPayloadFromRow(row) {
+        return {
+          addressSearch: [row?.region || "", row?.sigungu_name || "", row?.eub_myeon_dong || ""].filter(Boolean).join(" "),
+          addressDetail: row?.address2 || "",
+          category: row?.category || "",
+          subCategory: row?.building || row?.dangi_name || "",
+          floor: row?.floor || "",
+          buildingPy: row?.building_py || "",
+          buildingM2: row?.building_m2 || "",
+          caseNumber: row?.case_number || "",
+          auctionApplicant: row?.auction_applicant || "",
+          auctionMethod: row?.auction_method || "임의경매",
+          appraisalPrice: row?.appraisal_price || "",
+          bondMaxAmount: row?.bond_max_amount || "",
+          bondClaimAmount: row?.bond_claim_amount || "",
+          note: row?.notice_text || row?.extra_info || ""
+        };
+      }
+
+      async function handleWishlistAddressSearch() {
+        const keyword = (document.getElementById("wishlist-address-search")?.value || "").trim();
+        const detail = (document.getElementById("wishlist-address-detail")?.value || "").trim();
+        const resultEl = document.getElementById("wishlist-address-search-result");
+
+        if (!keyword) {
+          if (resultEl) resultEl.textContent = "검색어를 입력하세요.";
+          return;
+        }
+
+        try {
+          const data = await postWishlistCrudApi("address_search", {
+            address_search: keyword,
+            address_detail: detail
+          });
+
+          if (resultEl) {
+            resultEl.textContent = data?.message || "주소검색 완료";
+          }
+        } catch (err) {
+          console.error(err);
+          if (resultEl) {
+            resultEl.textContent = err?.message || "주소검색 중 오류가 발생했습니다.";
+          }
+        }
+      }
+
+      function bindWishlistAddressSearchEvent() {
+        const inputEl = document.getElementById("wishlist-address-search");
+        const btnEl = document.getElementById("wishlist-address-search-btn");
+        const resultEl = document.getElementById("wishlist-address-search-result");
+
+        if (inputEl) {
+          inputEl.addEventListener("input", function () {
+            const keyword = (this.value || "").trim();
+
+            if (resultEl) {
+              resultEl.textContent = keyword
+                ? `입력주소: ${keyword}`
+                : "주소검색 후 선택 결과가 표시됩니다.";
+            }
+          });
+        }
+
+        if (btnEl) {
+          btnEl.addEventListener("click", function () {
+            handleWishlistAddressSearch();
+          });
+        }
+      }
+
+      // 관심물건 CRUD API 호출 함수
+      async function postWishlistCrudApi(action, payload = {}) {
+        const apiUrl = "/api/user/wishlist/crud";
+
+        const requestBody = {
+          action,
+          ...payload
+        };
+
+        console.log("[관심물건 CRUD API 요청]", apiUrl, requestBody);
+
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${currentPanelAccessToken}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data?.success === false) {
+          throw new Error(data?.message || `관심물건 ${action} 실패`);
+        }
+
+        return data;
+      }
+
+      // 관심물건 CRUD API 요청을 위한 페이로드 빌드 함수
+      function buildWishlistCrudPayload(formData, mode = "add") {
+        return {
+          case_number: mode === "edit"
+            ? (currentWishlistEditingRow?.case_number || formData.caseNumber || "")
+            : (formData.caseNumber || ""),
+          category: formData.category || "",
+          building: formData.subCategory || "",
+          floor: formData.floor || "",
+          building_py: formData.buildingPy || "",
+          building_m2: formData.buildingM2 || "",
+          auction_applicant: formData.auctionApplicant || "",
+          auction_method: formData.auctionMethod || "임의경매",
+          appraisal_price: safeDigitsOnly(formData.appraisalPrice || ""),
+          bond_max_amount: safeDigitsOnly(formData.bondMaxAmount || ""),
+          bond_claim_amount: safeDigitsOnly(formData.bondClaimAmount || ""),
+          address_search: formData.addressSearch || "",
+          address_detail: formData.addressDetail || "",
+          region: formData.region || "",
+          sigungu_name: formData.sigunguName || "",
+          eub_myeon_dong: formData.eubMyeonDong || "",
+          extra_info: formData.note || "",
+          notice_text: formData.note || ""
+        };
+      }
+
+      // 관심물건 저장/수정 처리 함수
+      async function handleWishlistSave() {
+        const formData = getWishlistFormData();
+        console.log("[관심물건 저장/수정 payload]", formData);
+
+        try {
+          const ok = confirm("저장하시겠습니까?");
+          if (!ok) return;
+
+          const action = currentWishlistModalMode === "edit" ? "update" : "create";
+          await postWishlistCrudApi(action, buildWishlistCrudPayload(formData, currentWishlistModalMode));
+
+          alert(currentWishlistModalMode === "edit" ? "수정되었습니다." : "저장되었습니다.");
+          closeWishlistModal();
+          hideWishlistEditButton();
+          await fetchNplData();
+        } catch (err) {
+          console.error(err);
+          alert(err?.message || "관심물건 저장 중 오류가 발생했습니다.");
+        }
+      }
+
+      async function handleWishlistDelete() {
+        if (currentWishlistModalMode !== "edit") return;
+
+        const ok = confirm("삭제하시겠습니까?");
+        if (!ok) return;
+
+        try {
+          await postWishlistCrudApi("delete", {
+            case_number: currentWishlistEditingRow?.case_number || ""
+          });
+
+          alert("삭제되었습니다.");
+          closeWishlistModal();
+          hideWishlistEditButton();
+          await fetchNplData();
+        } catch (err) {
+          console.error(err);
+          alert(err?.message || "관심물건 삭제 중 오류가 발생했습니다.");
+        }
+      }
+
+      function bindWishlistModalEvents() {
+        const addBtn = document.getElementById("npl-add-wishlist-btn");
+        const editBtn = document.getElementById("npl-edit-wishlist-btn");
+        const closeBtn = document.getElementById("wishlist-close-btn");
+        const saveBtn = document.getElementById("wishlist-save-btn");
+        const deleteBtn = document.getElementById("wishlist-delete-btn");
+        const dim = document.getElementById("wishlist-modal-dim");
+
+        bindWishlistNumericFormatter();
+        bindWishlistCategoryChangeEvent();
+
+        if (addBtn) {
+          addBtn.addEventListener("click", function () {
+            openWishlistModal("add", null);
+          });
+        }
+
+        if (editBtn) {
+          editBtn.addEventListener("click", function () {
+            if (!nplSelectedRow) {
+              alert("먼저 검색리스트에서 관심물건을 선택하세요.");
+              return;
+            }
+            openWishlistModal("edit", nplSelectedRow);
+          });
+        }
+
+        if (closeBtn) {
+          closeBtn.addEventListener("click", function () {
+            closeWishlistModal();
+          });
+        }
+
+        if (saveBtn) {
+          saveBtn.addEventListener("click", function () {
+            handleWishlistSave();
+          });
+        }
+
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", function () {
+            handleWishlistDelete();
+          });
+        }
+
+        if (dim) {
+          dim.addEventListener("click", function () {
+            closeWishlistModal();
+          });
+        }
+        bindWishlistAddressSearchEvent();
+      }
+
   </script>
   <!-- =========================
     [추가] 관심물건 추가/편집 팝업
@@ -8882,20 +9061,18 @@
       <div class="wishlist-section">
         <div class="wishlist-section-title">주소검색</div>
 
-        <div class="wishlist-address-row">
-          <div class="wishlist-form-group">
-            <label for="wishlist-address-search">주소검색</label>
-            <input id="wishlist-address-search" type="text" placeholder="예: 경기도 김포시 운양동" />
+        <div class="wishlist-row-block has-search-btn">
+          <div class="wishlist-row-label">주소검색</div>
+          <div class="wishlist-row-control">
+            <input id="wishlist-address-search" class="wishlist-field-address" type="text" placeholder="예: 경기도 김포시 운양동" />
           </div>
+          <button id="wishlist-address-search-btn" type="button" class="wishlist-modal-btn wishlist-save-btn">검색</button>
+        </div>
 
-          <div class="wishlist-form-group">
-            <label for="wishlist-address-detail">상세주소</label>
-            <input id="wishlist-address-detail" type="text" placeholder="예: 101동 1203호" />
-          </div>
-
-          <div class="wishlist-form-group">
-            <label>&nbsp;</label>
-            <button id="wishlist-address-search-btn" type="button" class="wishlist-modal-btn wishlist-save-btn">검색</button>
+        <div class="wishlist-row-block">
+          <div class="wishlist-row-label">상세검색</div>
+          <div class="wishlist-row-control">
+            <input id="wishlist-address-detail" class="wishlist-field-address" type="text" placeholder="예: 101동 1203호 / 근린상가 1층" />
           </div>
         </div>
 
@@ -8908,45 +9085,70 @@
         <div class="wishlist-section-title">공통내용</div>
 
         <div class="wishlist-inline-list">
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">물건구분</span>
-            <input id="wishlist-category" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">물건구분</div>
+            <div class="wishlist-row-inline">
+              <select id="wishlist-category" class="wishlist-field-select-main">
+                <option value="아파트">아파트</option>
+                <option value="상가">상가</option>
+                <option value="빌라">빌라</option>
+                <option value="다가구">다가구</option>
+              </select>
+
+              <select id="wishlist-sub-category" class="wishlist-field-select-sub">
+                <option value="아파트">아파트</option>
+              </select>
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">층</span>
-            <input id="wishlist-floor" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">층</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-floor" class="wishlist-field-compact" type="text" placeholder="층" />
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">평수</span>
-            <input id="wishlist-building-py" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">평</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-building-py" class="wishlist-field-compact" type="text" placeholder="평" />
+              <span id="wishlist-building-m2-view" class="wishlist-calculated-area" data-value="">면적 자동계산</span>
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">사건번호</span>
-            <input id="wishlist-case-number" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">사건번호</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-case-number" class="wishlist-field-compact" type="text" placeholder="사건번호" />
+              <input id="wishlist-auction-applicant" class="wishlist-field-compact" type="text" placeholder="채권은행" />
+              <select id="wishlist-auction-method" class="wishlist-field-compact">
+                <option value="임의경매">임의경매</option>
+                <option value="강제경매">강제경매</option>
+              </select>
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">감정가</span>
-            <input id="wishlist-appraisal-price" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">감정가</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-appraisal-price" class="wishlist-field-money" inputmode="numeric" type="text" placeholder="숫자만 입력" />
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">채권최고액</span>
-            <input id="wishlist-bond-max-amount" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">채권최고액</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-bond-max-amount" class="wishlist-field-money" inputmode="numeric" type="text" placeholder="숫자만 입력" />
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">위도</span>
-            <input id="wishlist-latitude" type="text" />
+          <div class="wishlist-row-block">
+            <div class="wishlist-row-label">채권청구액</div>
+            <div class="wishlist-row-inline">
+              <input id="wishlist-bond-claim-amount" class="wishlist-field-money" inputmode="numeric" type="text" placeholder="숫자만 입력" />
+            </div>
           </div>
 
-          <div class="wishlist-inline-item">
-            <span class="wishlist-inline-label">경도</span>
-            <input id="wishlist-longitude" type="text" />
-          </div>
         </div>
       </div>
 
@@ -8954,16 +9156,6 @@
         <div class="wishlist-section-title">기타</div>
 
         <div class="wishlist-grid-1">
-          <div class="wishlist-form-group">
-            <label for="wishlist-address1">주소1</label>
-            <input id="wishlist-address1" type="text" />
-          </div>
-
-          <div class="wishlist-form-group">
-            <label for="wishlist-address2">주소2</label>
-            <input id="wishlist-address2" type="text" />
-          </div>
-
           <div class="wishlist-form-group">
             <label for="wishlist-note">비고</label>
             <textarea id="wishlist-note" placeholder="추가 메모"></textarea>

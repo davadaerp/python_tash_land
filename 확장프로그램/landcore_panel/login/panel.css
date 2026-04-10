@@ -1522,3 +1522,28 @@ body {
   color: #000;
   font-weight: 800;
 }
+
+/* =========================
+   구독 요청중 (빨강 + 굵게 + 깜빡임)
+========================= */
+/* 텍스트 깜빡임 */
+@keyframes blink-red {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* 상태 텍스트 */
+.requesting-blink {
+  color: #d90429 !important;
+  font-weight: 700;
+  animation: blink-red 1s infinite;
+}
+
+/* 버튼 깜빡임 */
+.requesting-blink-btn {
+  color: #fff !important;
+  background: #0459d9 !important;
+  font-weight: 700;
+  animation: blink-red 1s infinite;
+}

@@ -63,19 +63,25 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
   const isRequesting = (is_subscribed === "request");
 
   if (isSubscribed) {
-    subStatusEl.textContent = plan_date || "0개월-0일";
+    const safePlanName = plan_name || "0개월";
+    const safePlanDate = plan_date || "0일남음";
+    subStatusEl.textContent = `${safePlanName}-${safePlanDate}`;
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";
     subStatusEl.style.color = "#666";
+    // 구독요청중 버튼 깜빡임 제거
+    btnMypage.classList.remove("requesting-blink-btn");
   } else if (isRequesting) {
-    subStatusEl.textContent = "승인대기";
+    const safePlanName = plan_name || "구독요청";
+    const safePlanDate = plan_date || "확인중";
+    subStatusEl.textContent = `${safePlanName}-${safePlanDate}`;
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";
     subStatusEl.style.color = "#326CF9";
   } else {
-    subStatusEl.textContent = "구독만료";
+    subStatusEl.textContent = "미구독-0일남음";
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";
@@ -87,7 +93,7 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
   if (isRequesting) {
     btnMypage.disabled = true;
     btnMypage.textContent = "구독요청진행중..";
-    btnMypage.classList.add("btn-disabled");
+    btnMypage.classList.add("btn-disabled", "requesting-blink-btn");
 
     if (btnCharge) {
       btnCharge.classList.add("hidden");
@@ -128,7 +134,7 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
 // 마이페이지 / 구독 버튼 설정
 function setMypageButton(isSubscribed) {
   btnMypage.disabled = false;
-  btnMypage.classList.remove("btn-disabled");
+  btnMypage.classList.remove("btn-disabled", "requesting-blink-btn");
 
   if (isSubscribed) {
     btnMypage.textContent = "마이페이지";
@@ -421,9 +427,18 @@ safeAddListener(btnCharge, "click", async () => {
   pop.focus?.();
 });
 
-safeAddListener(nicknameToggle, "click", (e) => {
+safeAddListener(nicknameToggle, "click", async (e) => {
   e.preventDefault();
-  userInfoPanel?.classList.toggle("hidden");
+
+  const willOpen = userInfoPanel?.classList.contains("hidden");
+
+  // 열 때만 최신 정보 재조회
+  if (willOpen) {
+    await restoreSession();
+    userInfoPanel?.classList.remove("hidden");
+  } else {
+    userInfoPanel?.classList.add("hidden");
+  }
 });
 
 safeAddListener(userInfoClose, "click", (e) => {

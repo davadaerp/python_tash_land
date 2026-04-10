@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     //updateUserSession();
 
     console.log('Panel Initialized');
-    // 여기 정의하면 NPL팝업 열릴때 계속실행되어버림 ㅠ.ㅠ
+    // 여기 정의하면 NPL팝업식으로 열릴때 계속실행되어버림 ㅠ.ㅠ
     //await ensureNaverLandTabOnPanelOpen();
     loadHistory();
 
@@ -462,8 +462,8 @@ function toggleAnalysisMenu(e) {
     realAuctionMenu?.classList.toggle('hidden');
 }
 
-// 실거래 팝업 열기 (패널에서 지역정보 전달)
-async function openLandRealAuctionPopupFromPanel() {
+// 실거래 팝업방식 열기 (패널에서 지역정보 전달)
+async function openLandRealAuctionPopupFromPanel_old() {
     // 로그인 및 구독 상태 체크
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
@@ -499,6 +499,42 @@ async function openLandRealAuctionPopupFromPanel() {
         `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
     );
 }
+
+// 실거래(관심물건포함) 검색 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
+async function openLandRealAuctionPopupFromPanel() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    try {
+        //
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        console.log('getCurrentRegionsString 리턴값:', regionInfo);
+
+        let lawdCd = regionInfo?.lawdCd || '';
+        let lawdName = regionInfo?.lawdName || '';
+        let umdName = regionInfo?.umdName || '';
+
+        // 둘 다 없으면 여기서 중단
+        if (!lawdCd && !lawdName) {
+            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        }
+
+        const urlParams = new URLSearchParams({
+          menu: 'wishlist_map_popup',
+          tk: auth.access_token,
+          lawdCd: lawdCd,
+          lawdName: lawdName,
+          umdName: umdName
+        });
+
+        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
+        chrome.tabs.create({ url: extUrl });
+    } catch (err) {
+        console.error('실거래분석 처리 실패:', err);
+        alert(`실거래분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
+    }
+}
+
 
 // 업종분석 팝업 열기 (패널에서 지역정보 전달)
 async function openCommericalAreaPopupFromPanel() {
@@ -837,35 +873,6 @@ async function openFormDownloadFromPanel() {
     );
 }
 
-//
-async function openNplSearchFromPanel_old() {
-    const auth = await loginValidForPanel();
-    if (!auth.ok) return;
-
-    const regionInfo = await getCurrentRegionsString(auth.access_token);
-    const regions = regionInfo.regions || "경기도,김포시,운양동";
-
-    const urlParams = new URLSearchParams({
-        menu: 'npl_search',
-        regions,
-        tk: auth.access_token,
-        customTag: 'npl'
-    });
-
-    const extUrl = `${LANDCORE_URL}/api/ext_tool?${urlParams.toString()}`;
-
-    const popupWidth = 1490;
-    const popupHeight = 1200;
-    const left = (screen.width - popupWidth) / 2;
-    const top = (screen.height - popupHeight) / 2;
-
-    window.open(
-        extUrl,
-        "nplDataPopup",
-        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-}
-
 // NPL 검색 팝업 열기 (패널에서 지역정보 전달)
 async function openNplSearchFromPanel_popup() {
     const auth = await loginValidForPanel();
@@ -1082,6 +1089,30 @@ async function checkCurrentTab() {
     }
 }
 
+function isSupportedAnalysisUrl(url = '') {
+    return (
+        url.includes('new.land.naver.com') ||
+        url.includes('fin.land.naver.com') ||
+        url.includes('www.tankauction.com/ca/caList.php') ||
+        url.includes('www.tankauction.com/pa/paList.php') ||
+        url.includes('www.tankauction.com/ca/caView.php') ||
+        url.includes('www.tankauction.com/pa/paView.php')
+    );
+}
+
+async function getActiveTabUrl() {
+    return new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (chrome.runtime.lastError || !tabs || !tabs.length) {
+                resolve('');
+                return;
+            }
+            resolve(tabs[0]?.url || '');
+        });
+    });
+}
+
+
 function setStatus(type, text) {
     if (!statusBar) {
         console.warn('[setStatus] status-bar 요소가 없습니다.', { type, text });
@@ -1126,7 +1157,7 @@ async function ensureNaverLandTabOnPanelOpen() {
 /**
  * 분석 시작
  */
-async function startAnalysis() {
+async function startAnalysis_old() {
     // 분석 시작 전 네이버부동산 탭 보장
     await ensureNaverLandTabOnPanelOpen();
 
@@ -1162,6 +1193,59 @@ async function startAnalysis() {
 
             // 매물 목록에 평당가/평수 배지 표시
             chrome.runtime.sendMessage({ type: 'SHOW_BADGES' }).catch(() => { });
+        } else {
+            throw new Error(response?.error || '분석 실패');
+        }
+    } catch (error) {
+        console.error(error);
+        resultsContainer.innerHTML = `<div class="empty-state">오류: ${error.message}</div>`;
+        setStatus('error', '분석 실패 (0개)');
+        analyzeBtn.textContent = '매물 분석하기';
+        analyzeBtn.disabled = false;
+    }
+}
+
+async function startAnalysis() {
+
+    // 현재 탭이 fin/new/tankauction 분석 지원 페이지가 아니면 그때만 네이버 탭 보장
+    const activeTabUrl = await getActiveTabUrl();
+    if (!isSupportedAnalysisUrl(activeTabUrl)) {
+        await ensureNaverLandTabOnPanelOpen();
+    }
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = '[분석 중...]';
+    resultsContainer.innerHTML = '<div class="empty-state">데이터를 가져오는 중입니다...</div>';
+
+    // 새 분석 시작 전 이전 결과를 0 기준으로 초기화
+    resetAnalysisUiForNewRun();
+
+    try {
+        const response = await chrome.runtime.sendMessage({ type: 'START_ANALYSIS' });
+
+        if (response?.success) {
+            lastAnalysisData = response.data;
+
+            // 지역 + 탭구분 반영
+            setCurrentRegionInfo(response.data);
+
+            displayResults(response.data);
+            displayAreaChart(response.data);
+            displayTopAgencies(response.data);
+            saveToHistory(response.data);
+
+            // 분석 응답에 포함된 지역정보를 바로 반영
+            applyRegionLabelFromAnalysisData(response.data);
+
+            analyzeBtn.disabled = false;
+
+            // 분석 완료 안내 메시지 표시
+            const wolseCount = response.data.listings?.filter(l => l.type === '월세').length || 0;
+            const maemaeCount = response.data.listings?.filter(l => l.type === '매매').length || 0;
+            showAnalysisCount(wolseCount, maemaeCount);
+
+            // 매물 목록에 평당가/평수 배지 표시
+            chrome.runtime.sendMessage({ type: 'SHOW_BADGES' }).catch(() => {});
         } else {
             throw new Error(response?.error || '분석 실패');
         }
@@ -1627,20 +1711,13 @@ async function getCurrentRegionsString(accessToken = '') {
     }
 
     // lawdName: 경기도 김포시 운양동 => regions: "경기도,김포시,운양동"
-    currentRegionInfo = {
-        ...currentRegionInfo,
-        lawdCd: result.lawd_cd || '',
-        lawdName: result.lawd_name || '',
-        regions:  result.regions || ''
-    };
-
-    console.log('==== getCurrentRegionsString: ' + currentRegionInfo)
+    console.log('==== getCurrentRegionsString: ' + result)
 
     return {
-        lawdCd: currentRegionInfo.lawdCd,
-        lawdName: currentRegionInfo.lawdName,
-        umdName: currentRegionInfo.umdNm,
-        regions: currentRegionInfo.regions
+        lawdCd: result.lawd_cd,
+        lawdName: result.lawd_name,
+        umdName: umdNm,
+        regions: result.regions
     };
 }
 

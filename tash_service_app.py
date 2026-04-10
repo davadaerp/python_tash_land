@@ -13,10 +13,13 @@
 import os
 import threading
 import time
+from uuid import uuid4
+
 import requests
 import secrets
 import gzip
 import json
+import re
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from cryptography.fernet import Fernet
@@ -29,6 +32,7 @@ from io import BytesIO
 
 # 상가및 아파트 크롤링데이타(예전PC)
 from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
+from common.vworld_utils import VWorldGeocoding
 from license.make_license import generate_fixed_key
 from master.user_hist_db_utils import add_subscription_hist, user_hist_read_db, count_user_trial_hist_db
 from master.user_wishlist_db_utils import wishlist_read_db
@@ -62,6 +66,14 @@ from auction.auction_db_utils import auction_read_db, auction_read_by_region
 from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
     user_delete_record, user_cancel_record, user_update_exist_record
+from master.user_wishlist_db_utils import (
+    create_wishlist_table,
+    wishlist_exists,
+    wishlist_insert_single,
+    wishlist_update_single,
+    wishlist_delete_single,
+    wishlist_read_db,
+)
 #
 from sms.naver_alim_talk import alimtalk_send
 from sms.naver_sms import send_mms_data, send_sms
@@ -75,12 +87,12 @@ from pastapt.past_average_annual_income_db_utils import fetch_all_income_data
 from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_address
 # 국토부공공데이타 가져오기
 from pubdata.public_population_stats import get_population_rows, prev_month_yyyymm
-
+#
 # auth.py에서 토큰 관련 함수 가져오기
 from common.auth import create_access_token, token_header_required, extract_user_info_from_token, kakao_token_required, \
     core_token_required
 #
-from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, UPLOAD_FOLDER_PATH
+from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, UPLOAD_FOLDER_PATH, MAP_API_KEY
 
 # common/commonResponse.py에 정의된 CommonResponse와 Result를 import
 from legal_docs.legal_docs_down import getIros1
@@ -1087,6 +1099,239 @@ def get_user_interest_property(user_id):
 
     return jsonify(data)
 
+
+#==============================================================================
+# 나에관심물건 관심물건(경매/공매) 데이타 조회 - CRUD용(관심물건 등록/수정/삭제 후 최신화된 관심물건 목록 반환)
+WISHLIST_ALLOWED_CATEGORIES = {"아파트", "상가", "빌라", "다가구"}
+
+def _digits_only(value):
+    return re.sub(r"[^\d]", "", str(value or ""))
+
+def _safe_text(value):
+    return str(value or "").strip()
+
+
+def _build_generated_case_number(category):
+    """
+    사건번호 생성: [카테고리약어]-[년월일시분초]
+    예: APT-20240520143005
+    """
+    prefix_map = {
+        "아파트": "APT",
+        "상가": "SG",
+        "빌라": "VL",
+        "다가구": "DG",
+        "토지": "TJ",
+        "공장": "GJ"
+    }
+    prefix = prefix_map.get(category, "WL")
+
+    # 현재 시간 (년월일시분초) 추출
+    time_str = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    return f"{prefix}-{time_str}"
+
+def _split_address_search(address_search):
+    parts = _safe_text(address_search).split()
+    return {
+        "region": parts[0] if len(parts) > 0 else "",
+        "sigungu_name": parts[1] if len(parts) > 1 else "",
+        "eub_myeon_dong": " ".join(parts[2:]) if len(parts) > 2 else "",
+    }
+
+def _build_wishlist_entry(user_id, payload, action):
+    category = _safe_text(payload.get("category"))
+    if category not in WISHLIST_ALLOWED_CATEGORIES:
+        return None, "물건구분이 올바르지 않습니다."
+
+    address_search = _safe_text(payload.get("address_search"))
+    address_detail = _safe_text(payload.get("address_detail"))
+
+    split_addr = _split_address_search(address_search)
+
+    region = _safe_text(payload.get("region")) or split_addr["region"]
+    sigungu_name = _safe_text(payload.get("sigungu_name")) or split_addr["sigungu_name"]
+    eub_myeon_dong = _safe_text(payload.get("eub_myeon_dong")) or split_addr["eub_myeon_dong"]
+
+    # --- 법정동 코드 조회 및 존재 여부 체크 ---
+    search_name = " ".join(x for x in [region, sigungu_name, eub_myeon_dong] if x).strip()
+
+    found_lawd_cd = ""
+    found_sigungu_code = ""
+
+    if not search_name:
+        return None, "조회할 주소 정보가 부족합니다."
+
+    # 법정동 DB 조회
+    row = get_lawd_by_name(search_name)
+
+    # [추가] 시군구/법정동 정보가 DB에 없는 경우 리턴
+    if not row:
+        return None, f"일치하는 법정동(시군구) 정보를 찾을 수 없습니다: {search_name}"
+
+    found_lawd_cd = row.get("lawd_cd", "")
+    if len(found_lawd_cd) >= 5:
+        found_sigungu_code = found_lawd_cd[:5]
+    else:
+        return None, "유효하지 않은 법정동 코드입니다."
+    # ------------------------------------------
+
+    # --- 사건번호(case_number) 처리 ---
+    case_number = _safe_text(payload.get("case_number")).strip()
+
+    # 사건번호가 없으면 새로 생성 (create/update 공통 적용 가능성 고려)
+    if not case_number:
+        case_number = _build_generated_case_number(category)
+    # ----------------------------------
+
+    if action == "create" and wishlist_exists(user_id, case_number):
+        return None, "같은 사건번호가 존재합니다."
+
+    # --- 추가 필드 추출 ---
+    # 경매신청인 (기본값 공백)
+    auction_applicant = _safe_text(payload.get("auction_applicant"))
+    # 경매방식 (기본값 "임의경매")
+    auction_method = _safe_text(payload.get("auction_method")) or "임의경매"
+    # --------------------
+
+    entry = {
+        "user_id": user_id,
+        "case_number": case_number,
+        "category": category,
+        "address1": " ".join(x for x in [region, sigungu_name, eub_myeon_dong] if x).strip(),
+        "address2": address_detail,
+        "lawd_cd": found_lawd_cd,           # 조회된 값 강제 적용
+        "region": region,
+        "sigungu_code": found_sigungu_code,
+        "sigungu_name": sigungu_name,
+        "eub_myeon_dong": eub_myeon_dong,
+        "building": _safe_text(payload.get("building")),
+        "floor": _safe_text(payload.get("floor")),
+        "building_m2": _safe_text(payload.get("building_m2")),
+        "building_py": _safe_text(payload.get("building_py")),
+        "appraisal_price": int(_digits_only(payload.get("appraisal_price")) or 0),
+        "bond_max_amount": _digits_only(payload.get("bond_max_amount")) or "0",
+        "bond_claim_amount": _digits_only(payload.get("bond_claim_amount")) or "0",
+        "auction_applicant": auction_applicant,
+        "auction_method": auction_method,
+        "extra_info": _safe_text(payload.get("extra_info")),
+        "notice_text": _safe_text(payload.get("notice_text")),
+        "latitude": _safe_text(payload.get("latitude")),
+        "longitude": _safe_text(payload.get("longitude")),
+    }
+    return entry, ""
+
+# 나에관심물건 관심물건(경매/공매) 데이타 조회 - CRUD용(관심물건 등록/수정/삭제 후 최신화된 관심물건 목록 반환)
+@app.route('/api/user/wishlist/crud', methods=['POST'])
+@kakao_extool_auth_required
+def user_wishlist_crud(user_id):
+    """
+    action:
+      - address_search
+      - create
+      - update
+      - delete
+
+    응답:
+      - success
+      - message
+      - data: 최신 관심물건 목록
+    """
+    #create_wishlist_table()
+
+    payload = request.get_json(silent=True) or {}
+    action = _safe_text(payload.get("action")).lower()
+
+    print(f"user_wishlist_crud user_id: {user_id}, action: {action}, payload: {payload}")
+
+    try:
+        if action == "address_search":
+            address_search = _safe_text(payload.get("address_search"))
+            address_detail = _safe_text(payload.get("address_detail"))
+
+            # 상세주소에서 아파트 동/호수나 괄호 내용 제거 (지번만 남기기)
+            # 예: "2008-2 (장기동)" -> "2008-2"
+            clean_detail = re.sub(r'\(.*\)', '', address_detail).strip()
+
+            full_address = f"{address_search} {clean_detail}".strip()
+            print(f"VWorld 검색 시도 주소: [{full_address}]")  # 로그로 최종 주소 확인
+
+            # 1. 유틸리티 인스턴스 생성
+            geo_service = VWorldGeocoding(MAP_API_KEY)
+
+            # 유틸리티 인스턴스 생성
+            latitude, longitude = geo_service.get_lat_lng(full_address, address_type="parcel")
+            if latitude == 0 or longitude == 0:
+                return jsonify({
+                    "success": False,
+                    "message": "주소가 잘못되었거나 좌표를 찾을 수 없습니다."
+                }), 400
+
+            return jsonify({
+                "success": True,
+                "message": f"주소 확인 완료: {full_address}",
+                "geo": {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                }
+            })
+
+        elif action == "create":
+            entry, err = _build_wishlist_entry(user_id, payload, "create")
+            if err:
+                return jsonify({"success": False, "message": err}), 400
+
+            wishlist_insert_single(entry)
+
+        elif action == "update":
+            entry, err = _build_wishlist_entry(user_id, payload, "update")
+            if err:
+                return jsonify({"success": False, "message": err}), 400
+
+            if not wishlist_exists(user_id, entry["case_number"]):
+                return jsonify({"success": False, "message": "수정 대상 사건번호가 없습니다."}), 404
+
+            wishlist_update_single(entry)
+
+        elif action == "delete":
+            case_number = _safe_text(payload.get("case_number"))
+            if not case_number:
+                return jsonify({"success": False, "message": "삭제할 사건번호가 없습니다."}), 400
+
+            if not wishlist_exists(user_id, case_number):
+                return jsonify({"success": False, "message": "삭제 대상 사건번호가 없습니다."}), 404
+
+            wishlist_delete_single(user_id, case_number)
+
+        else:
+            return jsonify({"success": False, "message": "지원하지 않는 action 입니다."}), 400
+
+        lawdCd = _safe_text(payload.get('lawdCd'))
+        region = _safe_text(payload.get('region'))
+        sggNm = _safe_text(payload.get('sggNm'))
+        umdNm = _safe_text(payload.get('umdNm'))
+        mainCategory = _safe_text(payload.get('mainCategory'))
+        subCategory = _safe_text(payload.get('subCategory'))
+
+        categories = []
+        if mainCategory and subCategory:
+            categories = [subCategory]
+        elif mainCategory:
+            categories = [mainCategory]
+
+        data = wishlist_read_db(user_id, lawdCd, region, sggNm, umdNm, categories)
+
+        return jsonify({
+            "success": True,
+            "message": f"{action} 처리 완료",
+            "data": data
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"관심물건 CRUD 처리 중 오류가 발생했습니다: {e}"
+        }), 500
 
 #==== 크롤링db에 법정동코드 테이를 목록가져오기 autocomplete용(국토부대체) ========
 @app.route('/api/lawdcd/autocomplete')
