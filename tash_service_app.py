@@ -1802,7 +1802,7 @@ def get_auction_categories():
 @app.route('/api/auction', methods=['GET'])
 def get_auction_data():
     # SQLite DB(auction_data.db)를 참조하여 데이터 읽기
-    lawdCd = request.args.get('lawdCd', '')
+    lawdCd = request.args.get('lawdCd', '')     # 5자리 법정동코드(예: 11110)
     umdNm = request.args.get('umdNm', '')
     # 검색년수(year_count, year_range)
     year_range = request.args.get('yearRange', '3')  # 기본 3년
@@ -2047,8 +2047,13 @@ def ext_tool_map(user_id):
 
     # WISHLIST(관심물건)/NPL 경매데이타 검색
     if menu == 'wishlist_map_popup':
+        # 관심물건 지도 팝업
         return render_template("extool_wishlist_map_popup.html", access_token=access_token)
+    elif menu == 'commerical_map_popup':
+        # 업종분류별 상권정보 팝업
+        return render_template("extool_commerical_map_popup.html", access_token=access_token)
     elif menu == 'npl_map_popup':
+        # NPL 경매데이타 지도 팝업
         return render_template("extool_npl_map_popup.html", access_token=access_token)
     else:
         return render_template("extool_map_popup.html", access_token=access_token)

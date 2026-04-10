@@ -6439,7 +6439,7 @@
       // const lawdCd = "41570";
       // const lawdNm = "경기도 김포시";
       // const umdNm = "운양동";
-      const lawdCd = selectedLawdCd;
+      const lawdCd = String(selectedLawdCd || initialSelectionState.lawdCd || "").trim().substring(0, 5);
       const lawdNm = getNplLawdNmForDeal(row);
       const umdNm = selectedUmdNm;
       const years_count = 3;
