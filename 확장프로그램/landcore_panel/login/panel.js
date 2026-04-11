@@ -472,7 +472,7 @@ async function openLandRealAuctionPopupFromPanel_old() {
     const selectedTabGubun = getCurrentTabGubun() || 'sanga';
 
     // 테스트용 확인
-    alert(`현재 탭 구분: ${selectedTabGubun}`);
+    //alert(`현재 탭 구분: ${selectedTabGubun}`);
 
     let menu = "sanga_real_deal";
     if (selectedTabGubun === 'sanga') {
@@ -537,7 +537,7 @@ async function openLandRealAuctionPopupFromPanel() {
 
 
 // 업종분석 팝업 열기 (패널에서 지역정보 전달)
-async function openCommericalAreaPopupFromPanel() {
+async function openCommericalAreaPopupFromPanel_oldPopup() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
@@ -548,10 +548,10 @@ async function openCommericalAreaPopupFromPanel() {
         // 테스트용 확인
         console.log(`현재 탭 구분: ${selectedTabGubun}`);
 
-        if (selectedTabGubun !== 'sanga') {
-            alert('업종상권분석은 상가에서만 지원됩니다.');
-            return;
-        }
+        // if (selectedTabGubun !== 'sanga') {
+        //     alert('업종상권분석은 상가에서만 지원됩니다.');
+        //     return;
+        // }
         //
         const regionInfo = await getCurrentRegionsString(auth.access_token);
         console.log('getCurrentRegionsString 리턴값:', regionInfo);
@@ -625,6 +625,41 @@ async function openCommericalAreaPopupFromPanel() {
     } catch (err) {
         console.error('업종상권분석 처리 실패:', err);
         alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
+    }
+}
+
+// 업종분석 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
+async function openCommericalAreaPopupFromPanel() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    try {
+        //
+        const regionInfo = await getCurrentRegionsString(auth.access_token);
+        console.log('getCurrentRegionsString 리턴값:', regionInfo);
+
+        let lawdCd = regionInfo?.lawdCd || '';
+        let lawdName = regionInfo?.lawdName || '';
+        let umdName = regionInfo?.umdName || '';
+
+        // 둘 다 없으면 여기서 중단
+        if (!lawdCd && !lawdName) {
+            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        }
+
+        const urlParams = new URLSearchParams({
+          menu: 'commerical_map_popup',
+          tk: auth.access_token,
+          lawdCd: lawdCd,
+          lawdName: lawdName,
+          umdName: umdName
+        });
+
+        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
+        chrome.tabs.create({ url: extUrl });
+    } catch (err) {
+        console.error('업종분석 처리 실패:', err);
+        alert(`실거래분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
     }
 }
 
@@ -702,6 +737,9 @@ async function openPropertySearchPopupFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
+    alert('준비중입니다.')
+    return;
+
     const regionInfo = await getCurrentRegionsString(auth.access_token);
     const regions = regionInfo?.regions || "경기도,김포시,운양동";
 
@@ -772,7 +810,8 @@ async function openCalculator(extraParams = {}) {
         const selectedTabGubun = getCurrentTabGubun() || 'sanga';
 
         // 테스트용 확인
-        alert(`현재 탭 구분: ${selectedTabGubun}`);
+        // alert(`현재 탭 구분: ${selectedTabGubun}`);
+        console.log(`현재 탭 구분: ${selectedTabGubun}`);
 
         if (selectedTabGubun === 'sanga') {
             menu = 'sanga_profit';
@@ -2054,6 +2093,6 @@ function applyRegionLabelFromAnalysisData(data) {
     }
     //
     if (analyzeBtn) {
-        analyzeBtn.textContent = `${currentRegionLabel} 매물분석하기`;
+        analyzeBtn.innerHTML = `<span class="region-highlight">${currentRegionLabel}</span> 매물분석하기`;
     }
 }

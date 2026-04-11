@@ -45,8 +45,11 @@ $(document).ready(function() {
 
 // 서버(JSON)로 자동완성 데이터 받기
 function searchRegionData(locatadd_nm, pageNo) {
+  const API_BASE = (typeof BASE_URL !== 'undefined' && BASE_URL)
+  ? BASE_URL
+  : window.location.origin;
   $.ajax({
-    url: BASE_URL + '/api/lawdcd/autocomplete',
+    url: API_BASE + '/api/lawdcd/autocomplete',
     type: 'GET',
     dataType: 'json',
     data: {

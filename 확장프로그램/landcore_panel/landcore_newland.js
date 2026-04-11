@@ -1,6 +1,6 @@
 /**
  * 기능:
- * 1. new.naver.com 매물 목록에 평당가/평수 배지 자동 표시
+ * 1. new.naver.com(구네이버부동산) 매물 목록에 평당가/평수 배지 자동 표시
  * 2. 매물 상세정보 팝업에서 매매가, 면적, 보증금/월세 등 핵심 정보 추출
  * 3. 네이버 자동 스크롤 및 Side Panel 에서 분석 요청 시 데이터 제공
  * ============================================
@@ -100,7 +100,7 @@ function loadAptItems() {
     const propertyItems = document.querySelectorAll('.item_inner:not(.is-loading)'); // 'is-loading' 클래스를 제외한 요소 선택
     console.log('전체 propertyItems:', propertyItems);
     if (propertyItems.length > 0) {
-        sortAptItems(propertyItems);
+        //sortAptItems(propertyItems);
     }
 }
 
@@ -157,57 +157,100 @@ function sortAptItems(propertyItems) {
     divs[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function detectTabGubunFromText(text) {
+    const normalized = (text || '').replace(/\s+/g, '').toLowerCase();
+
+    if (
+        normalized.includes('아파트') ||
+        normalized.includes('오피스텔') ||
+        normalized.includes('apt') ||
+        normalized.includes('officetel') ||
+        normalized.includes('complex')
+    ) {
+        return 'apt';
+    }
+
+    if (
+        normalized.includes('빌라') ||
+        normalized.includes('연립') ||
+        normalized.includes('단독') ||
+        normalized.includes('다가구') ||
+        normalized.includes('전원주택') ||
+        normalized.includes('상가주택') ||
+        normalized.includes('villa') ||
+        normalized.includes('house')
+    ) {
+        return 'villa';
+    }
+
+    if (
+        normalized.includes('상가') ||
+        normalized.includes('사무실') ||
+        normalized.includes('공장') ||
+        normalized.includes('창고') ||
+        normalized.includes('지식산업센터') ||
+        normalized.includes('건물') ||
+        normalized.includes('office') ||
+        normalized.includes('store') ||
+        normalized.includes('factory') ||
+        normalized.includes('warehouse') ||
+        normalized.includes('sanga')
+    ) {
+        return 'sanga';
+    }
+
+    return '';
+}
+
 // 리스트목록 처리
 function extractPropertyInfo() {
-
-	// 모든 탭 요소 선택 (lnb_wrap 내부의 .lnb_item)
-	const tabs = document.querySelectorAll('.lnb_wrap .lnb_item');
+	const tabs = document.querySelectorAll('.lnb_wrap .lnb_item, [role="tab"], button[aria-selected], a[aria-current="page"]');
 
 	tabs.forEach(tab => {
-	  // 선택된(눌린) 탭인지 확인
-	  if (tab.getAttribute('aria-selected') === 'true') {
-		// aria-controls 값 가져오기
-		const controls = tab.getAttribute('aria-controls');
+	    const isSelected =
+            tab.getAttribute('aria-selected') === 'true' ||
+            tab.getAttribute('aria-current') === 'page' ||
+            tab.classList.contains('selected') ||
+            tab.classList.contains('is_selected');
 
-		// 각 탭에 대해 처리 (필요에 따라 조건문 수정)
+        if (!isSelected) return;
+
+		const controls = tab.getAttribute('aria-controls');
+        const tabText = (tab.textContent || '').trim();
+
 		switch (controls) {
 		  case 'tab1':
 			console.log('아파트/오피스텔 탭이 선택되었습니다.');
-			// 아파트적용 프로퍼티 => 매물검색, 수익율분석, 문자보개기
 	  		tabGubun = 'apt';
 			break;
+
 		  case 'tab2':
 			console.log('빌라/주택 탭이 선택되었습니다.');
-			// 빌라적용 프로퍼티 => 매물검색, 수익율분석, 문자보개기
 		  	tabGubun = 'villa';
 			break;
-		  case 'tab3':
-			console.log('원룸/투룸 탭이 선택되었습니다.');
-			// tab3에 대한 추가 처리
-			break;
-          case 'tab4':
+
+		  case 'tab4':
 			console.log('상가/업무/공장/토지 탭이 선택되었습니다.');
-			// 상가적용 프로퍼티 => 매물검색, 수익율분석, 문자보개기
 			tabGubun = 'sanga';
 			loadSangaItems();
 			break;
-		  case 'tab5':
-			console.log('분양 탭이 선택되었습니다.');
-			// tab5에 대한 추가 처리
-			break;
-		  case 'tab6':
-			console.log('MY관심 탭이 선택되었습니다.');
-			// tab6에 대한 추가 처리
-			break;
-		  case 'tab7':
-			console.log('우리집 탭이 선택되었습니다.');
-			// tab7에 대한 추가 처리
-			break;
-		  default:
-			console.log('알 수 없는 탭이 선택되었습니다.');
+
+		  default: {
+            const detected = detectTabGubunFromText(tabText);
+            if (detected) {
+                tabGubun = detected;
+                console.log('텍스트 기반 탭 판별:', tabText, '->', tabGubun);
+
+                if (tabGubun === 'sanga' || tabGubun === 'villa') {
+                    loadSangaItems();
+                }
+            } else {
+			    console.log('알 수 없는 탭이 선택되었습니다.');
+            }
+          }
 		}
-	  }
-      console.log('tabGubun: ' + tabGubun);
+
+        console.log('tabGubun: ' + tabGubun);
 	});
 }
 

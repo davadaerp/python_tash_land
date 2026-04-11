@@ -2268,6 +2268,23 @@
       text-align: right !important;
       font-variant-numeric: tabular-nums;
     }
+
+    /* =========================
+    [추가] 상권목록 팝업 드래그
+    ========================= */
+    #commercial-area-popup-drag-handle {
+      cursor: move;
+      user-select: none;
+    }
+
+    #commercial-area-popup-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    #commercial-area-popup-drag-handle:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #ffffff 100%);
+    }
+
   </style>
 </head>
 <body>
@@ -2676,13 +2693,18 @@
     // [추가] 거리재기 점(시작/중간/끝) 마커
     let measurePointMarkers = [];
 
+    let commercialAreaPopupDragState = {
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      popupLeft: 0,
+      popupTop: 0
+    };
+
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.5665, 126.9780),
       zoom: 12
     });
-
-    //
-
 
     /* ===== 유틸 ===== */
     function parseDateKey(s) {
@@ -4042,12 +4064,14 @@
           overflow: hidden;
           box-shadow: 0 4px 18px rgba(0,0,0,0.25);
         ">
-          <div style="
-              display:flex;
-              align-items:center;
-              justify-content:space-between;
-              margin-bottom:15px;
-          ">
+              <div id="commercial-area-popup-drag-handle" style="
+                  display:flex;
+                  align-items:center;
+                  justify-content:space-between;
+                  margin-bottom:15px;
+                  padding:6px 8px;
+                  border-radius:12px;
+              ">
               <h3 style="
                   margin:0;
                   font-size:20px;
@@ -4186,6 +4210,9 @@
           commericalAreaPopupView();
         };
       }
+
+      // 팝업 드래그 기능 활성화
+      bindCommercialAreaPopupDrag();
     }
 
     // =========================
@@ -8479,6 +8506,51 @@
       currentCommercialAreaDetailSearch = "";
       clearCommercialPoiMarkers();
       updateCommercialSelectedGroupBadge("");
+    }
+
+    // 상권정보비교 패널에서 드래그로 팝업 이동 가능하도록 바인딩하는 함수
+    function bindCommercialAreaPopupDrag() {
+      const popup = document.getElementById("commercialAreaPopup");
+      const handle = document.getElementById("commercial-area-popup-drag-handle");
+      if (!popup || !handle) return;
+
+      handle.onmousedown = function(e) {
+        // 닫기 버튼 클릭은 drag 제외
+        if (e.target && e.target.id === "commercialAreaPopupClose") return;
+
+        e.preventDefault();
+
+        const rect = popup.getBoundingClientRect();
+
+        commercialAreaPopupDragState.isDragging = true;
+        commercialAreaPopupDragState.startX = e.clientX;
+        commercialAreaPopupDragState.startY = e.clientY;
+        commercialAreaPopupDragState.popupLeft = rect.left;
+        commercialAreaPopupDragState.popupTop = rect.top;
+
+        popup.style.left = rect.left + "px";
+        popup.style.top = rect.top + "px";
+        popup.style.transform = "none";
+
+        document.body.style.userSelect = "none";
+      };
+
+      document.onmousemove = function(e) {
+        if (!commercialAreaPopupDragState.isDragging) return;
+
+        const dx = e.clientX - commercialAreaPopupDragState.startX;
+        const dy = e.clientY - commercialAreaPopupDragState.startY;
+
+        popup.style.left = commercialAreaPopupDragState.popupLeft + dx + "px";
+        popup.style.top = commercialAreaPopupDragState.popupTop + dy + "px";
+      };
+
+      document.onmouseup = function() {
+        if (!commercialAreaPopupDragState.isDragging) return;
+
+        commercialAreaPopupDragState.isDragging = false;
+        document.body.style.userSelect = "";
+      };
     }
 
     // DOMContentLoaded 이벤트에서 관심물건 모달 관련 이벤트 바인딩 및 드래그 기능 활성화

@@ -733,6 +733,23 @@
       border-color: #93c5fd !important;
       transform: translateY(-1px);
     }
+
+    /* =========================
+    [추가] 상권목록 팝업 드래그
+    ========================= */
+    #commercial-area-popup-drag-handle {
+      cursor: move;
+      user-select: none;
+    }
+
+    #commercial-area-popup-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    #commercial-area-popup-drag-handle:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #ffffff 100%);
+    }
+
   </style>
 </head>
 <body>
@@ -932,6 +949,14 @@
     let currentDealAuctionRegionKey = "";
     let currentDealRows = [];
     let currentAuctionRows = [];
+    //
+    let commercialAreaPopupDragState = {
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      popupLeft: 0,
+      popupTop: 0
+    };
 
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.5665, 126.9780),
@@ -2736,11 +2761,13 @@
           overflow: hidden;
           box-shadow: 0 4px 18px rgba(0,0,0,0.25);
         ">
-          <div style="
+          <div id="commercial-area-popup-drag-handle" style="
               display:flex;
               align-items:center;
               justify-content:space-between;
               margin-bottom:15px;
+              padding:6px 8px;
+              border-radius:12px;
           ">
               <h3 style="
                   margin:0;
@@ -2880,6 +2907,9 @@
           commericalAreaPopupView();
         };
       }
+
+      // 팝업 드래그 기능 바인딩
+      bindCommercialAreaPopupDrag();
     }
 
     // =========================
@@ -3840,17 +3870,17 @@
 
       // 결과 카드 닫기
       document.addEventListener('click', function(e) {
-  const closeBtn = e.target.closest('.measure-result-close');
-  if (!closeBtn) return;
+        const closeBtn = e.target.closest('.measure-result-close');
+        if (!closeBtn) return;
 
-  e.preventDefault();
-  e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
 
-  if (measureTotalOverlay) {
-    measureTotalOverlay.setMap(null);
-    measureTotalOverlay = null;
-  }
-});
+        if (measureTotalOverlay) {
+          measureTotalOverlay.setMap(null);
+          measureTotalOverlay = null;
+        }
+      });
 
       naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isMeasureMode) return;
@@ -3894,8 +3924,55 @@
       });
 
     }
-
+    //
     bindMeasureTool();
+
+    // =========================
+    // [추가] 상권 팝업 드래그 기능
+    // - 팝업 헤더 드래그 시 전체 팝업 이동
+    function bindCommercialAreaPopupDrag() {
+      const popup = document.getElementById("commercialAreaPopup");
+      const handle = document.getElementById("commercial-area-popup-drag-handle");
+      if (!popup || !handle) return;
+
+      handle.onmousedown = function(e) {
+        // 닫기 버튼 클릭은 drag 제외
+        if (e.target && e.target.id === "commercialAreaPopupClose") return;
+
+        e.preventDefault();
+
+        const rect = popup.getBoundingClientRect();
+
+        commercialAreaPopupDragState.isDragging = true;
+        commercialAreaPopupDragState.startX = e.clientX;
+        commercialAreaPopupDragState.startY = e.clientY;
+        commercialAreaPopupDragState.popupLeft = rect.left;
+        commercialAreaPopupDragState.popupTop = rect.top;
+
+        popup.style.left = rect.left + "px";
+        popup.style.top = rect.top + "px";
+        popup.style.transform = "none";
+
+        document.body.style.userSelect = "none";
+      };
+
+      document.onmousemove = function(e) {
+        if (!commercialAreaPopupDragState.isDragging) return;
+
+        const dx = e.clientX - commercialAreaPopupDragState.startX;
+        const dy = e.clientY - commercialAreaPopupDragState.startY;
+
+        popup.style.left = commercialAreaPopupDragState.popupLeft + dx + "px";
+        popup.style.top = commercialAreaPopupDragState.popupTop + dy + "px";
+      };
+
+      document.onmouseup = function() {
+        if (!commercialAreaPopupDragState.isDragging) return;
+
+        commercialAreaPopupDragState.isDragging = false;
+        document.body.style.userSelect = "";
+      };
+    }
     // 테스트용
     // window.postMessage({addresses:[
     //   {address:'서울 중구 세종대로 110', type:'real', date:'2025-08-30', floor:'10층', area:'33.7평', unitPrice:'36,000,000', price:'1,200,000,000', apt_name:'테스트빌딩'},

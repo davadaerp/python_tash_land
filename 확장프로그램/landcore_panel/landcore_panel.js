@@ -42,6 +42,10 @@ let lastUrl = location.href;
 //
 let mapListSortDebounceTimer = null;
 let lastSortedSignature = '';
+//
+let autoExpandDebounceTimer = null;
+let isAutoExpandingListings = false;
+let lastExpandedListKey = '';
 
 // 1. 초기 로드 대기 후 시작
 setTimeout(() => {
@@ -109,11 +113,16 @@ function startPersistentWatcher() {
             }
         }, 300);
 
-        // 분석 업데이트 (디바운스 800ms)
-        clearTimeout(analysisDebounceTimer);
-        analysisDebounceTimer = setTimeout(() => {
-            sendAnalysisToPanel();
-        }, 800);
+        // 목록이 새로 열렸는데 총건수보다 적게 렌더링되면 자동 전체 펼치기
+        clearTimeout(autoExpandDebounceTimer);
+        autoExpandDebounceTimer = setTimeout(async () => {
+            if (shouldAutoExpandListings()) {
+                await ensureListingsFullyLoaded('mutation');
+            } else {
+                sendAnalysisToPanel();
+            }
+        }, 700);
+        //
     });
 
     observer.observe(document.body, {
@@ -129,12 +138,17 @@ function startPersistentWatcher() {
             console.log('🔄 URL 변경 감지:', lastUrl, '→', location.href);
             lastUrl = location.href;
             // URL 변경 후 DOM 업데이트 대기
-            setTimeout(() => {
+            setTimeout(async () => {
                 const added = addBadgesToListings();
                 if (added > 0) {
                     console.log(`🏷️ URL 변경 후 ${added}개 배지 추가`);
                 }
-                sendAnalysisToPanel();
+
+                if (shouldAutoExpandListings()) {
+                    await ensureListingsFullyLoaded('url-change');
+                } else {
+                    sendAnalysisToPanel();
+                }
             }, 1000);
         }
     }, 500);
@@ -339,15 +353,43 @@ function extractListingDetail() {
             const eaMatch = exclusiveAreaText.match(/([\d.]+)/);
             if (eaMatch) result.exclusiveArea = parseFloat(eaMatch[1]);
         }
-        // 폴백: 요약에서 "계약88.24㎡ (전용88)" 추출
-        // ★ "계약" 키워드 필수 → 설명의 "전용12P" 오매칭 방지
+
+        // 폴백 1: 아파트형 "계약88.24㎡ (전용88)"
         if (result.exclusiveArea === 0) {
-            const summaryMatch = panelText.match(/계약[\d.]+[㎡m평]\S*\s*\(?전용([\d.]+)/);
+            const summaryMatch = panelText.match(/계약\s*[\d.]+[㎡m평]\S*\s*\(?전용\s*([\d.]+)/);
             if (summaryMatch) result.exclusiveArea = parseFloat(summaryMatch[1]);
         }
         if (result.contractArea === 0) {
-            const summaryMatch = panelText.match(/계약([\d.]+)/);
+            const summaryMatch = panelText.match(/계약\s*([\d.]+)/);
             if (summaryMatch) result.contractArea = parseFloat(summaryMatch[1]);
+        }
+
+        // 폴백 2: 빌라형 "공급94.9㎡ (전용70.39)"
+        if (result.exclusiveArea === 0) {
+            const supplyExclusiveMatch = panelText.match(/공급\s*[\d.]+[㎡m평]\S*\s*\(?전용\s*([\d.]+)/);
+            if (supplyExclusiveMatch) {
+                result.exclusiveArea = parseFloat(supplyExclusiveMatch[1]);
+            }
+        }
+        if (result.contractArea === 0) {
+            const supplyContractMatch = panelText.match(/공급\s*([\d.]+)/);
+            if (supplyContractMatch) {
+                result.contractArea = parseFloat(supplyContractMatch[1]);
+            }
+        }
+
+        // 폴백 3: 단독/다가구형 "대지94.9㎡ (연면적70.39)"
+        if (result.exclusiveArea === 0) {
+            const grossMatch = panelText.match(/연면적\s*([\d.]+)/);
+            if (grossMatch) {
+                result.exclusiveArea = parseFloat(grossMatch[1]);
+            }
+        }
+        if (result.contractArea === 0) {
+            const landMatch = panelText.match(/대지\s*([\d.]+)/);
+            if (landMatch) {
+                result.contractArea = parseFloat(landMatch[1]);
+            }
         }
         console.log('📐 면적 추출:', result.contractArea, '/', result.exclusiveArea, 'm²');
 
@@ -1117,44 +1159,112 @@ function extractPriceInfo(text) {
 }
 
 /**
- * 면적 정보 추출 (기존 naverbu 로직 이식)
+ * 면적 정보 추출
  *
- * ★ 주의: 중개사 설명에 "전용12P", "전용42" 등 평수를 기재하는 경우가 있음
- *   이를 m²로 오인하면 이중 환산 버그 발생 (12 × 0.3025 = 3.6평 ← 틀린 값)
- *   → 구 버전: "/38m²" 패턴을 최우선 매칭
- *   → 신 버전: "계약" 키워드 필수로 설명 텍스트 오매칭 차단
+ * 지원 패턴:
+ * 1. 구버전: "/38m²", "/63㎡"
+ * 2. 신버전 아파트/오피스텔: "계약123.95㎡ (전용62.97)"
+ * 3. 신버전 빌라/연립/다가구: "공급94.9㎡ (전용70.39)"
+ * 4. 단독/다가구/건물형: "대지94.9㎡ (연면적70.39)"
  */
 function extractArea(text) {
-    // ★ 구 버전 형식 우선 체크: "상가· 76/38m²" 또는 "/63㎡"
-    // 이 패턴이 있으면 확실한 m² 데이터이므로 설명 텍스트 파싱 불필요
-    const legacyMatch = text.match(/\/([\d.]+)m²/);
+    const normalized = (text || '').replace(/\s+/g, ' ').trim();
+
+    // ==================================================
+    // 1) 구버전 형식 우선
+    // 예: "상가· 76/38m²", "/63㎡"
+    // ==================================================
+    const legacyMatch = normalized.match(/\/\s*([\d.]+)\s*[m㎡][²2]?/i);
     if (legacyMatch) {
         const squareMeters = parseFloat(legacyMatch[1]);
-        const pyeong = squareMeters * 0.3025;
-        return { squareMeters, pyeong };
+        if (!isNaN(squareMeters) && squareMeters > 0) {
+            return {
+                squareMeters,
+                pyeong: squareMeters * 0.3025
+            };
+        }
     }
 
-    // 신 버전 형식 감지 (fin.land.naver.com)
-    // ㎡ 모드: "계약123.95㎡ (전용62.97)" → 전용면적은 ㎡, 환산 필요
-    // 평 모드: "계약35평 (전용35)" → 전용면적은 이미 평, 그대로 사용
-    // ★ "계약" 키워드 필수 → 설명의 "전용12P", "전용42" 오매칭 방지
-    const newFormatMatch = text.match(/계약[\d.]+[㎡m평]\S*\s*\(?전용([\d.]+)/);
-    if (newFormatMatch) {
-        const value = parseFloat(newFormatMatch[1]);
+    // ==================================================
+    // 2) 신버전 아파트/오피스텔
+    // 예: "계약123.95㎡ (전용62.97)"
+    //     "계약35평 (전용35)"
+    // ==================================================
+    const contractMatch = normalized.match(/계약\s*([\d.]+)\s*([㎡m평])[^\d]*(?:\(\s*)?전용\s*([\d.]+)/i);
+    if (contractMatch) {
+        const unitValue = parseFloat(contractMatch[3]);   // 전용값 사용
+        const unitType = contractMatch[2];
 
-        // 단위 판별: "계약" 뒤에 "평" 확인
-        const isPyeongMode = /계약[\d.]+평/.test(text);
+        if (!isNaN(unitValue) && unitValue > 0) {
+            if (unitType === '평') {
+                return {
+                    squareMeters: unitValue / 0.3025,
+                    pyeong: unitValue
+                };
+            }
+            return {
+                squareMeters: unitValue,
+                pyeong: unitValue * 0.3025
+            };
+        }
+    }
 
-        if (isPyeongMode) {
-            // 이미 평 단위 → 그대로 사용
-            const pyeong = value;
-            const squareMeters = pyeong / 0.3025;  // 역환산 (표시용)
-            return { squareMeters, pyeong };
-        } else {
-            // ㎡ 단위 → 평으로 환산
-            const squareMeters = value;
-            const pyeong = squareMeters * 0.3025;
-            return { squareMeters, pyeong };
+    // ==================================================
+    // 3) 신버전 빌라/연립/다가구
+    // 예: "공급94㎡ (전용70)"
+    //     "공급94.9㎡ (전용70.39)"
+    // ==================================================
+    const supplyExclusiveMatch = normalized.match(/공급\s*([\d.]+)\s*[㎡m평][^\d]*(?:\(\s*)?전용\s*([\d.]+)/i);
+    if (supplyExclusiveMatch) {
+        const exclusive = parseFloat(supplyExclusiveMatch[2]);
+        if (!isNaN(exclusive) && exclusive > 0) {
+            return {
+                squareMeters: exclusive,
+                pyeong: exclusive * 0.3025
+            };
+        }
+    }
+
+    // ==================================================
+    // 4) 단독/다가구/건물형
+    // 예: "대지94.9㎡ (연면적70.39)"
+    // 연면적을 실사용 분석용 면적으로 간주
+    // ==================================================
+    const landGrossMatch = normalized.match(/대지\s*([\d.]+)\s*[㎡m평][^\d]*(?:\(\s*)?연면적\s*([\d.]+)/i);
+    if (landGrossMatch) {
+        const grossArea = parseFloat(landGrossMatch[2]);
+        if (!isNaN(grossArea) && grossArea > 0) {
+            return {
+                squareMeters: grossArea,
+                pyeong: grossArea * 0.3025
+            };
+        }
+    }
+
+    // ==================================================
+    // 5) 추가 폴백
+    // 예: "전용70.39", "연면적70.39"
+    // 설명문 오매칭을 줄이기 위해 카드 텍스트 전체에서 마지막 보조 처리
+    // ==================================================
+    const exclusiveFallback = normalized.match(/전용\s*([\d.]+)/i);
+    if (exclusiveFallback) {
+        const exclusive = parseFloat(exclusiveFallback[1]);
+        if (!isNaN(exclusive) && exclusive > 0) {
+            return {
+                squareMeters: exclusive,
+                pyeong: exclusive * 0.3025
+            };
+        }
+    }
+
+    const grossFallback = normalized.match(/연면적\s*([\d.]+)/i);
+    if (grossFallback) {
+        const grossArea = parseFloat(grossFallback[1]);
+        if (!isNaN(grossArea) && grossArea > 0) {
+            return {
+                squareMeters: grossArea,
+                pyeong: grossArea * 0.3025
+            };
         }
     }
 
@@ -1177,72 +1287,117 @@ function calculatePricePerPyeong(type, price, pyeong) {
 
 /**
  * 층 정보 추출
+/**
+ * 층 정보 추출
+ * - category: 통계 분류용 (1층, 2층, 상층, 지하)
+ * - raw: 표시용 최종 문자열도 사람이 보기 좋게 "1층", "2층", "3층", "지하" 형태로 반환
  */
 function extractFloorInfo(text) {
     let raw = '-';
     let category = '기타';
 
-    // B1/6층 같은 패턴 (지하+총층) - 층 포함
-    const basementWithFloorMatch = text.match(/B(\d+)\/(\d+)층/i);
+    const normalized = (text || '').replace(/\s+/g, ' ').trim();
+
+    // ==================================================
+    // 0) fin.land 우선 처리
+    // 예: 1/2층, 1 / 2층, 1/-층, 1 / - 층, 1/-
+    // -> 모두 1층으로 처리
+    // ==================================================
+    const firstFloorAnyTotalMatch = normalized.match(/(^|\s)1\s*\/\s*(\d+|-)\s*층?/);
+    if (firstFloorAnyTotalMatch) {
+        raw = '1층';
+        category = '1층';
+        return { raw, category };
+    }
+
+    // ==================================================
+    // 1) 지하 패턴
+    // ==================================================
+    const basementWithFloorMatch = normalized.match(/B(\d+)\s*\/\s*(\d+)\s*층/i);
     if (basementWithFloorMatch) {
         category = '지하';
-        raw = `B${basementWithFloorMatch[1]}/${basementWithFloorMatch[2]}`;
+        raw = `지하${basementWithFloorMatch[1]}층`;
         return { raw, category };
     }
 
-    // B1/6 같은 패턴 (층 없이)
-    const basementWithTotalMatch = text.match(/B(\d+)\/(\d+)/i);
+    const basementWithTotalMatch = normalized.match(/B(\d+)\s*\/\s*(\d+)/i);
     if (basementWithTotalMatch) {
         category = '지하';
-        raw = `B${basementWithTotalMatch[1]}/${basementWithTotalMatch[2]}`;
+        raw = `지하${basementWithTotalMatch[1]}층`;
         return { raw, category };
     }
 
-    // 지하1/6층 같은 한글 패턴
-    const jihaWithTotalMatch = text.match(/지하(\d+)\/(\d+)/);
+    const jihaWithTotalMatch = normalized.match(/지하\s*(\d+)\s*\/\s*(\d+)/);
     if (jihaWithTotalMatch) {
         category = '지하';
-        raw = `B${jihaWithTotalMatch[1]}/${jihaWithTotalMatch[2]}`;
+        raw = `지하${jihaWithTotalMatch[1]}층`;
         return { raw, category };
     }
 
-    // 단독 지하 패턴 (B1, B2 등) - 숫자 뒤에 / 가 아닌 경우
-    const basementOnlyMatch = text.match(/B(\d+)(?!\/)/i);
+    const basementOnlyMatch = normalized.match(/B(\d+)(?!\s*\/)/i);
     if (basementOnlyMatch) {
         category = '지하';
-        raw = `B${basementOnlyMatch[1]}`;
+        raw = `지하${basementOnlyMatch[1]}층`;
         return { raw, category };
     }
 
-    // 지하 한글 패턴
-    const jihaMatch = text.match(/지하(\d+)/);
+    const jihaMatch = normalized.match(/지하\s*(\d+)/);
     if (jihaMatch) {
         category = '지하';
-        raw = `B${jihaMatch[1]}`;
+        raw = `지하${jihaMatch[1]}층`;
         return { raw, category };
     }
 
-    // 일반 지하 표시
-    if (text.includes('지하')) {
+    if (normalized.includes('지하')) {
         category = '지하';
         raw = '지하';
         return { raw, category };
     }
 
-    // 층/총층 패턴 (예: 3/15층)
-    const floorMatch = text.match(/(\d+)\/(\d+)층/);
+    // ==================================================
+    // 2) 일반 층/총층
+    // 예: 2/5층, 3/15층
+    // ==================================================
+    const floorMatch = normalized.match(/(\d+)\s*\/\s*(\d+)\s*층/);
     if (floorMatch) {
-        const floor = parseInt(floorMatch[1]);
-        raw = `${floor}/${floorMatch[2]}`;
+        const floor = parseInt(floorMatch[1], 10);
+        raw = `${floor}층`;
         category = getFloorCategory(floor);
         return { raw, category };
     }
 
-    // 단일 층 패턴 (예: 5층)
-    const singleFloorMatch = text.match(/(\d+)층/);
+    // ==================================================
+    // 3) 총층 미표기 패턴
+    // 예: 2/-층, 3/-, 4 / -
+    // ==================================================
+    const floorUnknownTotalMatch = normalized.match(/(\d+)\s*\/\s*-\s*층?/);
+    if (floorUnknownTotalMatch) {
+        const floor = parseInt(floorUnknownTotalMatch[1], 10);
+        raw = `${floor}층`;
+        category = getFloorCategory(floor);
+        return { raw, category };
+    }
+
+    // ==================================================
+    // 4) 층/총층 (층 생략)
+    // 예: 2/5, 3/15
+    // ==================================================
+    const floorWithoutSuffixMatch = normalized.match(/(\d+)\s*\/\s*(\d+)(?![.\d])/);
+    if (floorWithoutSuffixMatch) {
+        const floor = parseInt(floorWithoutSuffixMatch[1], 10);
+        raw = `${floor}층`;
+        category = getFloorCategory(floor);
+        return { raw, category };
+    }
+
+    // ==================================================
+    // 5) 단일 층
+    // 예: 5층
+    // ==================================================
+    const singleFloorMatch = normalized.match(/(\d+)\s*층/);
     if (singleFloorMatch) {
-        const floor = parseInt(singleFloorMatch[1]);
-        raw = floor.toString();
+        const floor = parseInt(singleFloorMatch[1], 10);
+        raw = `${floor}층`;
         category = getFloorCategory(floor);
         return { raw, category };
     }
@@ -1420,24 +1575,26 @@ function addBadgesToListings() {
             // 기본 평당가 텍스트 (예: 44.5평/@4.5만)
             let badgeText = `${listingData.area.toFixed(1)}평/@${listingData.pricePerPyeong}만`;
 
-            // 월세인 경우 환산 매매가 추가
-            if (isWolse) {
-                // 1. 월세 * 200(수익율 6%기준)환산 (예: 120만 * 200 = 24,000만)
+            // 월세인 경우 환산 매매가 추가 여부 판단
+            const currentTabGubun = getSelectedTabGubun();
+            const showConvertedPrice = shouldShowWolseConvertedPrice(currentTabGubun);
+            if (isWolse && showConvertedPrice) {
+                // 1. 월세 * 200(수익율 6% 기준) 환산
                 const convertedPrice = listingData.price * 200;
                 let priceLabel = "";
 
-                // 2. '2.4억' 형태로 포맷팅 (만원 단위를 10000으로 나누어 소수점 처리)
+                // 2. '2.4억' 또는 '9,000만' 형태로 포맷팅
                 if (convertedPrice >= 10000) {
                     const ukValue = convertedPrice / 10000;
-                    // 소수점이 있으면 표시(최대 2자리), 없으면 정수로 (예: 2.4억 또는 4억)
                     priceLabel = `${Number(ukValue.toFixed(2))}억`;
                 } else {
                     priceLabel = `${formatNumber(convertedPrice)}만`;
                 }
 
-                // 3. 월세일 때만 " >> 월세금액 (환산가)" 추가
+                // 3. 상가 탭에서만 표시
                 badgeText += ` >> ${priceLabel}`;
             }
+
             // 1. 배지 텍스트 생성을 위한 변수 설정
             badge.className = `naverbu-badge naverbu-badge--${isWolse ? 'wolse' : 'maemae'}`;
             badge.textContent = badgeText;
@@ -1501,16 +1658,91 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function getExpectedArticleCount() {
+    // fin.land 기준: "매물 101개"
+    const titleCandidates = document.querySelectorAll(
+        '.ArticleList_title___lkQ8, [class*="ArticleList_title"], h2, h3'
+    );
+
+    for (const el of titleCandidates) {
+        const text = (el.textContent || '').trim();
+        const match = text.match(/매물\s*([\d,]+)\s*개/);
+        if (match) {
+            return parseInt(match[1].replace(/,/g, ''), 10) || 0;
+        }
+    }
+
+    return 0;
+}
+
+
+function shouldAutoExpandListings() {
+    if (!isNewVersion()) return false;
+    if (isAutoExpandingListings) return false;
+
+    const expectedCount = getExpectedArticleCount();
+    const currentItems = findListingItems().length;
+
+    // 총건수가 확인되고, 실제 렌더링 수가 더 적으면 자동 펼치기 필요
+    if (expectedCount > 0 && currentItems > 0 && currentItems < expectedCount) {
+        return true;
+    }
+
+    return false;
+}
+
+async function ensureListingsFullyLoaded(triggerReason = 'unknown') {
+    if (!isNewVersion()) return;
+    if (isAutoExpandingListings) return;
+
+    const expectedCount = getExpectedArticleCount();
+    const currentCount = findListingItems().length;
+
+    if (!(expectedCount > 0 && currentCount > 0 && currentCount < expectedCount)) {
+        return;
+    }
+
+    // 같은 목록에 대해 중복 실행 방지
+    const listKey = `${location.href}|${expectedCount}`;
+    if (lastExpandedListKey === listKey && currentCount >= expectedCount) {
+        return;
+    }
+
+    console.log(`📂 자동 전체 펼치기 시작 [${triggerReason}] ${currentCount}/${expectedCount}`);
+
+    isAutoExpandingListings = true;
+    try {
+        await autoScrollToLoadAllListings();
+
+        const finalCount = findListingItems().length;
+        console.log(`✅ 자동 전체 펼치기 완료: ${finalCount}/${expectedCount}`);
+
+        if (finalCount >= expectedCount) {
+            lastExpandedListKey = listKey;
+        }
+
+        // 펼친 뒤 다시 배지/분석 갱신
+        const added = addBadgesToListings();
+        if (added > 0) {
+            console.log(`🏷️ 자동 펼치기 후 ${added}개 배지 추가`);
+        }
+        sendAnalysisToPanel();
+    } catch (e) {
+        console.warn('자동 전체 펼치기 실패:', e);
+    } finally {
+        isAutoExpandingListings = false;
+    }
+}
+
+
 // 매물 목록이 동적으로 로딩되는 경우, 자동으로 스크롤하여 전체 매물 로딩 유도
 async function autoScrollToLoadAllListings() {
     console.log('🔄 전체 매물 로딩용 자동 스크롤 시작');
 
-    // 신 버전(fin.land.naver.com) 우선
     let scrollContainer =
         document.querySelector('#article_list [class*="ScrollBox_scroller"]') ||
         document.querySelector('#article_list');
 
-    // 구 버전 fallback
     if (!scrollContainer) {
         scrollContainer =
             document.querySelector('.item_list.item_list--article') ||
@@ -1524,25 +1756,37 @@ async function autoScrollToLoadAllListings() {
         return;
     }
 
+    const expectedCount = getExpectedArticleCount();
     let prevCount = 0;
     let stableCount = 0;
     let prevScrollTop = -1;
-    const maxRounds = 40;   // 무한루프 방지
-    const waitMs = 200;     // 추가 로딩 대기시간
+
+    const maxRounds = 80;
+    const waitMs = 400;
 
     for (let i = 0; i < maxRounds; i++) {
         const itemsBefore = findListingItems();
         const currentCount = itemsBefore.length;
 
-        console.log(`📦 현재 매물 수: ${currentCount}개 / round=${i + 1}`);
+        console.log(`📦 현재 매물 수: ${currentCount}${expectedCount ? '/' + expectedCount : ''} / round=${i + 1}`);
 
-        // landcore.js의 .loader scrollIntoView 방식과 비슷하게
-        // 현재 보이는 목록 끝쪽으로 이동시켜 추가 로딩 유도
+        // 목표치 도달 시 종료
+        if (expectedCount > 0 && currentCount >= expectedCount) {
+            console.log(`✅ 목표 매물 수 도달: ${currentCount}/${expectedCount}`);
+            break;
+        }
+
         const loader = document.querySelector('.loader');
         if (loader) {
             loader.scrollIntoView({ behavior: 'auto', block: 'center' });
         } else {
             scrollContainer.scrollTop = scrollContainer.scrollHeight;
+
+            const items = findListingItems();
+            const lastItem = items[items.length - 1];
+            if (lastItem) {
+                lastItem.scrollIntoView({ behavior: 'auto', block: 'end' });
+            }
         }
 
         await delay(waitMs);
@@ -1551,7 +1795,6 @@ async function autoScrollToLoadAllListings() {
         const newCount = itemsAfter.length;
         const newScrollTop = scrollContainer.scrollTop;
 
-        // 매물 수 증가 없고 스크롤 위치도 거의 안 변하면 안정화로 판단
         if (newCount === prevCount && newScrollTop === prevScrollTop) {
             stableCount += 1;
         } else {
@@ -1561,17 +1804,26 @@ async function autoScrollToLoadAllListings() {
         prevCount = newCount;
         prevScrollTop = newScrollTop;
 
-        // 2~3회 연속 변화 없으면 전체 로딩 완료로 판단
-        if (stableCount >= 2) {
-            console.log(`✅ 전체 매물 로딩 완료 추정: ${newCount}개`);
-            break;
+        if (expectedCount > 0) {
+            if (newCount >= expectedCount) {
+                console.log(`✅ 전체 매물 로딩 완료: ${newCount}/${expectedCount}`);
+                break;
+            }
+
+            if (stableCount >= 4) {
+                console.log(`⚠️ 안정화 종료: ${newCount}/${expectedCount}`);
+                break;
+            }
+        } else {
+            if (stableCount >= 3) {
+                console.log(`✅ 전체 매물 로딩 완료 추정: ${newCount}개`);
+                break;
+            }
         }
     }
 
-    // 분석 시작 전 목록 상단으로 복귀
-    if (scrollContainer) {
-        scrollContainer.scrollTop = 0;
-    }
+    // 목록 상단 복귀
+    scrollContainer.scrollTop = 0;
     const firstItem = findListingItems()[0];
     if (firstItem) {
         firstItem.scrollIntoView({ behavior: 'auto', block: 'start' });
@@ -1644,7 +1896,7 @@ function getSelectedRegionInfo() {
  * - fin.land.naver.com : 상단 탭 aria-selected / 텍스트 / href / data 속성 기반
  * - new.land.naver.com : 기존 landcore.js의 aria-controls(tab1/tab2/tab4) 방식 우선
  */
-function getSelectedTabGubun() {
+function getSelectedTabGubun_old버전() {
     // 1) 구버전(new.land.naver.com) 우선: landcore.js 기존 구조 그대로 반영
     if (!isNewVersion()) {
         const tabs = document.querySelectorAll('.lnb_wrap .lnb_item');
@@ -1736,6 +1988,141 @@ function getSelectedTabGubun() {
     return '';
 }
 
+/**
+ * 현재 선택된 부동산 탭 구분 추출
+ * 리턴값: 'apt' | 'villa' | 'sanga' | ''
+ */
+function getSelectedTabGubun() {
+    // 1) 구버전/new.land - aria-controls 우선
+    const oldTabs = document.querySelectorAll('.lnb_wrap .lnb_item');
+    for (const tab of oldTabs) {
+        if (tab.getAttribute('aria-selected') === 'true') {
+            const controls = tab.getAttribute('aria-controls');
+            const text = (tab.textContent || '').trim();
+
+            switch (controls) {
+                case 'tab1':
+                    return 'apt';
+                case 'tab2':
+                    return 'villa';
+                case 'tab4':
+                    return 'sanga';
+                default: {
+                    const detected = detectTabGubunFromText(text);
+                    if (detected) return detected;
+                }
+            }
+        }
+    }
+
+    // 2) fin.land / 기타 신버전 - 선택된 탭/버튼/링크에서 텍스트 판별
+    const selectedCandidates = document.querySelectorAll(`
+        [role="tab"][aria-selected="true"],
+        button[aria-selected="true"],
+        a[aria-current="page"],
+        [class*="Tab"][aria-selected="true"],
+        [class*="tab"][aria-selected="true"],
+        .is_selected,
+        .selected
+    `);
+
+    for (const el of selectedCandidates) {
+        const text = (el.textContent || '').trim();
+        const href = el.getAttribute('href') || '';
+        const controls = el.getAttribute('aria-controls') || '';
+        const dataType =
+            el.getAttribute('data-type') ||
+            el.getAttribute('data-code') ||
+            el.getAttribute('data-tab') ||
+            '';
+
+        const merged = `${text} ${href} ${controls} ${dataType}`;
+        const detected = detectTabGubunFromText(merged);
+        if (detected) return detected;
+    }
+
+    // 3) URL 기반 보조 판별
+    const url = location.href.toLowerCase();
+    const path = location.pathname.toLowerCase();
+
+    if (path.startsWith('/complexes') || url.includes('/complex/')) {
+        return 'apt';
+    }
+    if (path.startsWith('/houses') || url.includes('/house/')) {
+        return 'villa';
+    }
+    if (path.startsWith('/offices') || url.includes('/office/')) {
+        return 'sanga';
+    }
+
+    return '';
+}
+
+/**
+ * 탭 문자열을 보고 apt / villa / sanga 판별
+ */
+function detectTabGubunFromText(text) {
+    const normalized = (text || '').replace(/\s+/g, '').toLowerCase();
+
+    // 아파트 계열
+    if (
+        normalized.includes('아파트') ||
+        normalized.includes('오피스텔') ||
+        normalized.includes('apt') ||
+        normalized.includes('officetel') ||
+        normalized.includes('complex')
+    ) {
+        return 'apt';
+    }
+
+    // 빌라/주택 계열
+    if (
+        normalized.includes('빌라') ||
+        normalized.includes('연립') ||
+        normalized.includes('다세대') ||
+        normalized.includes('단독') ||
+        normalized.includes('다가구') ||
+        normalized.includes('다중주택') ||
+        normalized.includes('원룸') ||
+        normalized.includes('전원주택') ||
+        normalized.includes('상가주택') ||
+        normalized.includes('villa') ||
+        normalized.includes('house')
+    ) {
+        return 'villa';
+    }
+
+    // 상가 계열
+    if (
+        normalized.includes('상가') ||
+        normalized.includes('사무실') ||
+        normalized.includes('공장') ||
+        normalized.includes('창고') ||
+        normalized.includes('지식산업센터') ||
+        normalized.includes('건물') ||
+        normalized.includes('office') ||
+        normalized.includes('store') ||
+        normalized.includes('factory') ||
+        normalized.includes('warehouse') ||
+        normalized.includes('sanga')
+    ) {
+        return 'sanga';
+    }
+
+    return '';
+}
+
+
+
+/**
+ * 월세 배지에 환산가(>> 2.4억)를 붙일지 여부
+ * - apt  : 제거
+ * - villa: 제거
+ * - sanga: 유지
+ */
+function shouldShowWolseConvertedPrice(tabGubun) {
+    return tabGubun === 'sanga';
+}
 
 // 탱크옥션 페이지 내 매물 정보 변경 감지하여 자동 분석 트리거 (300ms 디바운스)
 function observeMutationsTank() {
