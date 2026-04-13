@@ -1,10 +1,11 @@
 import os
 from datetime import datetime
-import csv
 import sqlite3
-import pandas as pd
+import re
+
+from common.vworld_utils import VWorldGeocoding
 #
-from config import AUCTION_DB_PATH
+from config import AUCTION_DB_PATH, MAP_API_KEY
 
 # 공통 변수 설정
 CSV_FILENAME = "auction_data.csv"
@@ -373,3 +374,170 @@ def auction_read_by_region(region="", sigungu_name="", categories=None):
         return []
     finally:
         conn.close()
+
+# eub_myeon_dong 조건으로 조회하면서, latitude가 0.0 또는 비어있는 레코드 목록을 반환하는 함수
+def auction_read_no_latlng_by_eub_myeon_dong(eub_myeon_dong: str):
+    """
+    eub_myeon_dong 조건으로 조회하면서,
+    latitude가 0.0 또는 비어있는 레코드 목록을 반환합니다.
+
+    예:
+        eub_myeon_dong = '구월동'
+        latitude = 0.0 인 데이터 조회
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    query = f"""
+          SELECT *
+          FROM {TABLE_NAME}
+          WHERE 1=1
+            AND eub_myeon_dong LIKE ?
+            AND (
+                  latitude IS NULL
+                  OR TRIM(CAST(latitude AS TEXT)) = ''
+                  OR CAST(latitude AS REAL) = 0.0
+                )
+          ORDER BY sales_date DESC
+      """
+    params = [f"%{eub_myeon_dong}%"]
+
+    try:
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        result = [dict(row) for row in rows]
+        print(f"[조회완료] 위경도 미처리 건수: {len(result)} / eub_myeon_dong={eub_myeon_dong}")
+        return result
+    except Exception as e:
+        print(f"위경도 미처리 목록 조회 오류: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+# case_number 기준으로 latitude, longitude 만 업데이트하는 함수
+def auction_update_latlng_by_case_number(case_number: str, latitude: float, longitude: float):
+    """
+    case_number 기준으로 latitude, longitude 만 업데이트합니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    query = f"""
+          UPDATE {TABLE_NAME}
+          SET latitude = ?, longitude = ?
+          WHERE case_number = ?
+      """
+
+    try:
+        cursor.execute(query, (str(latitude), str(longitude), case_number))
+        conn.commit()
+        print(f"[업데이트완료] case_number={case_number}, lat={latitude}, lng={longitude}")
+        return cursor.rowcount
+    except Exception as e:
+        print(f"위경도 업데이트 오류 (case_number={case_number}): {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+# eub_myeon_dong 기준으로 latitude=0.0 인 목록 조회 -> address2로 VWorld 지오코딩 -> 조회된 위경도를 DB에 업데이트하는 함수
+def auction_fill_latlng_by_eub_myeon_dong(eub_myeon_dong: str, vworld_api_key: str):
+    """
+    1) eub_myeon_dong 기준으로 latitude=0.0 인 목록 조회
+    2) 각 레코드의 address2 로 VWorld 지오코딩 수행
+    3) 조회된 위경도를 DB에 업데이트
+
+    :return:
+        {
+            "target_count": 대상건수,
+            "success_count": 성공건수,
+            "fail_count": 실패건수
+        }
+    """
+    target_rows = auction_read_no_latlng_by_eub_myeon_dong(eub_myeon_dong)
+
+    if not target_rows:
+        print("[처리종료] 위경도 미처리 대상이 없습니다.")
+        return {
+            "target_count": 0,
+            "success_count": 0,
+            "fail_count": 0
+        }
+
+    geocoder = VWorldGeocoding(vworld_api_key)
+
+    success_count = 0
+    fail_count = 0
+
+    for row in target_rows:
+        case_number = row.get("case_number", "")
+        address2 = (row.get("address2") or "").strip()
+
+        # 양쪽 괄호 제거 (여러개 있어도 제거)
+        address2 = re.sub(r'^\(+|\)+$', '', address2).strip()
+
+        if not address2:
+            print(f"[건너뜀] case_number={case_number} / address2 비어있음")
+            fail_count += 1
+            continue
+
+        # address_type="parcel" (지번), "road" (도로명)
+        lat, lng = geocoder.get_lat_lng(address2, address_type="road")
+
+        print(f"[지오코딩결과] case_number={case_number}, address2={address2}, lat={lat}, lng={lng}")
+
+        if float(lat) == 0.0 and float(lng) == 0.0:
+            print(f"[실패] case_number={case_number} / 지오코딩 결과 없음")
+            fail_count += 1
+            continue
+
+        updated = auction_update_latlng_by_case_number(case_number, lat, lng)
+        if updated > 0:
+            success_count += 1
+        else:
+            fail_count += 1
+
+    summary = {
+        "target_count": len(target_rows),
+        "success_count": success_count,
+        "fail_count": fail_count
+    }
+
+    print(f"[최종요약] {summary}")
+    return summary
+
+
+# 테스트용 메인 실행부
+if __name__ == "__main__":
+    # -------------------------------
+    # 실행 파라미터
+    # -------------------------------
+    TARGET_EUB_MYEON_DONG = ""
+
+    # -------------------------------
+    # 1. 위경도 미처리 대상 조회
+    # -------------------------------
+    rows = auction_read_no_latlng_by_eub_myeon_dong(TARGET_EUB_MYEON_DONG)
+
+    print("\n[1단계] 조회 결과")
+    for idx, row in enumerate(rows, start=1):
+        print(
+            f"{idx}. case_number={row.get('case_number')}, "
+            f"eub_myeon_dong={row.get('eub_myeon_dong')}, "
+            f"address2={row.get('address2')}, "
+            f"latitude={row.get('latitude')}, longitude={row.get('longitude')}"
+        )
+
+    # -------------------------------
+    # 2 ~ 3. 지오코딩 + DB 업데이트
+    # -------------------------------
+    print("\n[2~3단계] 지오코딩 및 DB 업데이트 시작")
+    result = auction_fill_latlng_by_eub_myeon_dong(
+        eub_myeon_dong=TARGET_EUB_MYEON_DONG,
+        vworld_api_key=MAP_API_KEY
+    )
+
+    print("\n[최종 결과]")
+    print(result)

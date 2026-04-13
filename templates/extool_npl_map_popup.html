@@ -3214,11 +3214,18 @@
     // [추가] URL 파라미터에서 NPL 초기 지역정보 읽어서 적용
     // 예: ?lawdCd=11110&lawdName=서울특별시+종로구+청운효자동&umdName=청운효자동
     async function readInitialNplRegionFromUrl() {
+      /*
       const params = new URLSearchParams(window.location.search);
-
       const lawdCd = String(params.get("lawdCd") || "").trim();
       const lawdName = String(params.get("lawdName") || "").trim();
       const umdName = String(params.get("umdName") || "").trim();
+       */
+
+      // 서버에서 넘어온 데이터를 자바스크립트 변수로 초기화
+      // 값이 없을 경우를 대비해 기존 GET 방식의 기본값 로직을 그대로 적용합니다.
+      const lawdCd = ("{{ lawdCd }}" || "").trim();
+      const lawdName = ("{{ lawdName }}" || "").trim();
+      const umdName = ("{{ umdName }}" || "").trim();
 
       console.log("[URL] 초기 지역정보 읽기", { lawdCd, lawdName, umdName });
 
@@ -3247,9 +3254,6 @@
       // if (event.origin !== window.location.origin) return;
       const data = event.data;
       console.log('[message] 부모창에서 데이터 수신:', data);
-
-      //
-      //await applyInitialNplRegionData(data, "message");
     });
 
     // =========================

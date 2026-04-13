@@ -2269,6 +2269,34 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .wishlist-address-combined-control {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 180px;
+      gap: 8px;
+    }
+
+    .wishlist-field-address-main,
+    .wishlist-field-address-jibun,
+    .wishlist-field-address-detail {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .wishlist-field-address-jibun {
+      text-align: left;
+    }
+
+    .wishlist-field-address-detail {
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      .wishlist-address-combined-control {
+        grid-template-columns: 1fr;
+      }
+    }
     /* =========================
     [추가] 상권목록 팝업 드래그
     ========================= */
@@ -2644,7 +2672,7 @@
       expandedWidth: 420,       // 펼침 폭
       collapsedWidth: 22,       // 접힘 폭
       duration: 340,            // ms
-      startCollapsed: false     // true면 처음부터 접힘
+      startCollapsed: true     // true면 처음부터 접힘
     };
     let isNplLeftPanelCollapsed = false;
 
@@ -2858,16 +2886,18 @@
       const realCount    = itemsSorted.filter(it => it.type === 'real').length;
       const auctionCount = itemsSorted.filter(it => it.type === 'auction').length;
 
+      const selectedAssetLabel = String(getMapAssetTypeSelectValue() || selectedAssetType || "상가").trim();
+
       // 필터 버튼 구성 (텍스트에 건수 포함)
       const filterOptions = [];
       if (meta.hasReal && meta.hasAuction) {
-        filterOptions.push({key:'all',     text:`전체 (${totalCount})`});
-        filterOptions.push({key:'real',    text:`실거래 (${realCount})`});
-        filterOptions.push({key:'auction', text:`경매 (${auctionCount})`});
+        filterOptions.push({key:'all',     text:`${selectedAssetLabel} 전체 (${totalCount})`});
+        filterOptions.push({key:'real',    text:`${selectedAssetLabel} 실거래 (${realCount})`});
+        filterOptions.push({key:'auction', text:`${selectedAssetLabel} 경매 (${auctionCount})`});
       } else if (meta.hasReal) {
-        filterOptions.push({key:'real',    text:`실거래 (${realCount})`});
+        filterOptions.push({key:'real',    text:`${selectedAssetLabel} 실거래 (${realCount})`});
       } else {
-        filterOptions.push({key:'auction', text:`경매 (${auctionCount})`});
+        filterOptions.push({key:'auction', text:`${selectedAssetLabel} 경매 (${auctionCount})`});
       }
       const defaultFilter = filterOptions[0].key; // 혼합이면 all, 아니면 단일 항목
 
@@ -3204,27 +3234,87 @@
     }
 
     /* ===== 렌더링 파이프라인 ===== */
+    function moveMapToFallbackRegion() {
+      const baseRow = buildCurrentSelectedBaseRow();
+
+      const fallbackLat = parseFloat(baseRow.latitude || initialRequestedLatLng.lat || 0);
+      const fallbackLng = parseFloat(baseRow.longitude || initialRequestedLatLng.lng || 0);
+
+      if (fallbackLat && fallbackLng) {
+        map.setCenter(new naver.maps.LatLng(fallbackLat, fallbackLng));
+        map.setZoom(16);
+        return;
+      }
+
+      const fallbackAddress = String(
+        baseRow.address1 ||
+        [selectedFullNm, selectedUmdNm].filter(Boolean).join(" ") ||
+        initialRequestedLatLng.address ||
+        ""
+      ).trim();
+
+      if (!fallbackAddress) return;
+
+      naver.maps.Service.geocode({ query: fallbackAddress }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK || !response?.v2?.addresses?.length) {
+          return;
+        }
+
+        const addr = response.v2.addresses[0];
+        const lat = parseFloat(addr.y || 0);
+        const lng = parseFloat(addr.x || 0);
+
+        if (!lat || !lng) return;
+
+        map.setCenter(new naver.maps.LatLng(lat, lng));
+        map.setZoom(16);
+      });
+    }
+
     function plotByType(type) {
       markers.forEach(m => m.setMap(null));
       markers = [];
       bounds = new naver.maps.LatLngBounds();
-      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
 
-      if (!Array.isArray(addresses) || addresses.length === 0) return;
+      if (currentOverlay) {
+        currentOverlay.setMap(null);
+        currentOverlay = null;
+      }
+
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        moveMapToFallbackRegion();
+        return;
+      }
 
       const filtered = addresses.filter(a => type === 'all' || a.type === type);
-      if (filtered.length === 0) return;
+      if (filtered.length === 0) {
+        moveMapToFallbackRegion();
+        return;
+      }
 
       groups = groupByLocation(filtered);
 
       let doneCount = 0;
       const total = groups.length;
+
       groups.forEach(g => {
         geocodeIfNeeded(g, (result) => {
           doneCount++;
-          if (!result) return;
-          createCountMarker(g);
-          if (doneCount === total && markers.length) map.fitBounds(bounds);
+
+          if (result) {
+            createCountMarker(g);
+          }
+
+          if (doneCount === total) {
+            if (markers.length) {
+              map.fitBounds(bounds);
+              if (map.getZoom() > 16) {
+                map.setZoom(16);
+              }
+            } else {
+              moveMapToFallbackRegion();
+            }
+          }
         });
       });
     }
@@ -3268,7 +3358,13 @@
         realBtn.addEventListener('click', async function() {
           const row = buildCurrentSelectedBaseRow();
 
-          if (!row.lawd_cd || !row.eub_myeon_dong) {
+          const hasRegionInfo = !!(row.lawd_cd && row.eub_myeon_dong);
+          const hasFallbackInfo = !!(
+            String(row.address1 || "").trim() ||
+            (parseFloat(row.latitude || 0) && parseFloat(row.longitude || 0))
+          );
+
+          if (!hasRegionInfo && !hasFallbackInfo) {
             alert("상단의 위치/법정코드 정보가 없습니다.");
             return;
           }
@@ -3342,6 +3438,11 @@
         text.includes("오피스텔(주거)") ||
         text.includes("다가구")
       ) return "빌라";
+
+      if (
+        text.includes("근린상가") ||
+        text.includes("근린생활주택")
+      ) return "상가";
 
       return "상가";
     }
@@ -3496,6 +3597,8 @@
     async function applyInitialNplRegionData(data, source = '') {
       if (!data) return false;
 
+      console.log(`[${source || 'init'}] NPL 초기 지역정보 적용 시도`, data);
+
       const initialOpt = Array.isArray(data.options) && data.options.length
         ? data.options[0]
         : null;
@@ -3511,16 +3614,36 @@
       const lawdName = String(initialOpt.lawdName || "").trim();
       const umdName = String(initialOpt.umdName || "").trim();
       const assetType = String(initialOpt.type || initialOpt.assetType || "").trim();
+      // 경매지에서 바로가기로 위치를 이동하기 위해서 적용함.
+      const latitude = parseFloat(initialOpt.latitude || initialOpt.lat || 0);
+      const longitude = parseFloat(initialOpt.longitude || initialOpt.lng || 0);
+      const address = String(initialOpt.address || "").trim();
+      // 물건유형(아파트,빌라,상가), 감정가, 최저가 정보도 전달받을 수 있도록 추가 (향후 지도 마커/팝업에 활용 가능)
+      const objectType = String(initialOpt.objectType || "").trim();
+      const appraisalPrice = String(initialOpt.appraisalPrice || "").trim();
+      const minimumPrice = String(initialOpt.minimumPrice || "").trim();
 
       if (!lawdCd && !lawdName && !umdName) {
         return false;
       }
 
+      const inferredLawdCd = lawdCd || parseSidoCodeFromAddress(lawdName || address || "");
+      const inferredFullNm = lawdName || splitAddressToRegionParts(address).fullNm || "";
+      const inferredUmdNm = umdName || splitAddressToRegionParts(address).umdNm || "";
+
+      if (latitude && longitude) {
+        initialRequestedLatLng = {
+          lat: latitude,
+          lng: longitude,
+          address: address || [inferredFullNm, inferredUmdNm].filter(Boolean).join(" ")
+        };
+      }
+
       // 1) 현재 선택 상태 반영
       applySelectedLocationState({
-        lawdCd,
-        umdNm: umdName,
-        fullNm: lawdName,
+        lawdCd: inferredLawdCd,
+        umdNm: inferredUmdNm,
+        fullNm: inferredFullNm,
         assetType
       });
 
@@ -3529,9 +3652,9 @@
       //   원본값이 아직 없을 때만 저장
       if (!initialSelectionState.lawdCd && !initialSelectionState.umdNm && !initialSelectionState.fullNm) {
         saveInitialSelectionState({
-          lawdCd,
-          umdNm: umdName,
-          fullNm: lawdName,
+          lawdCd: inferredLawdCd,
+          umdNm: inferredUmdNm,
+          fullNm: inferredFullNm,
           assetType
         });
       }
@@ -3544,7 +3667,7 @@
         initialSelectionState
       });
 
-      const nameParts = lawdName.split(/\s+/).filter(Boolean);
+      const nameParts = String(inferredFullNm || "").split(/\s+/).filter(Boolean);
       const regionName = nameParts[0] || "";
       const sggName = nameParts[1] || "";
 
@@ -3576,6 +3699,9 @@
       if (lawdEl) {
         lawdEl.value = umdName;
       }
+      selectedUmdNm = inferredUmdNm;
+      selectedFullNm = inferredFullNm;
+      selectedLawdCd = inferredLawdCd;
 
       // 5) 타입 세팅
       setMainCategorySelectValueSafe(normalizeAssetTypeForControl(assetType));
@@ -3585,30 +3711,208 @@
 
       // 6) 초기 데이터 로드
       await loadInitialDealAuctionMapData();
+
+      console.log(`[${source || 'init'}] NPL 초기 위치로 마커 표시`, { latitude, longitude, address });
+      // 7) 경.공매 address 값이 있으면 해당 주소 위치로 단건 마커 표시
+      if (latitude && longitude) {
+        markInitialNplLatLng(
+          latitude,
+          longitude,
+          assetType,
+          lawdName || umdName || "선택 위치",
+          address,
+          objectType,
+          appraisalPrice,
+          minimumPrice
+        );
+      }
       return true;
+    }
+
+    function parseSidoCodeFromAddress(addressText = "") {
+      const text = String(addressText || "").trim();
+
+      if (text.startsWith("서울")) return "11";
+      if (text.startsWith("부산")) return "26";
+      if (text.startsWith("대구")) return "27";
+      if (text.startsWith("인천")) return "28";
+      if (text.startsWith("광주")) return "29";
+      if (text.startsWith("대전")) return "30";
+      if (text.startsWith("울산")) return "31";
+      if (text.startsWith("세종")) return "36";
+      if (text.startsWith("경기")) return "41";
+      if (text.startsWith("강원")) return "42";
+      if (text.startsWith("충북")) return "43";
+      if (text.startsWith("충남")) return "44";
+      if (text.startsWith("전북")) return "45";
+      if (text.startsWith("전남")) return "46";
+      if (text.startsWith("경북")) return "47";
+      if (text.startsWith("경남")) return "48";
+      if (text.startsWith("제주")) return "50";
+
+      return "";
+    }
+
+    function splitAddressToRegionParts(addressText = "") {
+      const parts = String(addressText || "").trim().split(/\s+/).filter(Boolean);
+      return {
+        fullNm: parts.slice(0, 2).join(" ").trim(),
+        umdNm: parts[2] || "",
+        regionNm: parts[0] || "",
+        sggNm: parts[1] || ""
+      };
+    }
+
+    async function resolveInitialRegionFromLatLng(lat, lng) {
+      return new Promise((resolve) => {
+        if (!lat || !lng) {
+          resolve(null);
+          return;
+        }
+
+        naver.maps.Service.reverseGeocode({
+          coords: new naver.maps.LatLng(lat, lng),
+          orders: [
+            naver.maps.Service.OrderType.ADDR,
+            naver.maps.Service.OrderType.ROAD_ADDR
+          ].join(',')
+        }, function(status, response) {
+          if (status !== naver.maps.Service.Status.OK || !response?.v2?.results?.length) {
+            resolve(null);
+            return;
+          }
+
+          const result = response.v2.results[0];
+          const region = result.region || {};
+          const land = result.land || {};
+
+          const sido = region.area1?.name || "";
+          const sigungu = region.area2?.name || "";
+          const dong = region.area3?.name || region.area4?.name || "";
+          const lawdName = [sido, sigungu, dong].filter(Boolean).join(" ").trim();
+
+          resolve({
+            lawdCd: parseSidoCodeFromAddress(sido),   // 최소 시도코드라도 세팅
+            lawdName: [sido, sigungu].filter(Boolean).join(" ").trim(),
+            umdName: dong,
+            address: land?.name
+              ? `${lawdName} ${land.name}`.trim()
+              : lawdName,
+            latitude: lat,
+            longitude: lng
+          });
+        });
+      });
     }
 
     // =====================
     // [추가] URL 파라미터에서 NPL 초기 지역정보 읽어서 적용
     // 예: ?lawdCd=11110&lawdName=서울특별시+종로구+청운효자동&umdName=청운효자동
     async function readInitialNplRegionFromUrl() {
+       /*
       const params = new URLSearchParams(window.location.search);
+      let lawdCd = String(params.get("lawdCd") || "").trim();
+      let lawdName = String(params.get("lawdName") || "").trim();
+      let umdName = String(params.get("umdName") || "").trim();
+      const assetType = String(params.get("type") || params.get("assetType") || "").trim();
 
-      const lawdCd = String(params.get("lawdCd") || "").trim();
-      const lawdName = String(params.get("lawdName") || "").trim();
-      const umdName = String(params.get("umdName") || "").trim();
+      const latitude = parseFloat(params.get("latitude") || params.get("lat") || 0);
+      const longitude = parseFloat(params.get("longitude") || params.get("lng") || 0);
+      let address = String(params.get("address") || "").trim();
+      const objectType = String(params.get("objectType") || "").trim();
+      const appraisalPrice = String(params.get("appraisalPrice") || "").trim();
+      const minimumPrice = String(params.get("minimumPrice") || "").trim();
+        */
 
-      console.log("[URL] 초기 지역정보 읽기", { lawdCd, lawdName, umdName });
+      // 1. 서버에서 보낸 데이터를 JS 객체로 치환
+      const serverParams = {
+          assetType: "{{ assetType }}",
+          lawdCd: "{{ lawdCd }}",
+          lawdName: "{{ lawdName }}",
+          umdName: "{{ umdName }}",
+          objectType: "{{ objectType }}",
+          address: "{{ address }}",
+          appraisalPrice: "{{ appraisalPrice }}",
+          minimumPrice: "{{ minimumPrice }}",
+          latitude: parseFloat("{{ latitude }}") || 0,
+          longitude: parseFloat("{{ longitude }}") || 0,
+          token: "{{ access_token }}"
+      };
 
-      if (!lawdCd && !lawdName && !umdName) {
+      // 2. 기존 코드에서 params.get()을 사용하던 변수들을 매핑
+      const assetType = serverParams.assetType;
+      let lawdCd = serverParams.lawdCd;
+      let lawdName = serverParams.lawdName;
+      let umdName = serverParams.umdName;
+      //
+      let address = serverParams.address;
+      const objectType = serverParams.objectType;
+      const appraisalPrice = serverParams.appraisalPrice;
+      const minimumPrice = serverParams.minimumPrice;
+      const latitude = serverParams.latitude;
+      const longitude = serverParams.longitude;
+
+      console.log("[URL] 초기 지역정보 읽기", {
+        lawdCd, lawdName, umdName, assetType, latitude, longitude, address
+      });
+
+      initialRequestedLatLng = {
+        lat: latitude || 0,
+        lng: longitude || 0,
+        address: address || ""
+      };
+
+      // [추가] 초기 URL/서버 파라미터에 위경도가 있으면
+      // 현재 선택 위치로 저장해 panel.js 에서 사용할 수 있게 함
+      if (latitude && longitude) {
+        setWishlistSelectedLocation({
+          latitude: latitude,
+          longitude: longitude,
+          address: address,
+          objectType: objectType
+        });
+      }
+
+      // 1) 지역정보가 부족하고 위/경도가 있으면 reverse geocode로 보완
+      if ((!lawdName || !umdName) && latitude && longitude) {
+        const resolved = await resolveInitialRegionFromLatLng(latitude, longitude);
+
+        if (resolved) {
+          lawdCd = lawdCd || resolved.lawdCd || "";
+          lawdName = lawdName || resolved.lawdName || "";
+          umdName = umdName || resolved.umdName || "";
+          address = address || resolved.address || "";
+
+          console.log("[URL] reverse geocode 보완 완료", resolved);
+        }
+      }
+
+      // 2) 여전히 lawdName이 없고 address만 있으면 텍스트 분해로 보완
+      if ((!lawdName || !umdName) && address) {
+        const parsed = splitAddressToRegionParts(address);
+
+        lawdName = lawdName || parsed.fullNm || "";
+        umdName = umdName || parsed.umdNm || "";
+        lawdCd = lawdCd || parseSidoCodeFromAddress(parsed.regionNm || "");
+      }
+
+      // 3) 최소한 lat/lng만 있어도 applyInitialNplRegionData는 태우도록 함
+      if (!lawdCd && !lawdName && !umdName && !latitude && !longitude) {
         return false;
       }
-      // URL에서 읽은 정보로 초기 지역 설정 적용
+
       return await applyInitialNplRegionData({
         options: [{
           lawdCd,
           lawdName,
-          umdName
+          umdName,
+          type: assetType,
+          latitude,
+          longitude,
+          address,
+          objectType,
+          appraisalPrice,
+          minimumPrice
         }],
         addresses: []
       }, "url");
@@ -5538,6 +5842,12 @@
     let selectedLawdCd = "";
     let selectedUmdNm = "";
     let selectedAssetType = "";   // 상가 / 빌라 / 아파트
+    let selectedFullNm = "";
+    let initialRequestedLatLng = {
+      lat: 0,
+      lng: 0,
+      address: ""
+    };
     // =========================
     // [추가] 초기 원본 상태
     // - 화면 최초 오픈 시 전달받은 값 보관
@@ -5624,6 +5934,126 @@
       }
     }
 
+    // =========================
+    // [수정] 초기 전달 latitude / longitude 기준 단건 위치 마커 표시
+    // - applyInitialNplRegionData() 에서만 사용
+    // - 서버에서 넘겨준 좌표를 바로 사용
+    // =========================
+    function markInitialNplLatLng(
+      latitude,
+      longitude,
+      assetType = "",
+      titleText = "",
+      addressText = "",
+      objectType = "",
+      appraisalPrice = "",
+      minimumPrice = ""
+    ) {
+      const lat = parseFloat(latitude || 0);
+      const lng = parseFloat(longitude || 0);
+
+      if (!lat || !lng) {
+        console.warn("[초기 lat/lng 마커] 유효하지 않은 좌표:", { latitude, longitude });
+        return;
+      }
+
+      // 기존 관심물건 단건 마커/팝업만 정리
+      clearNplSampleMarkers();
+      closeNplSampleInfoWindow();
+
+      const pos = new naver.maps.LatLng(lat, lng);
+      const markerClass = getNplSampleClass(assetType || "상가");
+      const markerIcon = getNplSampleIcon(assetType || "상가");
+
+      // 상단 제목은 objectType 우선 사용
+      const popupTitle = String(objectType || titleText || "선택 위치").trim();
+      const popupAddress = String(addressText || "").trim();
+
+      // 표시용 문자열 정리
+      const displayAppraisalPrice = formatNumberWithComma(appraisalPrice);
+      //
+      const minData = parseMinimumPrice(minimumPrice);
+      const displayMinimumRate = minData.rate;
+      const displayMinimumPrice = formatNumberWithComma(minData.price);
+
+      const marker = new naver.maps.Marker({
+        position: pos,
+        map: map,
+        zIndex: 210,
+        icon: {
+          content: `
+            <div class="npl-map-sample-marker ${markerClass}">
+              <div class="marker-pin">${markerIcon}</div>
+            </div>
+          `,
+          anchor: new naver.maps.Point(26, 56)
+        }
+      });
+
+      nplSampleMarkers.push(marker);
+
+      map.setCenter(pos);
+      map.setZoom(16);
+
+      const popupHtml = `
+        <div class="npl-map-sample-popup">
+          <div class="npl-map-sample-popup-head">
+            ${popupTitle}
+            <button type="button" class="npl-map-sample-popup-close">×</button>
+          </div>
+          <div class="npl-map-sample-popup-body">
+            ${
+              popupAddress
+                ? `
+                  <div class="row row-inline">
+                    <span class="label">주소</span>
+                    <span class="ellipsis-text" title="${popupAddress.replace(/"/g, '&quot;')}">
+                      ${popupAddress}
+                    </span>
+                  </div>
+                `
+                : ""
+            }
+            <div class="row">
+              <span class="label">감정가</span>${displayAppraisalPrice}
+            </div>
+            <div class="row">
+              <span class="label">최저금액</span>(${displayMinimumRate})${displayMinimumPrice}
+            </div>
+          </div>
+        </div>
+      `;
+
+      function openPopup() {
+        closeNplSampleInfoWindow();
+
+        nplSampleInfoWindow = new naver.maps.InfoWindow({
+          content: popupHtml,
+          borderWidth: 0,
+          backgroundColor: "transparent",
+          disableAnchor: false,
+          pixelOffset: new naver.maps.Point(0, -8)
+        });
+
+        nplSampleInfoWindow.open(map, marker);
+
+        setTimeout(() => {
+          const closeBtn = document.querySelector(".npl-map-sample-popup-close");
+          if (closeBtn) {
+            closeBtn.onclick = function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              closeNplSampleInfoWindow();
+            };
+          }
+        }, 0);
+      }
+
+      marker.addListener("click", openPopup);
+      openPopup();
+    }
+
+
     function getNplRegionText(row) {
       if (!row) return "";
 
@@ -5648,13 +6078,33 @@
     // - 초기화 후 / 상단 버튼 클릭 시 공통 사용
     // =========================
     function buildCurrentSelectedBaseRow() {
-      const safeFullNm = String(selectedFullNm || initialSelectionState.fullNm || "").trim();
-      const safeUmdNm = String(selectedUmdNm || initialSelectionState.umdNm || "").trim();
-      const safeLawdCd = String(selectedLawdCd || initialSelectionState.lawdCd || "").trim().substring(0, 5);
+      const safeAddress = String(
+        selectedFullNm ||
+        initialSelectionState.fullNm ||
+        initialRequestedLatLng.address ||
+        ""
+      ).trim();
+
+      const parsed = splitAddressToRegionParts(
+        [safeAddress, selectedUmdNm || initialSelectionState.umdNm || ""]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      const safeFullNm = String(selectedFullNm || initialSelectionState.fullNm || parsed.fullNm || "").trim();
+      const safeUmdNm = String(selectedUmdNm || initialSelectionState.umdNm || parsed.umdNm || "").trim();
+      const safeLawdCd = String(
+        selectedLawdCd ||
+        initialSelectionState.lawdCd ||
+        parseSidoCodeFromAddress(safeFullNm)
+      ).trim().substring(0, 5);
+
       const safeAssetType = getMapAssetTypeSelectValue();
 
-      // 선택박스 값을 현재 상태에도 반영
       selectedAssetType = safeAssetType;
+      selectedFullNm = safeFullNm;
+      selectedUmdNm = safeUmdNm;
+      selectedLawdCd = safeLawdCd;
 
       const regionParts = safeFullNm.split(/\s+/).filter(Boolean);
 
@@ -5663,9 +6113,11 @@
         region: regionParts[0] || "",
         sigungu_name: regionParts[1] || "",
         eub_myeon_dong: safeUmdNm || "",
-        address1: safeFullNm,
+        address1: [safeFullNm].filter(Boolean).join(" ").trim() || safeFullNm,
         lawd_cd: safeLawdCd,
-        sigungu_code: safeLawdCd
+        sigungu_code: safeLawdCd,
+        latitude: initialRequestedLatLng.lat || 0,
+        longitude: initialRequestedLatLng.lng || 0
       };
     }
 
@@ -6453,6 +6905,9 @@
     function showNplSearchRowOnMap(row) {
       if (!row) return;
 
+      // 위경도위치 저장
+      setWishlistSelectedLocation(row);
+
       updateNplTitle(row);
       clearNplSampleMarkers();
 
@@ -7061,7 +7516,7 @@
       }
 
       try {
-        const loadingRegionText = String(baseRow.address1 || baseRow.eub_myeon_dong || "해당 지역").trim();
+        const loadingRegionText = String(baseRow.address1 || "해당 지역").trim();
         setInitialMapLoading(true, loadingRegionText, "데이타를 가져오는 중입니다...");
 
         currentNplDealAuctionBaseRow = baseRow;
@@ -8609,6 +9064,28 @@
       };
     }
 
+    // 현재위치 데이타 저장->패널에서 요청 사용함
+    function setWishlistSelectedLocation(row) {
+      if (!row) return;
+
+      const lat = parseFloat(row.latitude || row.lat || 0);
+      const lng = parseFloat(row.longitude || row.lng || 0);
+      const address = String(row.address || row.address1 || "").trim();
+      const objectType = String(row.object_type || row.objectType || row.category || "").trim();
+
+      document.body.dataset.wishlistSelectedLat = lat ? String(lat) : "";
+      document.body.dataset.wishlistSelectedLng = lng ? String(lng) : "";
+      document.body.dataset.wishlistSelectedAddress = address;
+      document.body.dataset.wishlistSelectedObjectType = objectType;
+
+      console.log("[wishlist] 현재 선택 위치 저장", {
+        latitude: document.body.dataset.wishlistSelectedLat,
+        longitude: document.body.dataset.wishlistSelectedLng,
+        address: document.body.dataset.wishlistSelectedAddress,
+        objectType: document.body.dataset.wishlistSelectedObjectType
+      });
+    }
+
     function openWishlistModal(mode = "add", row = null) {
       const els = getWishlistModalElements();
       if (!els.modal || !els.dim) return;
@@ -8741,6 +9218,39 @@
       const digits = safeDigitsOnly(value);
       if (!digits) return "";
       return Number(digits).toLocaleString("ko-KR");
+    }
+
+    function parseMinimumPrice(value) {
+      if (!value) {
+        return {
+          rate: "-",
+          price: "-"
+        };
+      }
+
+      const str = String(value).trim();
+
+      // (34.3%) 242844000 형태 분리
+      const match = str.match(/\(([^)]+)\)\s*([\d,]+)/);
+      if (match) {
+        const rate = match[1]; // 34.3%
+        const priceRaw = match[2];
+
+        const num = Number(priceRaw.replace(/,/g, ""));
+        const price = isNaN(num) ? priceRaw : num.toLocaleString();
+
+        return {
+          rate: rate,
+          price: price
+        };
+      }
+
+      // 혹시 숫자만 들어온 경우 대비
+      const num = Number(str.replace(/,/g, ""));
+      return {
+        rate: "-",
+        price: isNaN(num) ? str : num.toLocaleString()
+      };
     }
 
     function buildWishlistSubCategoryOptions(category) {
@@ -9134,17 +9644,36 @@
         <div class="wishlist-section-title">주소검색</div>
 
         <div class="wishlist-row-block has-search-btn">
-          <div class="wishlist-row-label">주소검색</div>
-          <div class="wishlist-row-control">
-            <input id="wishlist-address-search" class="wishlist-field-address" type="text" placeholder="예: 경기도 김포시 운양동" />
+          <div class="wishlist-row-label">주소입력</div>
+
+          <div class="wishlist-row-control wishlist-address-combined-control">
+            <input
+              id="wishlist-address-search"
+              class="wishlist-field-address-main"
+              type="text"
+              placeholder="예: 경기도 김포시 운양동"
+            />
+
+            <input
+              id="wishlist-jibun-address"
+              class="wishlist-field-address-jibun"
+              type="text"
+              placeholder="예: 123-4"
+            />
           </div>
+
           <button id="wishlist-address-search-btn" type="button" class="wishlist-modal-btn wishlist-save-btn">검색</button>
         </div>
 
         <div class="wishlist-row-block">
-          <div class="wishlist-row-label">상세검색</div>
+          <div class="wishlist-row-label">상세입력</div>
           <div class="wishlist-row-control">
-            <input id="wishlist-address-detail" class="wishlist-field-address" type="text" placeholder="예: 101동 1203호 / 근린상가 1층" />
+            <input
+              id="wishlist-address-detail"
+              class="wishlist-field-address-detail"
+              type="text"
+              placeholder="예: 101동 1203호 / 근린상가 1층"
+            />
           </div>
         </div>
 

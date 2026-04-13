@@ -21,7 +21,7 @@ function isNaverDomain() {
 }
 
 function isSupportedAnalysisPage() {
-    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage();
+    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage() || isAuction1DetailPage();
 }
 
 function isTankAuctionListPage() {
@@ -32,6 +32,11 @@ function isTankAuctionListPage() {
 function isTankAuctionDetailPage() {
     return location.href.startsWith('https://www.tankauction.com/ca/caView.php') ||
            location.href.startsWith('https://www.tankauction.com/pa/paView.php');
+}
+
+// [추가] 옥션원 상세 페이지 판별 (사용자 요청 URL 대응)
+function isAuction1DetailPage() {
+    return location.href.startsWith('https://www.auction1.co.kr/auction/ca_view.php');
 }
 
 // ===== SPA 대응 자동 분석 시스템 =====
@@ -59,6 +64,13 @@ setTimeout(() => {
     if (isTankAuctionDetailPage()) {
         console.log('🏛️ 탱크옥션 상세 처리 시작');
         extractPropertyInfoDetailTank();
+        return;
+    }
+
+    // [추가] 옥션원 상세 처리 시작
+    if (isAuction1DetailPage()) {
+        console.log('🏛️ 옥션원 상세 처리 시작');
+        extractPropertyInfoDetailAuctionOne(); // 하단에 정의할 추출 함수 호출
         return;
     }
 
@@ -177,6 +189,29 @@ function sendAnalysisToPanel() {
     }
 }
 
+
+// 실거래조회시 지도위치(경.공매연동시) 가져오기
+function getWishlistSelectedLocationFromPage() {
+    const body = document.body;
+    if (!body) return null;
+
+    const latitude = parseFloat(body.dataset.wishlistSelectedLat || '0');
+    const longitude = parseFloat(body.dataset.wishlistSelectedLng || '0');
+    const address = (body.dataset.wishlistSelectedAddress || '').trim();
+    const objectType = (body.dataset.wishlistSelectedObjectType || '').trim();
+
+    if (!latitude || !longitude) {
+        return null;
+    }
+
+    return {
+        latitude,
+        longitude,
+        address,
+        objectType
+    };
+}
+
 /**
  * 메시지 리스너 - Side Panel에서 분석 요청 시에만 동작
  */
@@ -247,6 +282,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } catch (error) {
             console.error('❌ 배지 표시 오류:', error);
             sendResponse({ success: false, error: error.message });
+        }
+        return true;
+    }
+
+    // 관심물건 지도위치 가져오기
+    if (message.type === 'GET_WISHLIST_SELECTED_LOCATION') {
+        try {
+            const locationData = getWishlistSelectedLocationFromPage();
+
+            sendResponse({
+                success: true,
+                data: locationData
+            });
+        } catch (error) {
+            console.error('❌ 관심물건 선택 좌표 조회 오류:', error);
+            sendResponse({
+                success: false,
+                error: error.message || '관심물건 좌표 조회 실패'
+            });
         }
         return true;
     }
@@ -2219,14 +2273,14 @@ function extractPropertyInfoTank() {
 }
 
 // 탱크옥션 페이지에서 매물 정보 변경 감지하여 평당가 자동 계산 트리거 (300ms 디바운스)
-function extractPropertyInfoDetailTank() {
+function extractPropertyInfoDetailTank_old() {
+    //
     let areaPy = 0;
 
     const tbody = document.querySelector('.Btbl_list');
     if (!tbody) return;
 
     const headerCells = tbody.querySelectorAll('th');
-
     for (const headerCell of headerCells) {
         if (headerCell.textContent.includes('토지면적')) {
             const areaLand = headerCell.nextElementSibling;
@@ -2310,4 +2364,351 @@ function extractPropertyInfoDetailTank() {
             }
         }
     }
+
+    // 1. 물건종류 추출 (HTML 구조에서 <span class="viewobject">근린상가 </span> 찾기)
+    let objectType = "";
+    const objectTypeSpan = document.querySelector('span.viewobject');
+    if (objectTypeSpan) {
+        objectType = objectTypeSpan.textContent.trim();
+    }
+
+    // 1. 주소 영역 탐색 (제공해주신 HTML 구조 기준)
+    const addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
+    if (!addrDiv) return;
+
+    // 2. 주소 텍스트 추출 및 정제
+    const addrSpan = addrDiv.querySelector('span.bold');
+    if (addrSpan) {
+        let fullAddr = addrSpan.textContent.trim();
+        // 쉼표 기준 앞부분(지번/도로명 본주소)만 추출하여 검색 정확도 향상
+       let searchAddr = fullAddr.split(',')[0].trim();
+
+        // 3. 네이버 이동 버튼 생성 (기본 스타일 및 클래스 적용)
+        const naverBtn = document.createElement('span');
+        naverBtn.className = 'button btn_small btn_white';
+        naverBtn.style.marginLeft = '5px';
+        naverBtn.style.cursor = 'pointer';
+        naverBtn.style.color = '#03cf5d'; // 네이버 테마색 적용
+        naverBtn.style.fontWeight = 'bold';
+        naverBtn.textContent = '네이버 이동';
+
+        // 4. 클릭 이벤트 등록: 해당 주소로 네이버 지도 검색
+        naverBtn.onclick = function() {
+            // 본인의 Flask 서버 주소로 변경하세요.
+            const flaskServerUrl = `https://www.landcore.co.kr/api/ext_tool/forward-map?address=${encodeURIComponent(searchAddr)}`;
+            window.open(flaskServerUrl, '_blank');
+        };
+
+        // 5. '새주소검색' 버튼 옆에 추가
+        const existingBtn = addrDiv.querySelector('.button');
+        if (existingBtn) {
+            existingBtn.parentNode.insertBefore(naverBtn, existingBtn.nextSibling);
+        }
+    }
+}
+
+
+function extractPropertyInfoDetailTank() {
+    console.log('🏛️ 탱크옥션 상세분석 및 데이터 전송 로직 시작');
+
+    let areaPy = 0;
+    let appraisalPrice = ""; // 감정가 저장용
+    let minimumPrice = "";   // 최저가 저장용
+
+    const tbody = document.querySelector('.Btbl_list');
+    if (!tbody) return;
+
+    const headerCells = tbody.querySelectorAll('th');
+
+    // 1. 면적 추출 (평당가 계산용)
+    for (const headerCell of headerCells) {
+        const isLand = headerCell.textContent.includes('토지면적');
+        const isBuilding = headerCell.textContent.includes('건물면적');
+
+        if (isLand || isBuilding) {
+            const areaEl = headerCell.nextElementSibling;
+            if (!areaEl) continue;
+
+            const content = areaEl.innerHTML.trim();
+            const lines = content.split(/<br\s*\/?>/i);
+            const regex = /\((\d+\.\d+)평\)/;
+
+            lines.forEach(part => {
+                const match = part.match(regex);
+                if (match) areaPy = parseFloat(match[1]);
+            });
+        }
+    }
+
+    // 2. 가격 정보 추출 및 화면 표시
+    for (const headerCell of headerCells) {
+        // 감정가 추출
+        if (headerCell.textContent.includes('감정가')) {
+            const price1Element = headerCell.nextElementSibling;
+            if (!price1Element) continue;
+
+            // 파라미터 전송용 숫자 추출
+            appraisalPrice = price1Element.textContent.trim().replace(/[,원]/g, '');
+
+            if (!price1Element.dataset.highlighted) {
+                const price1num = parseInt(appraisalPrice, 10);
+                if (areaPy > 0) {
+                    const pydanga1 = parseInt(price1num / (areaPy * 10000), 10);
+                    price1Element.innerHTML += `<br><span style="opacity:0.5; color:red;">@${pydanga1}만원</span>`;
+                }
+                price1Element.dataset.highlighted = 'true';
+            }
+        }
+
+        // 최저가 추출
+        if (headerCell.textContent.includes('최저가')) {
+            const price2Element = headerCell.nextElementSibling;
+            if (!price2Element) continue;
+
+            // 파라미터 전송용 숫자 추출 (유찰비율 제외)
+            minimumPrice = price2Element.textContent.trim().replace(/\(\d+%\)\s*/g, '').replace(/[,원]/g, '');
+
+            if (!price2Element.dataset.priceCalculated) {
+                const price2num = parseInt(minimumPrice, 10);
+                if (areaPy > 0) {
+                    const pydanga2 = parseInt(price2num / (areaPy * 10000), 10);
+                    price2Element.innerHTML += `<br><span style="opacity:0.5; color:green;">@${pydanga2}만원</span>`;
+                }
+                price2Element.dataset.priceCalculated = 'true';
+            }
+        }
+    }
+
+    // 3. 물건종류 추출
+    let objectType = "";
+    const objectTypeSpan = document.querySelector('span.viewobject');
+    if (objectTypeSpan) {
+        objectType = objectTypeSpan.textContent.trim();
+    }
+
+    // 4. 주소 영역 탐색 및 버튼 추가
+    const addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
+    if (!addrDiv) return;
+
+    const addrSpan = addrDiv.querySelector('span.bold');
+    if (addrSpan) {
+        let fullAddr = addrSpan.textContent.trim();
+        let searchAddr = fullAddr.split(',')[0].trim();
+
+        // 중복 추가 방지
+        if (addrDiv.querySelector('.naver-forward-btn')) return;
+
+        const naverBtn = document.createElement('span');
+        naverBtn.className = 'button btn_small btn_white naver-forward-btn';
+        naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
+        naverBtn.textContent = '네이버 이동';
+
+        // 5. 클릭 이벤트: 추출된 모든 정보를 파라미터로 전달
+        naverBtn.onclick = function() {
+            const serverUrl = `https://www.landcore.co.kr/api/ext_tool/forward-map`;
+
+            // 1. 숨겨진 Form 생성
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = serverUrl;
+            form.target = '_blank'; // 새창 열기
+
+            // 2. 전달할 데이터를 hidden input으로 추가
+            const data = {
+                address: searchAddr,
+                objectType: objectType,
+                appraisalPrice: appraisalPrice,
+                minimumPrice: minimumPrice
+            };
+
+            for (const key in data) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = data[key];
+                form.appendChild(input);
+            }
+
+            // 3. 폼 제출 후 제거
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        };
+
+        const existingBtn = addrDiv.querySelector('.button');
+        if (existingBtn) {
+            existingBtn.parentNode.insertBefore(naverBtn, existingBtn.nextSibling);
+        }
+    }
+}
+
+/**
+ * [추가] 옥션원 상세페이지 정보 추출 함수
+ * 탱크옥션의 extractPropertyInfoDetailTank 로직을 참조함
+ */
+function extractPropertyInfoDetailAuctionOne() {
+    const auctionContainer = document.getElementById('auction_container');
+    if (!auctionContainer) return;
+
+    // ------------------------------------------------------------------
+    // 1. 물건종별 추출 : "물건종별" th 다음 td 에서 값 읽기
+    // ------------------------------------------------------------------
+    let objectType = "";
+    const thList = auctionContainer.querySelectorAll('th');
+
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+
+        if (thText === '물건종별') {
+            const td = th.nextElementSibling;
+            if (td) {
+                objectType = td.textContent.replace(/\s+/g, ' ').trim();
+            }
+        }
+    });
+
+    // 원하신 조건대로 "근린상가"를 찾는 구조
+    if (!objectType || objectType.indexOf('근린상가') === -1) {
+        return;
+    }
+
+    // ------------------------------------------------------------------
+    // 2. 감정가 추출 : "감 정 가" th 다음 td
+    // ------------------------------------------------------------------
+    let appraisalPrice = "";
+
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+        if (thText === '감정가') {
+            const td = th.nextElementSibling;
+            if (td) {
+                const raw = td.textContent;
+                appraisalPrice = extractPriceOnly(raw);
+            }
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // 3. 최저가 추출 : "최 저 가" th 다음 td
+    // ------------------------------------------------------------------
+    let minimumPrice = "";
+
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+        if (thText === '최저가') {
+            const td = th.nextElementSibling;
+            if (td) {
+                const raw = td.textContent;
+                minimumPrice = extractPriceOnly(raw);
+            }
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // 4. "새 주소" 행 찾기
+    // ------------------------------------------------------------------
+    let newAddressTd = null;
+
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+
+        if (thText === '새주소') {
+            newAddressTd = th.nextElementSibling;
+        }
+    });
+
+    if (!newAddressTd) return;
+
+    // ------------------------------------------------------------------
+    // 5. 새주소 문자열 추출
+    // ------------------------------------------------------------------
+    let searchAddr = "";
+
+    // "소 재 지" th 찾기
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+
+        if (thText === '소재지') {
+            const td = th.nextElementSibling;
+            if (td) {
+                // addr_view_1 중 첫번째만
+                const addrSpan = td.querySelector('.addr_view_1');
+                if (addrSpan) {
+                    searchAddr = addrSpan.textContent.trim();
+                }
+            }
+        }
+    });
+    if (!searchAddr) return;
+
+    // ------------------------------------------------------------------
+    // 6. 중복 버튼 방지
+    // ------------------------------------------------------------------
+    if (newAddressTd.querySelector('.naver-forward-btn')) return;
+
+    // ------------------------------------------------------------------
+    // 7. 버튼 생성
+    // ------------------------------------------------------------------
+    const naverBtn = document.createElement('span');
+    naverBtn.className = 'button btn_small btn_white naver-forward-btn';
+    naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
+    naverBtn.textContent = '네이버 이동';
+
+    // ------------------------------------------------------------------
+    // 8. 클릭 이벤트
+    // ------------------------------------------------------------------
+    naverBtn.onclick = function () {
+            const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = serverUrl;
+            form.target = '_blank';
+            form.acceptCharset = "UTF-8";
+
+            const data = {
+                address: searchAddr,
+                objectType: objectType,
+                appraisalPrice: appraisalPrice,
+                minimumPrice: minimumPrice
+            };
+
+            for (const key in data) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = data[key];
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+    };
+
+    // ------------------------------------------------------------------
+    // 9. 새주소 뒤에 버튼 추가
+    // ------------------------------------------------------------------
+    newAddressTd.appendChild(naverBtn);
+}
+
+//
+function extractPriceOnly(text) {
+    if (!text) return "";
+
+    text = text.replace(/\s+/g, ' ').trim();
+
+    // (17%) 포함된 경우
+    const matchWithRate = text.match(/\(\d+%\)\s*[0-9,]+/);
+    if (matchWithRate) {
+        return matchWithRate[0].trim();
+    }
+
+    // 일반 금액
+    const matchPrice = text.match(/[0-9,]+/);
+    if (matchPrice) {
+        return matchPrice[0].trim();
+    }
+
+    return "";
 }

@@ -14,10 +14,12 @@ import requests
 
 from webdriver_manager.chrome import ChromeDriverManager
 
+from common.vworld_utils import VWorldGeocoding
 from jumpo.jumpo_crawling import detail_driver
 #
 from npl_db_utils import npl_save_to_sqlite, npl_drop_table
 from config import NPL_DB_PATH, MAP_API_KEY, VWORLD_URL
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_name
 
 # 저장파일명
 last_file_name = os.path.join(NPL_DB_PATH, "last_npl_date.txt")
@@ -408,7 +410,7 @@ def navigate_pages(driver, total_records):
 
 # 위.경도 가져오기..
 # 발급받은 API Key
-def get_lat_lng(address: str) -> tuple[float, float]:
+def get_lat_lng(address: str, addresss_type: str = 'road') -> tuple[float, float]:
     """
     vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
     :param address: 조회할 도로명 주소 문자열
@@ -422,7 +424,7 @@ def get_lat_lng(address: str) -> tuple[float, float]:
         "request": "getcoord",  # 좌표 변환 요청
         "format": "json",  # JSON 응답
         "crs": "epsg:4326",  # WGS84 좌표계
-        "type": "road",  # road: 도로명, parcel: 지번
+        "type": addresss_type,  # road: 도로명, parcel: 지번
         "address": address,
         "key": MAP_API_KEY
     }
@@ -775,19 +777,21 @@ def extract_info(row_text, idx, npl_info):
         #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
 
         # 법정코드(시군구) 및 읍면동 가져오기
-        lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
-        # None 값을 빈 문자열로 변환하여 출력
-        # print(f"{idx:<5}"
-        #       f"{address1:<30}"
-        #       f"{sido_code if sido_code else '':<10}"
-        #       f"{sido_name if sido_name else '':<10}"
-        #       f"{sigungu_code if sigungu_code else '':<10}"
-        #       f"{sigungu_name if sigungu_name else '':<10}"
-        #       f"{eub_myeon_dong if eub_myeon_dong else '없음':<10}")
+        # sido_code = lawd_cd 5자리,  sido_name: 경기도,
+        #lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
+        #
+        # 테이블에서 가져오는 방식으로 처리함
+        lawd_cd, region, sigungu_code, sigungu_name, umd_name = extract_region_code(address1)
+        #
 
         # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등) - 괄호제거
         lat_lng_address = address2.replace('(', '').replace(')', '')
-        latitude, longitude = get_lat_lng(lat_lng_address)
+        #latitude, longitude = get_lat_lng(lat_lng_address, "road")
+        # 1. 유틸리티 인스턴스 생성
+        # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
+        geo_service = VWorldGeocoding(MAP_API_KEY)
+        latitude, longitude = geo_service.get_lat_lng(lat_lng_address, address_type="road")
+
         print(f"주소: {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
 
         # 임의경매신청자가 개인인경우(default N)
@@ -828,17 +832,16 @@ def extract_info(row_text, idx, npl_info):
         #     "단지명": dangi_name,
         #     "기타": extra_info
         # }
-
         data_entry = {
             "case_number": case_number,
             "category": category,
             "address1": address1,
             "address2": address2,
             "lawd_cd": lawd_cd,
-            "region": sido_name,
+            "region": region,
             "sigungu_code": sigungu_code,
             "sigungu_name": sigungu_name,
-            "eub_myeon_dong": eub_myeon_dong,
+            "eub_myeon_dong": umd_name,
             "building": building,
             "floor": floor,
             "building_m2": building_m2,
@@ -896,7 +899,7 @@ def load_json_data():
 # 시도,시군구,읍면동 파싱처리
 # 차후 public_data에 lawd_code 테이블에서 (법정동코드내역: lawd_cd, lawd_name)
 # public_land_lawd_code_db_utils.py에 get_lawd_by_name(lawd_name)을 호출하여 법정동코드(lawd_cd)를 가져오는 방식으로 변경할 수 있음
-def extract_region_code(address):
+def extract_region_code_old(address):
     """
     주소에서 시도 코드, 시도 이름, 시군구 코드, 시군구 이름, 그리고 읍/면/동을 추출합니다.
     시군구는 보다 구체적인(길이가 긴) 이름부터 매칭하여 처리합니다.
@@ -934,6 +937,38 @@ def extract_region_code(address):
                     return lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong
 
     return None, None, None, None, None
+
+
+def extract_region_code(address):
+
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # ---------------------------------------------------------
+    # 리턴 데이터 조립 및 필드 설명
+    # ---------------------------------------------------------
+    # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+    # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+    # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
+    # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+    # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+    # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+    # ---------------------------------------------------------
+    row = get_lawd_by_name(address)
+
+    lawd_cd = row.get("lawd_cd", "")
+    lawd_name = row.get("lawd_name", "")
+    region = row.get("region", "")
+    sigungu_code = row.get("sigungu_code", "")
+    sigungu_name = row.get("sigungu_name", "")
+    umd_name = row.get("umd_name", "")
+
+    return {
+        "lawd_cd": lawd_cd,
+        "lawd_name": lawd_name,
+        "region": region,
+        "sigungu_code": sigungu_code,
+        "sigungu_name": sigungu_name,
+        "umd_name": umd_name
+    }
 
 
 # 1) 드라이버 초기화 함수

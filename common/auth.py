@@ -195,7 +195,9 @@ def kakao_extool_auth_required(fn):
                 token = auth.split(" ", 1)[1]
             else:
                 # 2. 헤더에 없으면 파라미터 확인 (GET 방식 대응)
-                token = request.args.get("tk")  # URL 파라미터에서 먼저 확인
+                # GET(args)과 POST(form)를 모두 확인합니다.
+                # 동일한 이름의 파라미터가 양쪽에 있다면 보통 POST(form)가 우선권을 갖습니다.
+                token = request.values.get("tk")
 
             print("kakao_extool_auth_required token:", token)
             payload = kakao.verify_jwt(token)

@@ -2243,7 +2243,9 @@
       return commercialAreaItems;
     }
 
+    // 최초 초기화 함수임.
     function readCommercialMapParamsFromUrl() {
+      /*
       const params = new URLSearchParams(window.location.search);
 
       const lawdCd = String(params.get("lawdCd") || "").trim();
@@ -2252,6 +2254,18 @@
       const assetType = String(params.get("assetType") || "상가").trim();
       const dealType = String(params.get("dealType") || "hide").trim();
       const initialPoiGroup = String(params.get("initialCommercialPoiGroup") || "").trim();
+       */
+
+      // 서버에서 넘어온 데이터를 자바스크립트 변수로 초기화
+      // 값이 없을 경우를 대비해 기존 GET 방식의 기본값 로직을 그대로 적용합니다.
+      const lawdCd = ("{{ lawdCd }}" || "").trim();
+      const lawdName = ("{{ lawdName }}" || "").trim();
+      const umdName = ("{{ umdName }}" || "").trim();
+
+      // 기본값이 필요한 항목들
+      const assetType = ("{{ assetType }}" || "상가").trim();
+      const dealType = ("{{ dealType }}" || "hide").trim();
+      const initialPoiGroup = ("{{ initialPoiGroup }}" || "").trim();
 
       selectedLawdCd = lawdCd;
       selectedLawdName = lawdName;

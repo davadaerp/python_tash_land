@@ -1387,31 +1387,8 @@ def api_get_lawdcd_single():
         }
     """
     try:
-        arg_lawd_name = request.args.get('lawd_name', '').strip()
-        print('==== api_get_lawdcd_single()', arg_lawd_name)
-
-        # 1. 파라미터 체크 (변수명 오타 수정: lawd_name -> arg_lawd_name)
-        if not arg_lawd_name:
-            return jsonify({
-                "result": "Fail",
-                "message": "lawd_name 파라미터가 필요합니다."
-            }), 400
-
-        # 공백 기준으로 분리
-        regions = arg_lawd_name.split()
-
-        # 2. 시/도 명칭 제거 로직
-        # regions의 개수가 3개면 (예: "인천 서구 원당동") 앞의 1개를 버림
-        if len(regions) >= 3:
-            processed_regions = regions[1:]
-        # regions의 개수가 2개면 (예: "서구 원당동") 그대로 사용
-        else:
-            processed_regions = regions
-
-        # 다시 공백으로 합치기
-        lawd_name = ' '.join(processed_regions)
-
-        print('==== 처리된 주소:', lawd_name)
+        lawd_name = request.args.get('lawd_name', '').strip()
+        print('==== api_get_lawdcd_single()', lawd_name)
 
         # 3. 기존 함수 호출
         row = get_lawd_by_name(lawd_name)
@@ -1844,7 +1821,6 @@ def get_realtordata():
 
     return jsonify(data)
 
-MAP_API_KEY = "644F5AF8-9BF1-39DE-A097-22CACA23352F"
 @app.route('/api/geocode')
 def geocode():
     addr = request.args.get('address','')
@@ -2037,26 +2013,114 @@ def ext_tool(user_id):
 def ext_tool_realtor_pop(user_id):
     return render_template("crawling_realtor_message_pop.html")
 
-@app.route("/api/ext_tool/map", methods=["GET"])
+@app.route("/api/ext_tool/map", methods=["POST"])
 @kakao_extool_auth_required
-def ext_tool_map(user_id):
-    menu = request.args.get("menu", "")
-
+def ext_tool_map_post(user_id):
+    menu = request.form.get("menu", "")
+    # 자산구분타입(apt, villa, sanga => naver tabGubun에 해당함.
+    tab_gubun = request.form.get("tabGubun", "상가")
+    address = request.form.get("address", "")
     # 인증토큰
-    access_token = request.args.get("tk", "")
+    access_token = request.form.get("tk", "")
+
+    # 2. 영문 코드를 한글 명칭(assetType)으로 매핑
+    asset_type_map = {
+        "apt": "아파트",
+        "villa": "빌라",
+        "sanga": "상가"
+    }
+    # 매핑되지 않은 값이 들어올 경우를 대비해 .get() 사용 (기본값 '상가')
+    asset_type = asset_type_map.get(tab_gubun, "상가")
+
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # ---------------------------------------------------------
+    # 리턴 데이터 조립 및 필드 설명
+    # ---------------------------------------------------------
+    # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+    # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+    # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
+    # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+    # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+    # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+    # ---------------------------------------------------------
+    row = get_lawd_by_name(address)
+
+    lawd_cd = row.get("lawd_cd", "")
+    lawd_name = row.get("lawd_name", "")
+    umd_name = row.get("umd_name", "")
+
+    print("==== ext_tool_map : ", menu, lawd_cd, lawd_name, umd_name, asset_type, access_token)
+
+    # 데이터 수집
+    params_data = {
+        "assetType": asset_type,
+        "lawdCd": lawd_cd,
+        "lawdName": lawd_name,
+        "umdName": umd_name,
+        "access_token": access_token
+    }
 
     # WISHLIST(관심물건)/NPL 경매데이타 검색
-    if menu == 'wishlist_map_popup':
+    if menu == 'wishlist':
         # 관심물건 지도 팝업
-        return render_template("extool_wishlist_map_popup.html", access_token=access_token)
-    elif menu == 'commerical_map_popup':
+        return render_template("extool_wishlist_map_popup.html", **params_data)
+    elif menu == 'commerical':
         # 업종분류별 상권정보 팝업
-        return render_template("extool_commerical_map_popup.html", access_token=access_token)
-    elif menu == 'npl_map_popup':
+        return render_template("extool_commerical_map_popup.html", **params_data)
+    elif menu == 'npl':
         # NPL 경매데이타 지도 팝업
-        return render_template("extool_npl_map_popup.html", access_token=access_token)
+        return render_template("extool_npl_map_popup.html", **params_data)
     else:
         return render_template("extool_map_popup.html", access_token=access_token)
+
+
+# 관심물건 지도 팝업에서 주소를 받아서 카카오/네이버 지도 URL로 리다이렉트 처리
+@app.route("/api/ext_tool/forward-map", methods=["POST"])
+def forward_map():
+    # 1. POST로 넘어온 데이터 받기
+    # 1. 파라미터로 주소 받기
+    # 주소, 물건유형(아파트, 빌라, 상가), 감정가, 최저가
+    address = request.form.get('address', '')
+    objectType = request.form.get('objectType', '근린상가')
+    appraisalPrice = request.form.get('appraisalPrice', '')
+    minimumPrice = request.form.get('minimumPrice', '')
+    assetType = objectType;
+
+    print(f"forward_map() received address: {address}, objectType: {objectType}, appraisalPrice: {appraisalPrice}, minimumPrice: {minimumPrice}")
+
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    row = get_lawd_by_name(address)
+
+    lawd_cd = row.get("lawd_cd", "")
+    lawd_name = row.get("lawd_name", "")
+    #umd_name = row.get("umd_name", "")
+
+    # 1. 유틸리티 인스턴스 생성
+    geo_service = VWorldGeocoding(MAP_API_KEY)
+
+    # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
+    latitude, longitude = geo_service.get_lat_lng(address, address_type="parcel")
+
+    print(f"forward_map() 주소: {address}, 법정동코드: {lawd_cd}, 법정동명: {lawd_name}", f"위도: {latitude}, 경도: {longitude}")
+
+    # 3. 토큰 및 베이스 URL 설정
+    tk = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0Mzk5ODU0NjkxIiwiaWF0IjoxNzc2MDQ3MDgyLCJleHAiOjE3NzYxMzM0ODIsImp0aSI6IjQzOTk4NTQ2OTEtMTc3NjA0NzA4MiJ9.Kz6Vfj - svb2I_p - C4OgB9R9yGNVJFTNd57rLN2aErdE"
+
+    # 데이터 수집
+    params_data = {
+        "assetType": assetType,
+        "lawdCd": lawd_cd,
+        "lawdName": lawd_name,
+        "address": address,
+        "objectType": objectType,
+        "appraisalPrice": appraisalPrice,
+        "minimumPrice": minimumPrice,
+        "latitude": latitude,
+        "longitude": longitude,
+        "access_token": tk
+    }
+    # 리다이렉트 대신, 자동으로 POST를 제출하는 템플릿으로 데이터 전달
+    return render_template("extool_wishlist_map_popup.html", **params_data)
 
 @app.route('/api/sms_send', methods=['POST'])
 def sms_send():

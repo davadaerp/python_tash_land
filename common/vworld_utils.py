@@ -1,5 +1,6 @@
 import requests
 
+from config import MAP_API_KEY
 
 class VWorldGeocoding:
     """
@@ -52,3 +53,30 @@ class VWorldGeocoding:
         except Exception as e:
             print(f"지오코딩 오류 ({address}): {e}")
             return 0.0, 0.0
+
+    # ==== 테스트를 위한 메인 코드 추가 ====
+
+
+if __name__ == "__main__":
+    # 1. 발급받은 VWorld API 키를 입력하세요.
+    API_KEY = MAP_API_KEY
+
+    # 2. 유틸리티 인스턴스 생성
+    geo_service = VWorldGeocoding(API_KEY)
+
+    # 3. 테스트할 주소 설정
+    test_address = "서울특별시 광진구 자양로 113"
+
+    print(f"--- 주소 좌표 변환 테스트 시작 ---")
+    print(f"입력 주소: {test_address}")
+
+    # 4. 위경도 추출 (도로명 주소이므로 address_type="road" 설정)
+    latitude, longitude = geo_service.get_lat_lng(test_address, address_type="road")
+
+    # 5. 결과 출력
+    if latitude != 0.0 and longitude != 0.0:
+        print(f"변환 성공!")
+        print(f"위도(Latitude): {latitude}")
+        print(f"경도(Longitude): {longitude}")
+    else:
+        print("변환 실패: API 키를 확인하거나 주소가 올바른지 확인하세요.")

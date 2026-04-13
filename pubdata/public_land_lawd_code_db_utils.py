@@ -125,22 +125,100 @@ def get_lawd_by_code(lawd_cd: str, db_path: str = DB_PATH) -> Optional[Dict[str,
 # ==========================
 # 3) lawd_name로 단건 조회
 # ==========================
-def get_lawd_by_name(lawd_name: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
+def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
     """
-    lawd_name lawd_name 테이블에서 단건 조회.
-    반환: {"lawd_cd": "...", "lawd_name": "..."} 또는 None
+    주소를 입력받아 뒤쪽 토큰부터 순차적으로 DB를 조회합니다.
+    1. 뒤에서부터 토큰을 하나씩 확인하며 최초로 검색 결과가 존재하는 토큰을 찾습니다. (SELECT)
+    2. 결과가 1개 이상 확보되면, 남은 앞쪽 토큰들을 이용해 메모리 내에서 필터링합니다. (Filter)
     """
-    if not lawd_name:
+    if not address:
+        return None
+
+    # 공백 기준으로 전체 토큰화
+    tokens = [t.strip() for t in address.split() if t.strip()]
+    if not tokens:
         return None
 
     conn = get_conn(db_path)
     try:
-        sql = f"SELECT lawd_cd, lawd_name FROM {TABLE_NAME} WHERE lawd_name LIKE ?"
-        cur = conn.execute(sql, (f"%{lawd_name}%",))
-        row = cur.fetchone()
-        if not row:
-            return None
-        return {"lawd_cd": row[0], "lawd_name": row[1]}
+        candidate_rows = []
+        last_searched_idx = -1
+
+        # --- Step 1: 결과가 나올 때까지 뒤에서부터 토큰별 DB 조회 ---
+        for i in range(len(tokens) - 1, -1, -1):
+            token = tokens[i]
+            sql = f"SELECT lawd_cd, lawd_name FROM {TABLE_NAME} WHERE lawd_name LIKE ?"
+            cur = conn.execute(sql, (f"%{token}%",))
+            candidate_rows = cur.fetchall()
+
+            if candidate_rows:
+                # 결과가 있는 토큰을 찾았으므로 해당 위치 저장 후 중단
+                last_searched_idx = i
+                break
+
+        if not candidate_rows:
+            return None  # 모든 토큰을 뒤져도 결과가 없으면 종료
+
+        # --- 최종 결과 확정 로직 ---
+        final_row = None
+
+        # 결과가 1개면 즉시 확정
+        if len(candidate_rows) == 1:
+            final_row = candidate_rows[0]
+        else:
+            # --- Step 2: 결과가 여러 개일 경우, 남은 앞쪽 토큰들로 결과 내 필터링 ---
+            remaining_tokens = tokens[:last_searched_idx][::-1]
+
+            for token in remaining_tokens:
+                filtered_rows = [row for row in candidate_rows if token in row[1]]
+                if filtered_rows:
+                    candidate_rows = filtered_rows
+                if len(candidate_rows) == 1:
+                    break
+
+            final_row = candidate_rows[0]
+
+        # --- 데이터 준비 (예시 데이터 기준) ---
+        res_lawd_cd = final_row[0]  # 예: "4157010300"
+        res_lawd_name = final_row[1]  # 예: "경기도 수원시 권선구 호매실동"
+
+        # 공백 기준으로 이름 분리
+        name_parts = res_lawd_name.split()
+
+        # 1. lawd_name: 전체 명칭
+        lawd_name = res_lawd_name
+
+        # 2. region: 첫 번째 단어 (시/도)
+        region = name_parts[0] if len(name_parts) > 0 else ""
+
+        # 3. sigungu_code: lawd_cd의 앞 5자리
+        sigungu_code = res_lawd_cd[:5]
+
+        # 4. sigungu_name: 중간 단어들을 합침 (시/군/구)
+        # 첫 번째(시/도)와 마지막(읍/면/동)을 제외한 나머지 부분을 합칩니다.
+        sigungu_name = " ".join(name_parts[1:-1])
+
+        # 5. umd_name & eub_myeon_dong: 마지막 단어
+        umd_name = name_parts[-1] if len(name_parts) > 1 else ""
+
+        # ---------------------------------------------------------
+        # 리턴 데이터 조립 및 필드 설명
+        # ---------------------------------------------------------
+        # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+        # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+        # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
+        # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+        # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+        # 6. umd_name: 가장 하위 행정구역 읍/면/동  명칭 (예: 호매실동, 진교면)
+        # ---------------------------------------------------------
+        return {
+            "lawd_cd": res_lawd_cd,
+            "lawd_name": res_lawd_name,
+            "region": region,
+            "sigungu_code": sigungu_code,
+            "sigungu_name": sigungu_name,
+            "umd_name": umd_name
+        }
     finally:
         conn.close()
 
@@ -330,20 +408,37 @@ def update_land_batch_yn_multi(
 # ==========================
 if __name__ == "__main__":
     # 1) 테이블 생성
-    init_lawd_db()
+    #init_lawd_db()
 
     # 4) 테이블/데이터 삭제 예시
     # drop_lawd_table()     # 테이블 전체 삭제
 
     # 2) TXT 로드 (예: /path/to/법정동코드.txt)
     #    헤더: 법정동코드\t법정동명\t폐지여부
-    sample_txt = "법정동코드.txt"
-    try:
-        n = load_lawd_from_txt(sample_txt)
-        print(f"[LOAD] 적재 행수: {n}")
-    except FileNotFoundError:
-        print(f"[SKIP] 파일 없음: {sample_txt}")
+    # sample_txt = "법정동코드.txt"
+    # try:
+    #     n = load_lawd_from_txt(sample_txt)
+    #     print(f"[LOAD] 적재 행수: {n}")
+    # except FileNotFoundError:
+    #     print(f"[SKIP] 파일 없음: {sample_txt}")
+    #
+    # # 3) 코드로 단건 조회
+    # res = get_lawd_by_code("1111010300")
+    # print("[READ]", res)
 
-    # 3) 코드로 단건 조회
-    res = get_lawd_by_code("1111010300")
-    print("[READ]", res)
+    print("\n--- [TEST] 결과 내 검색 로직 테스트 ---")
+
+    # 케이스 1: '장기' 검색 시 김포시와 포항시가 나오지만, '김포시' 토큰으로 필터링됨
+    case1 = get_lawd_by_name("경기도 김포시 장기동 123")
+    print(f"결과 1 (김포 장기): {case1}")
+
+    # 케이스 2: 숫자가 섞인 주소 처리
+    case2 = get_lawd_by_name("경기도 김포시 운양동 611")
+    print(f"결과 2 (운양동): {case2}")
+
+    # 케이스 3: 단순 동 이름만 입력
+    case3 = get_lawd_by_name("청운동")
+    print(f"결과 3 (청운동): {case3}")
+
+    case3 = get_lawd_by_name("서울특별시 중구 남대문로4가")
+    print(f"결과 3 (남대문로4가): {case3}")
