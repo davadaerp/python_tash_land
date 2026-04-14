@@ -21,9 +21,11 @@ function isNaverDomain() {
 }
 
 function isSupportedAnalysisPage() {
-    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage() || isAuction1DetailPage() || isGGAuctionDetailPage();
+    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage() ||
+        isAuction1DetailPage() || isGGAuctionDetailPage() || isDooinAuctionDetailPage();
 }
 
+// 탱크옥션 리스트 및 상세페이지
 function isTankAuctionListPage() {
     return location.href.startsWith('https://www.tankauction.com/ca/caList.php') ||
            location.href.startsWith('https://www.tankauction.com/pa/paList.php');
@@ -39,11 +41,15 @@ function isAuction1DetailPage() {
     return location.href.startsWith('https://www.auction1.co.kr/auction/ca_view.php');
 }
 
-// [추가] 옥션원 상세 페이지 판별 (사용자 요청 URL 대응)
+// [추가] 지지옥션 상세 페이지 판별 (사용자 요청 URL 대응)
 function isGGAuctionDetailPage() {
     return location.href.startsWith('https://web.ggi.co.kr/detail/km');
 }
 
+// [추가] 두인옥션 상세 페이지 판별 (사용자 요청 URL 대응)
+function isDooinAuctionDetailPage() {
+    return location.href.startsWith('https://www.dooinauction.com/ca/caView.php');
+}
 
 // ===== SPA 대응 자동 분석 시스템 =====
 // 핵심: document.body를 항상 감시하여 어떤 SPA 네비게이션에서도 동작
@@ -84,6 +90,13 @@ setTimeout(() => {
     if (isGGAuctionDetailPage()) {
         console.log('🏛️  지지옥션 상세 처리 시작');
         extractPropertyInfoDetailGGAuction(); // 하단에 정의할 추출 함수 호출
+        return;
+    }
+
+    // [추가] 두인옥션 상세 처리 시작
+    if (isDooinAuctionDetailPage()) {
+        console.log('🏛️  두인옥션 상세 처리 시작');
+        extractPropertyInfoDetailDooinAuction(); // 하단에 정의할 추출 함수 호출
         return;
     }
 
@@ -2871,6 +2884,322 @@ function extractPropertyInfoDetailGGAuction() {
 
     console.log('[GGAuction] 버튼 삽입 완료');
     console.log('[GGAuction] end success', {
+        searchAddr,
+        newAddr,
+        objectType,
+        appraisalPrice,
+        minimumPrice
+    });
+
+    return true;
+}
+
+
+/**
+ * [추가] 두인옥션 상세페이지 정보 추출 함수
+ */
+function extractPropertyInfoDetailDooinAuction() {
+    console.log('[DooinAuction] start');
+
+    // ------------------------------------------------------------
+    // 0. 기준 DOM 찾기
+    // 두인경매 DOM: #lyCnt_base 내부 ViewTblBase 기준
+    // ------------------------------------------------------------
+    const root = document.querySelector('#lyCnt_base');
+    console.log('[DooinAuction] root:', root);
+
+    if (!root) {
+        console.warn('[DooinAuction] #lyCnt_base not found');
+        return false;
+    }
+
+    const rootTable = root.querySelector('table.ViewTblBase');
+    console.log('[DooinAuction] rootTable:', rootTable);
+
+    if (!rootTable) {
+        console.warn('[DooinAuction] table.ViewTblBase not found');
+        return false;
+    }
+
+    const trList = Array.from(rootTable.querySelectorAll('tr'));
+    console.log('[DooinAuction] trList count:', trList.length);
+
+    // ------------------------------------------------------------
+    // 공통 유틸
+    // ------------------------------------------------------------
+    const normalize = (text) => (text || '').replace(/\s+/g, '').trim();
+    const cleanText = (text) => (text || '').replace(/\s+/g, ' ').trim();
+
+    const getTdByThText = (label) => {
+        const target = normalize(label);
+        console.log(`[DooinAuction] getTdByThText start: ${label}`);
+
+        for (const tr of trList) {
+            const thList = Array.from(tr.querySelectorAll('th'));
+            for (const th of thList) {
+                const currentTh = normalize(th.textContent);
+                if (currentTh === target) {
+                    const td = th.nextElementSibling;
+                    console.log(`[DooinAuction] getTdByThText found: ${label}`, td);
+                    return td;
+                }
+            }
+        }
+
+        console.warn(`[DooinAuction] getTdByThText not found: ${label}`);
+        return null;
+    };
+
+    const getRowByThText = (label) => {
+        const target = normalize(label);
+        console.log(`[DooinAuction] getRowByThText start: ${label}`);
+
+        for (const tr of trList) {
+            const thList = Array.from(tr.querySelectorAll('th'));
+            for (const th of thList) {
+                const currentTh = normalize(th.textContent);
+                if (currentTh === target) {
+                    console.log(`[DooinAuction] getRowByThText found: ${label}`, tr);
+                    return tr;
+                }
+            }
+        }
+
+        console.warn(`[DooinAuction] getRowByThText not found: ${label}`);
+        return null;
+    };
+
+    // "2,963,427,520" / "2,963,427,520원" / "(24%) 711,518,000" -> 숫자만 추출
+    const extractPrice = (raw) => {
+        if (!raw) {
+            console.warn('[DooinAuction] extractPrice raw empty');
+            return '';
+        }
+
+        const text = cleanText(raw);
+        const match = text.match(/[\d,]+/g);
+        const result = match ? match[match.length - 1] : '';
+
+        console.log('[DooinAuction] extractPrice:', { raw, cleaned: text, result });
+        return result;
+    };
+
+    const extractPercent = (raw) => {
+        if (!raw) return '';
+
+        const text = cleanText(raw);
+        const match = text.match(/\((\d+%)\)/);
+        const result = match ? match[1] : '';
+
+        console.log('[DooinAuction] extractPercent:', { raw, cleaned: text, result });
+        return result;
+    };
+
+    // ------------------------------------------------------------
+    // 1. 소재지 + 도로명검색 버튼
+    // 핵심: 도로명주소는 별도 행이 아니라 버튼의 data-addr 에서 추출
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 소재지 step start');
+
+    let searchAddr = '';
+    let newAddr = '';
+    let roadSearchBtn = null;
+
+    const sojajiRow = getRowByThText('소재지');
+    const sojajiTd = getTdByThText('소재지');
+
+    console.log('[DooinAuction] 소재지 row:', sojajiRow);
+    console.log('[DooinAuction] 소재지 td:', sojajiTd);
+
+    if (sojajiTd) {
+        const addrEl = sojajiTd.querySelector('span.bold');
+        console.log('[DooinAuction] 소재지 addrEl:', addrEl);
+
+        if (addrEl) {
+            searchAddr = cleanText(addrEl.textContent);
+        } else {
+            searchAddr = cleanText(sojajiTd.textContent);
+        }
+
+        roadSearchBtn = sojajiTd.querySelector('.btn-gotoAddr[data-addr]');
+        console.log('[DooinAuction] 도로명검색 버튼:', roadSearchBtn);
+
+        if (roadSearchBtn) {
+            newAddr = cleanText(roadSearchBtn.getAttribute('data-addr'));
+        }
+    }
+
+    console.log('[DooinAuction] 소재지 result:', searchAddr);
+    console.log('[DooinAuction] 도로명주소(data-addr) result:', newAddr);
+
+    // ------------------------------------------------------------
+    // 2. 물건종류 -> objectType
+    // 기존 "용도"가 아니라 두인경매 DOM에서는 "물건종류"
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 물건종류 step start');
+
+    let objectType = '';
+    const objectTypeTd = getTdByThText('물건종류');
+    console.log('[DooinAuction] 물건종류 td:', objectTypeTd);
+
+    if (objectTypeTd) {
+        // mobileTitle(물건종류) 문구 제외하고 실제 값만 추출
+        const clonedTd = objectTypeTd.cloneNode(true);
+        clonedTd.querySelectorAll('.show-mobile.mobileTitle').forEach((el) => el.remove());
+
+        objectType = cleanText(clonedTd.textContent)
+            .replace(/[\(\[].*?[\)\]]/g, '')
+            .trim();
+    }
+
+    console.log('[DooinAuction] 물건종류 result:', objectType);
+
+    // ------------------------------------------------------------
+    // 3. 감정가
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 감정가 step start');
+
+    let appraisalPrice = '';
+    const appraisalTd = getTdByThText('감정가');
+    console.log('[DooinAuction] 감정가 td:', appraisalTd);
+
+    if (appraisalTd) {
+        const priceEl = appraisalTd.querySelector('span.bold') || appraisalTd;
+        console.log('[DooinAuction] 감정가 priceEl:', priceEl);
+
+        appraisalPrice = extractPrice(priceEl.textContent);
+    }
+
+    console.log('[DooinAuction] 감정가 result:', appraisalPrice);
+
+    // ------------------------------------------------------------
+    // 4. 최저가
+    // 두인경매 DOM은 "(24%) 711,518,000" 형태
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 최저가 step start');
+
+    let minimumPrice = '';
+    const minimumTd = getTdByThText('최저가');
+    console.log('[DooinAuction] 최저가 td:', minimumTd);
+
+    if (minimumTd) {
+        const rawText = cleanText(minimumTd.textContent);
+        const price = extractPrice(rawText);
+        const percent = extractPercent(rawText);
+
+        console.log('[DooinAuction] 최저가 parsed:', { rawText, price, percent });
+
+        if (percent && price) {
+            minimumPrice = `(${percent}) ${price}`;
+        } else if (price) {
+            minimumPrice = price;
+        }
+    }
+
+    console.log('[DooinAuction] 최저가 result:', minimumPrice);
+
+    // ------------------------------------------------------------
+    // 5. 버튼 중복 방지
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 버튼 중복체크 step start');
+
+    if (rootTable.querySelector('#landcore_naver_forward_btn')) {
+        console.warn('[DooinAuction] button already exists');
+        return true;
+    }
+
+    // ------------------------------------------------------------
+    // 6. 버튼 생성
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 버튼 생성 step start');
+
+    const naverForwardBtn = document.createElement('button');
+    naverForwardBtn.type = 'button';
+    naverForwardBtn.id = 'landcore_naver_forward_btn';
+    naverForwardBtn.textContent = '네이버 이동';
+
+    naverForwardBtn.style.display = 'inline-flex';
+    naverForwardBtn.style.alignItems = 'center';
+    naverForwardBtn.style.justifyContent = 'center';
+    naverForwardBtn.style.height = '28px';
+    naverForwardBtn.style.padding = '0 10px';
+    naverForwardBtn.style.marginLeft = '6px';
+    naverForwardBtn.style.border = '1px solid #03C75A';
+    naverForwardBtn.style.borderRadius = '4px';
+    naverForwardBtn.style.backgroundColor = '#03C75A';
+    naverForwardBtn.style.color = '#ffffff';
+    naverForwardBtn.style.fontSize = '12px';
+    naverForwardBtn.style.fontWeight = '700';
+    naverForwardBtn.style.lineHeight = '1';
+    naverForwardBtn.style.cursor = 'pointer';
+    naverForwardBtn.style.verticalAlign = 'middle';
+
+    console.log('[DooinAuction] 버튼 생성 완료:', naverForwardBtn);
+
+    // ------------------------------------------------------------
+    // 7. 클릭 이벤트
+    // ------------------------------------------------------------
+    naverForwardBtn.onclick = function () {
+        console.log('[DooinAuction] 네이버 이동 버튼 클릭');
+
+        const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = serverUrl;
+        form.target = '_blank';
+        form.acceptCharset = 'UTF-8';
+
+        const data = {
+            address: searchAddr,             // 소재지
+            address_road: newAddr,          // 도로명검색 버튼 data-addr
+            objectType: objectType,         // 물건종류
+            appraisalPrice: appraisalPrice, // 감정가
+            minimumPrice: minimumPrice      // 최저가
+        };
+
+        console.log('[DooinAuction] 클릭시 전송 data:', data);
+
+        Object.keys(data).forEach((key) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key] || '';
+            form.appendChild(input);
+
+            console.log('[DooinAuction] hidden input append:', {
+                key,
+                value: data[key] || ''
+            });
+        });
+
+        document.body.appendChild(form);
+        console.log('[DooinAuction] form appended, submit start');
+
+        form.submit();
+
+        console.log('[DooinAuction] form submitted');
+        document.body.removeChild(form);
+        console.log('[DooinAuction] form removed');
+    };
+
+    // ------------------------------------------------------------
+    // 8. 소재지 row 의 도로명 검색 버튼 뒤에 삽입
+    // ------------------------------------------------------------
+    console.log('[DooinAuction] 버튼 삽입 step start');
+
+    if (roadSearchBtn && roadSearchBtn.parentNode) {
+        roadSearchBtn.insertAdjacentElement('afterend', naverForwardBtn);
+        console.log('[DooinAuction] 도로명 검색 버튼 뒤에 삽입 완료');
+    } else if (sojajiTd) {
+        sojajiTd.appendChild(naverForwardBtn);
+        console.log('[DooinAuction] 소재지 td 마지막에 fallback 삽입 완료');
+    } else {
+        console.warn('[DooinAuction] 버튼 삽입 위치를 찾지 못함');
+        return false;
+    }
+
+    console.log('[DooinAuction] end success', {
         searchAddr,
         newAddr,
         objectType,

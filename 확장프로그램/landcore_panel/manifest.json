@@ -16,18 +16,21 @@
     "https://web.ggi.co.kr/*",
     "https://www.ggi.co.kr/*",
     "https://www.tankauction.com/*",
-    "https://www.auction1.co.kr/*"
+    "https://www.auction1.co.kr/*",
+    "https://www.dooinauction.com/*"
   ],
   "web_accessible_resources": [
     {
-      "resources": ["/img/asil.png", "/img/nland.png", "config.json"],
+      "resources": ["/img/landcore_16.png", "config.json"],
       "matches": ["<all_urls>"]
     }
   ],
   "action": {
     "default_title": "부동산핵심가치투자",
     "default_icon": {
-        "16": "/img/tash_16.png"
+        "16": "/img/landcore_16.png",
+        "48": "/img/landcore_48.png",
+        "128": "/img/landcore_128.png"
     }
   },
   "side_panel": {
@@ -52,6 +55,7 @@
 			"https://www.tankauction.com/*",
             "https://www.ggi.co.kr/*",
             "https://web.ggi.co.kr/*",
+            "https://www.dooinauction.com/*",
 			"https://asil.kr/*",
 			"https://myfranchise.kr/map"
 		],

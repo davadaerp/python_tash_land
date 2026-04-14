@@ -2013,6 +2013,15 @@ def ext_tool(user_id):
 def ext_tool_realtor_pop(user_id):
     return render_template("crawling_realtor_message_pop.html")
 
+# 실거래와 경매 화면데이타를 address전송하는 팝업방식 현재통계에서 사용함.- GET방식
+@app.route("/api/ext_tool/map_real_auction", methods=["GET"])
+@kakao_extool_auth_required
+def ext_tool_map_real_auction(user_id):
+    # 인증토큰
+    access_token = request.form.get("tk", "")
+
+    return render_template("extool_map_popup.html", access_token=access_token)
+
 @app.route("/api/ext_tool/map", methods=["POST"])
 @kakao_extool_auth_required
 def ext_tool_map_post(user_id):
@@ -2072,7 +2081,6 @@ def ext_tool_map_post(user_id):
         return render_template("extool_npl_map_popup.html", **params_data)
     else:
         return render_template("extool_map_popup.html", access_token=access_token)
-
 
 # 관심물건 지도 팝업에서 주소를 받아서 카카오/네이버 지도 URL로 리다이렉트 처리
 @app.route("/api/ext_tool/forward-map", methods=["POST"])

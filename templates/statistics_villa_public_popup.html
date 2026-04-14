@@ -769,7 +769,7 @@
         const left = window.screenX + (window.outerWidth - popupWidth) / 2;
         const top = window.screenY + (window.outerHeight - popupHeight) / 2;
 
-        const extUrl = `/api/ext_tool/map?menu=map_popup&tk=${encodeURIComponent(access_token)}`;
+        const extUrl = `/api/ext_tool/map_real_auction?tk=${encodeURIComponent(access_token)}`;
         const popup = window.open(
             extUrl,
             'mapPopup',
