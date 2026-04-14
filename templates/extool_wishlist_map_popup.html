@@ -637,6 +637,7 @@
       flex-direction: column;
       overflow: hidden;
       background: #fff;
+      position: relative;
       transition: margin var(--npl-left-panel-slide-duration) var(--npl-left-panel-slide-easing);
     }
 
@@ -2622,8 +2623,8 @@
       <div id="initial-map-loading" style="
         display:none;
         position:absolute;
-        top:30%;
-        left:70%;
+        top:35%;
+        left:50%;
         transform:translate(-50%, -50%);
         z-index:2500;
         min-width:420px;
@@ -2638,6 +2639,7 @@
         font-weight:900;
         letter-spacing:-0.3px;
         white-space:nowrap;
+        pointer-events:none;
       ">
         <span id="initial-map-loading-region" style="
           color:#2563eb;

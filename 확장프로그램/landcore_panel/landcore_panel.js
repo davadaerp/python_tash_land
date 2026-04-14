@@ -21,7 +21,7 @@ function isNaverDomain() {
 }
 
 function isSupportedAnalysisPage() {
-    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage() || isAuction1DetailPage();
+    return isNaverDomain() || isTankAuctionListPage() || isTankAuctionDetailPage() || isAuction1DetailPage() || isGGAuctionDetailPage();
 }
 
 function isTankAuctionListPage() {
@@ -38,6 +38,12 @@ function isTankAuctionDetailPage() {
 function isAuction1DetailPage() {
     return location.href.startsWith('https://www.auction1.co.kr/auction/ca_view.php');
 }
+
+// [추가] 옥션원 상세 페이지 판별 (사용자 요청 URL 대응)
+function isGGAuctionDetailPage() {
+    return location.href.startsWith('https://web.ggi.co.kr/detail/km');
+}
+
 
 // ===== SPA 대응 자동 분석 시스템 =====
 // 핵심: document.body를 항상 감시하여 어떤 SPA 네비게이션에서도 동작
@@ -71,6 +77,13 @@ setTimeout(() => {
     if (isAuction1DetailPage()) {
         console.log('🏛️ 옥션원 상세 처리 시작');
         extractPropertyInfoDetailAuctionOne(); // 하단에 정의할 추출 함수 호출
+        return;
+    }
+
+    // [추가] GG옥션 상세 처리 시작
+    if (isGGAuctionDetailPage()) {
+        console.log('🏛️  지지옥션 상세 처리 시작');
+        extractPropertyInfoDetailGGAuction(); // 하단에 정의할 추출 함수 호출
         return;
     }
 
@@ -2273,141 +2286,6 @@ function extractPropertyInfoTank() {
 }
 
 // 탱크옥션 페이지에서 매물 정보 변경 감지하여 평당가 자동 계산 트리거 (300ms 디바운스)
-function extractPropertyInfoDetailTank_old() {
-    //
-    let areaPy = 0;
-
-    const tbody = document.querySelector('.Btbl_list');
-    if (!tbody) return;
-
-    const headerCells = tbody.querySelectorAll('th');
-    for (const headerCell of headerCells) {
-        if (headerCell.textContent.includes('토지면적')) {
-            const areaLand = headerCell.nextElementSibling;
-            if (!areaLand) continue;
-
-            const content = areaLand.innerHTML.trim();
-            const lines = content.split(/<br\s*\/?>/i);
-            const regex = /\((\d+\.\d+)평\)/;
-
-            lines.forEach(part => {
-                const match = part.match(regex);
-                if (match) areaPy = parseFloat(match[1]);
-            });
-        }
-    }
-
-    for (const headerCell of headerCells) {
-        if (headerCell.textContent.includes('건물면적')) {
-            const areaBd = headerCell.nextElementSibling;
-            if (!areaBd) continue;
-
-            const content = areaBd.innerHTML.trim();
-            const lines = content.split(/<br\s*\/?>/i);
-            const regex = /\((\d+\.\d+)평\)/;
-
-            lines.forEach(part => {
-                const match = part.match(regex);
-                if (match) areaPy = parseFloat(match[1]);
-            });
-        }
-    }
-
-    if (!areaPy) return;
-
-    for (const headerCell of headerCells) {
-        if (headerCell.textContent.includes('감정가')) {
-            const price1Element = headerCell.nextElementSibling;
-            if (!price1Element || price1Element.dataset.highlighted) continue;
-
-            const price1Text = price1Element.textContent.trim().replace(/,/g, '');
-            const price1num = parseInt(price1Text, 10);
-            const pydanga1 = parseInt(price1num / (areaPy * 10000), 10);
-
-            const lineBreakSpan = document.createElement('span');
-            lineBreakSpan.innerHTML = '<br>';
-
-            const pydanga1Span = document.createElement('span');
-            pydanga1Span.textContent = `@${pydanga1}만원`;
-            pydanga1Span.style.opacity = '0.5';
-            pydanga1Span.style.color = 'red';
-
-            price1Element.appendChild(lineBreakSpan);
-            price1Element.appendChild(pydanga1Span);
-        }
-
-        if (headerCell.textContent.includes('최저가')) {
-            const price2Element = headerCell.nextElementSibling;
-            if (!price2Element) continue;
-
-            const price2Text1 = price2Element.textContent.trim().replace(/\(\d+%\)\s*/g, '');
-            const price2Text = price2Text1.replace(/[,원]/g, '');
-            const price2num = parseInt(price2Text, 10);
-            const pydanga2 = parseInt(price2num / (areaPy * 10000), 10);
-
-            const lineBreakSpan2 = document.createElement('span');
-            lineBreakSpan2.innerHTML = '<br>';
-
-            const pydanga2Span = document.createElement('span');
-            pydanga2Span.textContent = `@${pydanga2}만원`;
-            pydanga2Span.style.opacity = '0.5';
-            pydanga2Span.style.color = 'green';
-
-            price2Element.appendChild(lineBreakSpan2);
-            price2Element.appendChild(pydanga2Span);
-        }
-
-        if (headerCell.textContent.includes('감정가')) {
-            const price1Element = headerCell.nextElementSibling;
-            if (price1Element) {
-                price1Element.dataset.highlighted = 'true';
-            }
-        }
-    }
-
-    // 1. 물건종류 추출 (HTML 구조에서 <span class="viewobject">근린상가 </span> 찾기)
-    let objectType = "";
-    const objectTypeSpan = document.querySelector('span.viewobject');
-    if (objectTypeSpan) {
-        objectType = objectTypeSpan.textContent.trim();
-    }
-
-    // 1. 주소 영역 탐색 (제공해주신 HTML 구조 기준)
-    const addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
-    if (!addrDiv) return;
-
-    // 2. 주소 텍스트 추출 및 정제
-    const addrSpan = addrDiv.querySelector('span.bold');
-    if (addrSpan) {
-        let fullAddr = addrSpan.textContent.trim();
-        // 쉼표 기준 앞부분(지번/도로명 본주소)만 추출하여 검색 정확도 향상
-       let searchAddr = fullAddr.split(',')[0].trim();
-
-        // 3. 네이버 이동 버튼 생성 (기본 스타일 및 클래스 적용)
-        const naverBtn = document.createElement('span');
-        naverBtn.className = 'button btn_small btn_white';
-        naverBtn.style.marginLeft = '5px';
-        naverBtn.style.cursor = 'pointer';
-        naverBtn.style.color = '#03cf5d'; // 네이버 테마색 적용
-        naverBtn.style.fontWeight = 'bold';
-        naverBtn.textContent = '네이버 이동';
-
-        // 4. 클릭 이벤트 등록: 해당 주소로 네이버 지도 검색
-        naverBtn.onclick = function() {
-            // 본인의 Flask 서버 주소로 변경하세요.
-            const flaskServerUrl = `https://www.landcore.co.kr/api/ext_tool/forward-map?address=${encodeURIComponent(searchAddr)}`;
-            window.open(flaskServerUrl, '_blank');
-        };
-
-        // 5. '새주소검색' 버튼 옆에 추가
-        const existingBtn = addrDiv.querySelector('.button');
-        if (existingBtn) {
-            existingBtn.parentNode.insertBefore(naverBtn, existingBtn.nextSibling);
-        }
-    }
-}
-
-
 function extractPropertyInfoDetailTank() {
     console.log('🏛️ 탱크옥션 상세분석 및 데이터 전송 로직 시작');
 
@@ -2495,6 +2373,19 @@ function extractPropertyInfoDetailTank() {
         let fullAddr = addrSpan.textContent.trim();
         let searchAddr = fullAddr.split(',')[0].trim();
 
+        // [수정] 도로명주소 추출
+        let newAddr = "";
+        const roadAddrSpan = Array.from(addrDiv.querySelectorAll('span')).find(span =>
+            span.textContent.includes('도로명주소:')
+        );
+
+        if (roadAddrSpan) {
+            const match = roadAddrSpan.textContent.match(/도로명주소:\s*([^)]+)/);
+            if (match) {
+                newAddr = match[1].trim();
+            }
+        }
+
         // 중복 추가 방지
         if (addrDiv.querySelector('.naver-forward-btn')) return;
 
@@ -2512,14 +2403,17 @@ function extractPropertyInfoDetailTank() {
             form.method = 'POST';
             form.action = serverUrl;
             form.target = '_blank'; // 새창 열기
+            form.acceptCharset = "UTF-8";
 
             // 2. 전달할 데이터를 hidden input으로 추가
             const data = {
                 address: searchAddr,
+                addressRoad: newAddr,
                 objectType: objectType,
                 appraisalPrice: appraisalPrice,
                 minimumPrice: minimumPrice
             };
+            console.log("== extractPropertyInfoDetailTank data", data)
 
             for (const key in data) {
                 const input = document.createElement('input');
@@ -2562,15 +2456,16 @@ function extractPropertyInfoDetailAuctionOne() {
         if (thText === '물건종별') {
             const td = th.nextElementSibling;
             if (td) {
-                objectType = td.textContent.replace(/\s+/g, ' ').trim();
+                // 전체 텍스트를 가져온 뒤 괄호()나 대괄호[] 및 그 안의 내용을 모두 제거
+                let rawType = td.textContent.replace(/\s+/g, ' ').trim();
+
+                // 정규식 설명:
+                // 1. [\(|\[].*?[\)|\]] : ( ) 또는 [ ]로 감싸진 모든 문자를 찾아 제거
+                // 2. .trim() : 앞뒤 공백 제거
+                objectType = rawType.replace(/[\(|\[].*?[\)|\]]/g, '').trim();
             }
         }
     });
-
-    // 원하신 조건대로 "근린상가"를 찾는 구조
-    if (!objectType || objectType.indexOf('근린상가') === -1) {
-        return;
-    }
 
     // ------------------------------------------------------------------
     // 2. 감정가 추출 : "감 정 가" th 다음 td
@@ -2604,22 +2499,7 @@ function extractPropertyInfoDetailAuctionOne() {
         }
     });
 
-    // ------------------------------------------------------------------
-    // 4. "새 주소" 행 찾기
-    // ------------------------------------------------------------------
-    let newAddressTd = null;
-
-    thList.forEach((th) => {
-        const thText = th.textContent.replace(/\s+/g, '').trim();
-
-        if (thText === '새주소') {
-            newAddressTd = th.nextElementSibling;
-        }
-    });
-
-    if (!newAddressTd) return;
-
-    // ------------------------------------------------------------------
+        // ------------------------------------------------------------------
     // 5. 새주소 문자열 추출
     // ------------------------------------------------------------------
     let searchAddr = "";
@@ -2639,12 +2519,32 @@ function extractPropertyInfoDetailAuctionOne() {
             }
         }
     });
-    if (!searchAddr) return;
 
     // ------------------------------------------------------------------
-    // 6. 중복 버튼 방지
+    // 4. "새 주소" 행 찾기
     // ------------------------------------------------------------------
-    if (newAddressTd.querySelector('.naver-forward-btn')) return;
+    let newAddr = "";
+    let newAddressTd = null;
+    thList.forEach((th) => {
+        const thText = th.textContent.replace(/\s+/g, '').trim();
+
+        if (thText === '새주소') {
+            newAddressTd = th.nextElementSibling;
+            if (newAddressTd) {
+                // addr_view_1 중 첫번째만
+                const addrSpan = newAddressTd.querySelector('.addr_view_1');
+                if (addrSpan) {
+                    newAddr = addrSpan.textContent.trim();
+                }
+            }
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // 5. 버튼 삽입 위치 찾기 (주소복사 버튼 뒤)
+    // ------------------------------------------------------------------
+    // HTML에 있는 <button class="copyBtn" title="주소복사"> 를 찾습니다.
+    const copyBtn = auctionContainer.querySelector('.copyBtn');
 
     // ------------------------------------------------------------------
     // 7. 버튼 생성
@@ -2658,38 +2558,327 @@ function extractPropertyInfoDetailAuctionOne() {
     // 8. 클릭 이벤트
     // ------------------------------------------------------------------
     naverBtn.onclick = function () {
-            const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
+        const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
 
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = serverUrl;
-            form.target = '_blank';
-            form.acceptCharset = "UTF-8";
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = serverUrl;
+        form.target = '_blank';
+        form.acceptCharset = "UTF-8";
 
-            const data = {
-                address: searchAddr,
-                objectType: objectType,
-                appraisalPrice: appraisalPrice,
-                minimumPrice: minimumPrice
-            };
+        // address: 지번주소, address_road: 새주소
+        const data = {
+            address: searchAddr,
+            address_road: newAddr,
+            objectType: objectType,
+            appraisalPrice: appraisalPrice,
+            minimumPrice: minimumPrice
+        };
 
-            for (const key in data) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = data[key];
-                form.appendChild(input);
-            }
+        console.log("== extractPropertyInfoDetailAuctionOne data", data)
 
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
+        for (const key in data) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     };
 
     // ------------------------------------------------------------------
-    // 9. 새주소 뒤에 버튼 추가
+    // 8. 주소복사 버튼 바로 뒤에 버튼 추가
     // ------------------------------------------------------------------
-    newAddressTd.appendChild(naverBtn);
+    if (copyBtn) {
+        // copyBtn의 부모 안에서 copyBtn 다음 형제 요소로 삽입
+        copyBtn.parentNode.insertBefore(naverBtn, copyBtn.nextSibling);
+    }
+
+    // ------------------------------------------------------------------
+    // 9. 새주소 뒤에 버튼 추가 (이거하면 위 버튼도 안나옴 ㅠ.ㅠ)
+    // ------------------------------------------------------------------
+    // if (newAddressTd) {
+    //     newAddressTd.appendChild(naverBtn);
+    // }
+}
+
+/**
+ * [추가] GG옥션 상세페이지 정보 추출 함수
+ */
+function extractPropertyInfoDetailGGAuction() {
+    console.log('[GGAuction] start');
+
+    // ------------------------------------------------------------
+    // 0. 기준 DOM 찾기
+    // auction_container 가 아니라 courtInfo_btn 이 들어있는 table 기준
+    // ------------------------------------------------------------
+    const courtInfoBtn = document.querySelector('#courtInfo_btn');
+    console.log('[GGAuction] courtInfoBtn:', courtInfoBtn);
+
+    if (!courtInfoBtn) {
+        console.warn('[GGAuction] courtInfoBtn not found');
+        return false;
+    }
+
+    const rootTable = courtInfoBtn.closest('table');
+    console.log('[GGAuction] rootTable:', rootTable);
+
+    if (!rootTable) {
+        console.warn('[GGAuction] rootTable not found');
+        return false;
+    }
+
+    const thList = rootTable.querySelectorAll('th');
+    console.log('[GGAuction] thList count:', thList.length);
+
+    // ------------------------------------------------------------
+    // 공통 유틸
+    // ------------------------------------------------------------
+    const normalize = (text) => (text || '').replace(/\s+/g, '').trim();
+    const cleanText = (text) => (text || '').replace(/\s+/g, ' ').trim();
+
+    const getTdByThText = (label) => {
+        const target = normalize(label);
+        console.log(`[GGAuction] getTdByThText start: ${label}`);
+
+        for (const th of thList) {
+            const currentTh = normalize(th.textContent);
+            if (currentTh === target) {
+                console.log(`[GGAuction] getTdByThText found: ${label}`, th.nextElementSibling);
+                return th.nextElementSibling;
+            }
+        }
+
+        console.warn(`[GGAuction] getTdByThText not found: ${label}`);
+        return null;
+    };
+
+    // "44,541,117,000원(25.03.18)" -> "44,541,117,000"
+    const extractPriceWithoutWon = (raw) => {
+        if (!raw) {
+            console.warn('[GGAuction] extractPriceWithoutWon raw empty');
+            return '';
+        }
+
+        const text = cleanText(raw);
+        const match = text.match(/[\d,]+(?=원)/);
+        const result = match ? match[0] : '';
+        console.log('[GGAuction] extractPriceWithoutWon:', { raw, cleaned: text, result });
+        return result;
+    };
+
+    // ------------------------------------------------------------
+    // 1. 소재지
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 소재지 step start');
+
+    let searchAddr = '';
+    const sojajiTd = getTdByThText('소재지');
+    console.log('[GGAuction] 소재지 td:', sojajiTd);
+
+    if (sojajiTd) {
+        const addrEl =
+            sojajiTd.querySelector('span.mr-4') ||
+            sojajiTd.querySelector('span');
+
+        console.log('[GGAuction] 소재지 addrEl:', addrEl);
+
+        if (addrEl) {
+            searchAddr = cleanText(addrEl.textContent);
+        } else {
+            searchAddr = cleanText(sojajiTd.textContent);
+        }
+    }
+
+    console.log('[GGAuction] 소재지 result:', searchAddr);
+
+    // ------------------------------------------------------------
+    // 2. 도로명주소 -> 새주소
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 도로명주소 step start');
+
+    let newAddr = '';
+    const roadAddrTd = getTdByThText('도로명주소');
+    console.log('[GGAuction] 도로명주소 td:', roadAddrTd);
+
+    if (roadAddrTd) {
+        newAddr = cleanText(roadAddrTd.textContent);
+    }
+
+    console.log('[GGAuction] 도로명주소 result:', newAddr);
+
+    // ------------------------------------------------------------
+    // 3. 용도 -> objectType
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 용도 step start');
+
+    let objectType = '';
+    const objectTypeTd = getTdByThText('용도');
+    console.log('[GGAuction] 용도 td:', objectTypeTd);
+
+    if (objectTypeTd) {
+        objectType = cleanText(objectTypeTd.textContent)
+            .replace(/[\(\[].*?[\)\]]/g, '')
+            .trim();
+    }
+
+    console.log('[GGAuction] 용도 result:', objectType);
+
+    // ------------------------------------------------------------
+    // 4. 감정가
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 감정가 step start');
+
+    let appraisalPrice = '';
+    const appraisalTd = getTdByThText('감정가');
+    console.log('[GGAuction] 감정가 td:', appraisalTd);
+
+    if (appraisalTd) {
+        const priceEl =
+            appraisalTd.querySelector('span.font-bold') ||
+            appraisalTd.querySelector('span');
+
+        console.log('[GGAuction] 감정가 priceEl:', priceEl);
+
+        appraisalPrice = extractPriceWithoutWon(
+            priceEl ? priceEl.textContent : appraisalTd.textContent
+        );
+    }
+
+    console.log('[GGAuction] 감정가 result:', appraisalPrice);
+
+    // ------------------------------------------------------------
+    // 5. 최저가
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 최저가 step start');
+
+    let minimumPrice = '';
+    const minimumTd = getTdByThText('최저가');
+    console.log('[GGAuction] 최저가 td:', minimumTd);
+
+    if (minimumTd) {
+        const priceEl = minimumTd.querySelector('span.font-bold, .font-bold');
+        const percentEl = minimumTd.querySelector('.rounded-20');
+
+        console.log('[GGAuction] 최저가 priceEl:', priceEl);
+        console.log('[GGAuction] 최저가 percentEl:', percentEl);
+
+        const price = extractPriceWithoutWon(
+            priceEl ? priceEl.textContent : minimumTd.textContent
+        );
+        const percent = cleanText(percentEl ? percentEl.textContent : '');
+
+        console.log('[GGAuction] 최저가 parsed:', { price, percent });
+
+        if (percent && price) {
+            minimumPrice = `(${percent}) ${price}`;
+        } else if (price) {
+            minimumPrice = price;
+        }
+    }
+
+    console.log('[GGAuction] 최저가 result:', minimumPrice);
+
+    // ------------------------------------------------------------
+    // 6. 버튼 중복 방지
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 버튼 중복체크 step start');
+
+    if (rootTable.querySelector('#landcore_naver_forward_btn')) {
+        console.warn('[GGAuction] button already exists');
+        return true;
+    }
+
+    // ------------------------------------------------------------
+    // 7. 버튼 생성
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 버튼 생성 step start');
+
+    const naverForwardBtn = document.createElement('button');
+    naverForwardBtn.type = 'button';
+    naverForwardBtn.id = 'landcore_naver_forward_btn';
+
+    naverForwardBtn.className =
+        'px-8 disabled:bg-secondary-5 disabled:text-font-disabled print:hidden h-24 rounded-4 body-12r';
+
+    naverForwardBtn.textContent = '네이버 이동';
+
+    // 🔥 핵심: 강제 스타일
+    naverForwardBtn.style.backgroundColor = '#03C75A';
+    naverForwardBtn.style.color = '#ffffff';
+    naverForwardBtn.style.border = 'none';
+    naverForwardBtn.style.fontWeight = 'bold';
+
+    console.log('[GGAuction] 버튼 생성 완료:', naverForwardBtn);
+
+    // ------------------------------------------------------------
+    // 8. 클릭 이벤트
+    // ------------------------------------------------------------
+    naverForwardBtn.onclick = function () {
+        console.log('[GGAuction] 네이버 이동 버튼 클릭');
+
+        const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = serverUrl;
+        form.target = '_blank';
+        form.acceptCharset = 'UTF-8';
+
+        const data = {
+            address: searchAddr,             // 소재지
+            address_road: newAddr,          // 도로명주소
+            objectType: objectType,         // 용도
+            appraisalPrice: appraisalPrice, // 감정가
+            minimumPrice: minimumPrice      // 최저가
+        };
+
+        console.log('[GGAuction] 클릭시 전송 data:', data);
+
+        Object.keys(data).forEach((key) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key] || '';
+            form.appendChild(input);
+
+            console.log('[GGAuction] hidden input append:', {
+                key,
+                value: data[key] || ''
+            });
+        });
+
+        document.body.appendChild(form);
+        console.log('[GGAuction] form appended, submit start');
+
+        form.submit();
+
+        console.log('[GGAuction] form submitted');
+        document.body.removeChild(form);
+        console.log('[GGAuction] form removed');
+    };
+
+    // ------------------------------------------------------------
+    // 9. 관할법원 버튼 뒤에 삽입
+    // ------------------------------------------------------------
+    console.log('[GGAuction] 버튼 삽입 step start');
+
+    courtInfoBtn.parentNode.insertBefore(naverForwardBtn, courtInfoBtn.nextSibling);
+
+    console.log('[GGAuction] 버튼 삽입 완료');
+    console.log('[GGAuction] end success', {
+        searchAddr,
+        newAddr,
+        objectType,
+        appraisalPrice,
+        minimumPrice
+    });
+
+    return true;
 }
 
 //

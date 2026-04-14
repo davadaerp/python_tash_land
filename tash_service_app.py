@@ -2079,14 +2079,15 @@ def ext_tool_map_post(user_id):
 def forward_map():
     # 1. POST로 넘어온 데이터 받기
     # 1. 파라미터로 주소 받기
-    # 주소, 물건유형(아파트, 빌라, 상가), 감정가, 최저가
+    # 주소(지번주소,도로명주소), 물건유형(아파트, 빌라, 상가), 감정가, 최저가
     address = request.form.get('address', '')
+    addressRoad = request.form.get('addressRoad', '')
     objectType = request.form.get('objectType', '근린상가')
     appraisalPrice = request.form.get('appraisalPrice', '')
     minimumPrice = request.form.get('minimumPrice', '')
     assetType = objectType;
 
-    print(f"forward_map() received address: {address}, objectType: {objectType}, appraisalPrice: {appraisalPrice}, minimumPrice: {minimumPrice}")
+    print(f"forward_map() received address: {address}, {addressRoad}, objectType: {objectType}, appraisalPrice: {appraisalPrice}, minimumPrice: {minimumPrice}")
 
     # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
     row = get_lawd_by_name(address)
@@ -2100,6 +2101,12 @@ def forward_map():
 
     # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
     latitude, longitude = geo_service.get_lat_lng(address, address_type="parcel")
+    # 지번주소 위경도 못찾으면 도로명주소로 찾음
+    # 더 파이썬스럽고(Pythonic) 안전한 작성 예시
+    if not latitude or not longitude:  # 0.0, None, 빈 값 등을 모두 체크
+        result = geo_service.get_lat_lng(addressRoad, address_type="road")
+        if result:  # 결과가 정상적으로 돌아왔을 때만 할당
+            latitude, longitude = result
 
     print(f"forward_map() 주소: {address}, 법정동코드: {lawd_cd}, 법정동명: {lawd_name}", f"위도: {latitude}, 경도: {longitude}")
 

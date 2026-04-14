@@ -179,9 +179,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             realAuctionMenu?.classList.add('hidden');
 
             if (menuType === 'realdeal') {
-                openLandRealAuctionPopupFromPanel();
+                //openLandRealAuctionPopupFromPanel();
+                openLandCoreFromPanel("wishlist")
             } else if (menuType === 'commercial') {
-                openCommericalAreaPopupFromPanel();
+                //openCommericalAreaPopupFromPanel();
+                openLandCoreFromPanel("commerical")
             } else if (menuType === 'statistics') {
                 openLandRealStatisticsPopupFromPanel();
             } else if (menuType === 'propertySearch') {
@@ -333,11 +335,46 @@ function openNaverLand() {
             return;
         }
 
+        const activeUrl = activeTab.url || '';
+
+        // 기본값 (없으면 기존처럼)
+        let targetUrl = NAVER_LAND_URL;
+
+
+        // 현재 열린 landcore 관심물건 지도 페이지에서 선택된 좌표 조회
+        const selectedLocation = await getWishlistSelectedLocationFromActiveTab();
+
+        const latitude = selectedLocation?.latitude || null;
+        const longitude = selectedLocation?.longitude || null;
+        const objectType = selectedLocation?.objectType || '';
+        const lat = latitude || null;
+        const lon = longitude || null;
+        // 차후 objectType(근린상가,다가구,아파트등) 위치이동정의
+
+        // 좌표 있으면 네이버 지도 위치 이동 URL로 변경
+        // 구네이버: https://new.land.naver.com/offices?ms=${lat},${lon},17&a=SG&b=A1:B2&e=RETAIL
+        // 신네이버: https://fin.land.naver.com/map?center=127.01767432382815-37.59265013737151&zoom=16&tradeTypes=A1-B2&realEstateTypes=D02-D03-D04-E01-Z00-D01
+        if (lat && lon) {
+            targetUrl = `https://new.land.naver.com/offices?ms=${lat},${lon},17&a=SG&b=A1:B2&e=RETAIL`;
+        }
+        console.log('targetUrl:', targetUrl, {
+            latitude,
+            longitude,
+            objectType
+        });
+
+        // 현재 활성 탭이 landcore.co.kr 이면 새 탭으로 열기
+        if (activeUrl.includes('landcore.co.kr')) {
+            chrome.tabs.create({ url: targetUrl });
+            setStatus('ready', '네이버부동산을 새 탭으로 열었습니다.');
+            return;
+        }
+
         try {
             const response = await chrome.runtime.sendMessage({
                 type: 'MOVE_TAB_TO_NAVER_LAND',
                 tabId: activeTab.id,
-                url: NAVER_LAND_URL
+                url: targetUrl
             });
 
             if (!response?.success) {
@@ -462,7 +499,7 @@ function toggleAnalysisMenu(e) {
     realAuctionMenu?.classList.toggle('hidden');
 }
 
-// 실거래 팝업방식 열기 (패널에서 지역정보 전달)
+// 실거래 팝업방식 열기 (패널에서 지역정보 전달) => 사용안함
 async function openLandRealAuctionPopupFromPanel_old() {
     // 로그인 및 구독 상태 체크
     const auth = await loginValidForPanel();
@@ -500,195 +537,70 @@ async function openLandRealAuctionPopupFromPanel_old() {
     );
 }
 
-// 실거래(관심물건포함) 검색 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
-async function openLandRealAuctionPopupFromPanel() {
+// 실거래(관심물건포함) 검색 브라우져상 새탭으로 열기 (POST 방식)
+// param_menu => wishlist:관심물건및 실거래분석, commerical: 업종분석, npl: NPL물건검색
+async function openLandCoreFromPanel(param_menu = 'wishlist') {
     const auth = await loginValidForPanel();
-    if (!auth.ok) return;
+    if (!auth || !auth.ok) return;
 
     try {
+        console.log("== openLandCoreFromPanel (Requesting map2): ", currentRegionInfo);
+        // 1. 법정동 정보 확인 (서버의 get_lawd_by_name 처리를 위해 address 필수)
+        if (!currentRegionInfo) {
+            throw new Error('법정동 정보(주소)가 비어 있습니다.');
+        }
         //
-        const regionInfo = await getCurrentRegionsString(auth.access_token);
-        console.log('getCurrentRegionsString 리턴값:', regionInfo);
+        const address = currentRegionInfo.region + ' ' + currentRegionInfo.sigungu  + ' ' + currentRegionInfo.umdNm ;
+        // apt,villa,sanga
+        const propertyType = currentRegionInfo.tabGubun;
+        console.log("== openLandCoreFromPanel (Requesting map): ", address, propertyType);
 
-        let lawdCd = regionInfo?.lawdCd || '';
-        let lawdName = regionInfo?.lawdName || '';
-        let umdName = regionInfo?.umdName || '';
+        // 2. 서버 설정에 맞춘 타겟 URL 수정 (map -> map2)
+        const targetUrl = `${LANDCORE_URL}/api/ext_tool/map`;
 
-        // 둘 다 없으면 여기서 중단
-        if (!lawdCd && !lawdName) {
-            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
+        // 3. 숨겨진 form 엘리먼트 생성
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = targetUrl;
+        form.target = '_blank'; // 새 탭에서 열기
+
+        // 4. 전송할 데이터 구성 (서버의 request.form.get 항목과 일치시킴)
+        const data = {
+            menu: param_menu,          // wishlist, commercial, npl 등
+            tk: auth.access_token,     // 서버의 access_token 변수로 매핑됨
+            propertyType: propertyType,
+            address: address           // 서버의 get_lawd_by_name의 인자로 사용됨
+
+        };
+
+        // 5. 데이터를 hidden input으로 추가
+        for (const key in data) {
+            if (data.hasOwnProperty(key)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = data[key];
+                form.appendChild(input);
+            }
         }
 
-        const urlParams = new URLSearchParams({
-          menu: 'wishlist_map_popup',
-          tk: auth.access_token,
-          lawdCd: lawdCd,
-          lawdName: lawdName,
-          umdName: umdName
-        });
+        // 6. body에 붙여서 제출 후 즉시 제거
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
 
-        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
-        chrome.tabs.create({ url: extUrl });
     } catch (err) {
         console.error('실거래분석 처리 실패:', err);
         alert(`실거래분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
     }
 }
 
-
-// 업종분석 팝업 열기 (패널에서 지역정보 전달)
-async function openCommericalAreaPopupFromPanel_oldPopup() {
-    const auth = await loginValidForPanel();
-    if (!auth.ok) return;
-
-    try {
-        // 외부에서 탭 구분이 명확히 넘어오면 그걸 우선, 그렇지 않으면 현재 탭 상태에서 구분, 둘 다 없으면 기본값 'sanga'로 설정
-        const selectedTabGubun = getCurrentTabGubun() || 'sanga';
-
-        // 테스트용 확인
-        console.log(`현재 탭 구분: ${selectedTabGubun}`);
-
-        // if (selectedTabGubun !== 'sanga') {
-        //     alert('업종상권분석은 상가에서만 지원됩니다.');
-        //     return;
-        // }
-        //
-        const regionInfo = await getCurrentRegionsString(auth.access_token);
-        console.log('getCurrentRegionsString 리턴값:', regionInfo);
-
-        let lawdCd = regionInfo?.lawdCd || '';
-        let lawdName = regionInfo?.lawdName || '';
-        const regions = regionInfo?.regions || '';
-
-        // 둘 다 없으면 여기서 중단
-        if (!lawdCd && !lawdName) {
-            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
-        }
-
-        // 상권정보 원본 조회
-        const commercialItems = await fetchCommercialAreaInfoForPanel(
-            lawdCd,
-            lawdName,
-            auth.access_token
-        );
-
-        if (!commercialItems || !commercialItems.length) {
-            alert('해당 지역의 상권정보가 없습니다.');
-            return;
-        }
-
-        // 지도팝업으로 전달할 payload 구성
-        const payload = {
-            options: [{
-                region: lawdName,
-                floor: "전체",
-                area: "전체"
-            }],
-            addresses: [],
-            commercialAreaItems: Array.isArray(commercialItems) ? commercialItems : [],
-
-            // [추가] 업종분석 전용 초기 표시 설정
-            initialMapMode: "commercial",
-            initialCommercialPoiGroup: "교육사업"
-        };
-
-        console.log("Commercial area payload for popup:", payload);
-
-        const popupWidth = 1200;
-        const popupHeight = 1100;
-        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
-        const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
-        //
-        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?menu=map_popup&tk=${encodeURIComponent(auth.access_token)}`;
-        const popup = window.open(
-            extUrl,
-            'commercialAreaMapPopup',
-            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
-        );
-
-        if (!popup) {
-            alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
-            return;
-        }
-
-        const sendPayload = () => {
-            try {
-                popup.postMessage(payload, new URL(LANDCORE_URL).origin);
-            } catch (e) {
-                console.error('상권분석 payload 전송 실패:', e);
-            }
-        };
-
-        popup.onload = sendPayload;
-        setTimeout(sendPayload, 800);
-
-    } catch (err) {
-        console.error('업종상권분석 처리 실패:', err);
-        alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
-    }
+// NPL 검색 브라우져상 새탭으로 열기 (POST 방식)
+async function openNplSearchFromPanel() {
+    //
+    openLandCoreFromPanel("npl");
 }
 
-// 업종분석 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
-async function openCommericalAreaPopupFromPanel() {
-    const auth = await loginValidForPanel();
-    if (!auth.ok) return;
-
-    try {
-        //
-        const regionInfo = await getCurrentRegionsString(auth.access_token);
-        console.log('getCurrentRegionsString 리턴값:', regionInfo);
-
-        let lawdCd = regionInfo?.lawdCd || '';
-        let lawdName = regionInfo?.lawdName || '';
-        let umdName = regionInfo?.umdName || '';
-
-        // 둘 다 없으면 여기서 중단
-        if (!lawdCd && !lawdName) {
-            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
-        }
-
-        const urlParams = new URLSearchParams({
-          menu: 'commerical_map_popup',
-          tk: auth.access_token,
-          lawdCd: lawdCd,
-          lawdName: lawdName,
-          umdName: umdName
-        });
-
-        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
-        chrome.tabs.create({ url: extUrl });
-    } catch (err) {
-        console.error('업종분석 처리 실패:', err);
-        alert(`실거래분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
-    }
-}
-
-// 상권정보 조회 API 호출 (패널에서 지역정보 전달)
-async function fetchCommercialAreaInfoForPanel(lawdCd, lawdName, accessToken = '') {
-    const url = new URL(`${LANDCORE_URL}/api/sanga/commerical_area_info`);
-
-    console.log('fetchCommercialAreaInfoForPanel 호출 - lawdCd:', lawdCd, 'lawdName:', lawdName);
-
-    if (lawdCd) url.searchParams.set('lawd_cd', lawdCd);
-    if (lawdName) url.searchParams.set('lawd_name', lawdName);    // 경기도 김포시 운양동
-
-    const headers = {};
-    if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
-    const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers
-    });
-
-    if (!response.ok) {
-        throw new Error(`상권정보 조회 실패 (${response.status})`);
-    }
-
-    const result = await response.json();
-    return Array.isArray(result?.records) ? result.records : [];
-}
 
 // 통계분석 팝업 열기 (패널에서 지역정보 전달)
 async function openLandRealStatisticsPopupFromPanel() {
@@ -912,108 +824,6 @@ async function openFormDownloadFromPanel() {
     );
 }
 
-// NPL 검색 팝업 열기 (패널에서 지역정보 전달)
-async function openNplSearchFromPanel_popup() {
-    const auth = await loginValidForPanel();
-    if (!auth.ok) return;
-
-    try {
-        //
-        const regionInfo = await getCurrentRegionsString(auth.access_token);
-        console.log('getCurrentRegionsString 리턴값:', regionInfo);
-
-        // lawdName: 경기도 김포시 운양동, regions: 경기도,김포시,운양동
-        let lawdCd = regionInfo?.lawdCd || '';
-        let lawdName = regionInfo?.lawdName || '';
-        let umdName = regionInfo?.umdName || '';
-        let regions = regionInfo?.regions || '';
-
-        // 둘 다 없으면 여기서 중단
-        if (!lawdCd && !lawdName) {
-            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
-        }
-
-        // 지도팝업으로 전달할 payload 구성
-        const payload = {
-            options: [{
-                lawdCd: lawdCd,
-                lawdName: lawdName,
-                umdName:umdName
-            }],
-            addresses: []
-        };
-
-        const popupWidth = 1600;
-        const popupHeight = 1100;
-        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
-        const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
-
-        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?menu=npl_map_popup&tk=${encodeURIComponent(auth.access_token)}`;
-        const popup = window.open(
-            extUrl,
-            'nplMapPopup',
-            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
-        );
-
-        if (!popup) {
-            alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.');
-            return;
-        }
-
-        const sendPayload = () => {
-            try {
-                popup.postMessage(payload, new URL(LANDCORE_URL).origin);
-            } catch (e) {
-                console.error('상권분석 payload 전송 실패:', e);
-            }
-        };
-
-        popup.onload = sendPayload;
-        setTimeout(sendPayload, 800);
-
-    } catch (err) {
-        console.error('업종상권분석 처리 실패:', err);
-        alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
-    }
-}
-
-// NPL 검색 브라우져상 새탭으로 열기 (패널에서 지역정보 전달) - 상권분석 팝업과 동일하게 활용
-async function openNplSearchFromPanel() {
-    const auth = await loginValidForPanel();
-    if (!auth.ok) return;
-
-    try {
-        //
-        const regionInfo = await getCurrentRegionsString(auth.access_token);
-        console.log('getCurrentRegionsString 리턴값:', regionInfo);
-
-        let lawdCd = regionInfo?.lawdCd || '';
-        let lawdName = regionInfo?.lawdName || '';
-        let umdName = regionInfo?.umdName || '';
-        let regions = regionInfo?.regions || '';
-
-        // 둘 다 없으면 여기서 중단
-        if (!lawdCd && !lawdName) {
-            throw new Error('법정동 정보(lawdCd, lawdName)가 비어 있습니다. 먼저 지역 분석 데이터가 들어왔는지 확인하세요.');
-        }
-
-        const urlParams = new URLSearchParams({
-          menu: 'npl_map_popup',
-          tk: auth.access_token,
-          lawdCd: lawdCd,
-          lawdName: lawdName,
-          umdName: umdName
-        });
-
-        const extUrl = `${LANDCORE_URL}/api/ext_tool/map?${urlParams.toString()}`;
-        chrome.tabs.create({ url: extUrl });
-    } catch (err) {
-        console.error('업종상권분석 처리 실패:', err);
-        alert(`업종상권분석 처리 중 오류가 발생했습니다.\n${err.message || err}`);
-    }
-}
-
-
 /**
  * 새 분석 시작 전에 이전 분석 UI를 0 기준으로 초기화
  */
@@ -1151,6 +961,37 @@ async function getActiveTabUrl() {
     });
 }
 
+// 관심물거 지도위치 가져오기
+async function getWishlistSelectedLocationFromActiveTab() {
+    return new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (chrome.runtime.lastError || !tabs || !tabs.length || !tabs[0]?.id) {
+                resolve(null);
+                return;
+            }
+
+            const activeTab = tabs[0];
+
+            chrome.tabs.sendMessage(
+                activeTab.id,
+                { type: 'GET_WISHLIST_SELECTED_LOCATION' },
+                (response) => {
+                    if (chrome.runtime.lastError) {
+                        resolve(null);
+                        return;
+                    }
+
+                    if (!response?.success || !response?.data) {
+                        resolve(null);
+                        return;
+                    }
+
+                    resolve(response.data);
+                }
+            );
+        });
+    });
+}
 
 function setStatus(type, text) {
     if (!statusBar) {

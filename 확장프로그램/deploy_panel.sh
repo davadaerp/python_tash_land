@@ -9,13 +9,12 @@ ZIP_NAME="landcore_panel_ext.zip"
 LOGIN_FILES=("panel.js" "popup_kakao.js" "panel.css" "panel.html")
 
 # 2. 루트 디렉토리에서 복사할 파일들
-ROOT_FILES=("manifest.json" "landcore_panel.js" "background.js" "config.json")
+ROOT_FILES=("manifest.json" "landcore_newland.js" "landcore_panel.js" "background.js" "config.json")
 
 # 5. 이 중 "난독화"를 적용할 파일명 (확장자 포함)
-OBFUSCATE_LIST=("popup_kakao.js" "panel.js" "landcore_panel.js")
+OBFUSCATE_LIST=("popup_kakao.js" "panel.js" "landcore_newland.js" "landcore_panel.js")
 
 # --------------------------------------------
-
 echo "🚀 맞춤형 배포 프로세스를 시작합니다..."
 
 # 초기화

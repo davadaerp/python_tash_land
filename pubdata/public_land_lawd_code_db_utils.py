@@ -3,6 +3,7 @@
 import os
 import sqlite3
 import csv
+import re
 from typing import Optional, Dict, List
 
 from config import PUBLIC_BASE_PATH
@@ -131,6 +132,13 @@ def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str,
     1. 뒤에서부터 토큰을 하나씩 확인하며 최초로 검색 결과가 존재하는 토큰을 찾습니다. (SELECT)
     2. 결과가 1개 이상 확보되면, 남은 앞쪽 토큰들을 이용해 메모리 내에서 필터링합니다. (Filter)
     """
+    if not address:
+        return None
+
+    # ---------------------------------------------------------
+    # 0. 주소 전처리
+    # ---------------------------------------------------------
+    address = normalize_address_for_lawd(address)
     if not address:
         return None
 
@@ -402,6 +410,70 @@ def update_land_batch_yn_multi(
         conn.close()
 
 
+def normalize_address_for_lawd(address: str) -> str:
+    """
+    법정동 검색용 주소 정규화
+
+    처리 예:
+    1) 인천 남동구 구월동 1457, 2층210호 (구월동,이노프라자) 외 1개호
+       -> 인천 남동구 구월동 1457
+
+    2) 서울특별시 광진구 능동 177-3 빌라헤르메스 지층103호 외 2필지
+       -> 서울특별시 광진구 능동 177-3
+    """
+    if not address:
+        return ""
+
+    addr = address.strip()
+
+    # 1. 괄호 안 제거
+    addr = re.sub(r"\([^)]*\)", " ", addr)
+
+    # 2. "외 1개호", "외 2필지", "외 3호" 제거
+    addr = re.sub(r"\s*외\s*\d+\s*(개호|필지|호)?", " ", addr)
+
+    # 3. 쉼표는 공백으로 변경
+    addr = addr.replace(",", " ")
+
+    # 4. 연속 공백 정리
+    addr = re.sub(r"\s+", " ", addr).strip()
+
+    if not addr:
+        return ""
+
+    tokens = addr.split()
+    cleaned_tokens = []
+
+    found_umd = False  # 동/읍/면/리 찾았는지
+    found_jibun = False  # 지번 찾았는지
+
+    # 지번 패턴: 1457 / 177-3 / 산12 / 산12-3
+    jibun_pattern = re.compile(r"^(산)?\d+(?:-\d+)?$")
+
+    # 읍/면/동/리 패턴
+    umd_pattern = re.compile(r"(동|읍|면|리)$")
+
+    for token in tokens:
+        # 이미 지번까지 확보했으면 뒤는 버림
+        if found_jibun:
+            break
+
+        cleaned_tokens.append(token)
+
+        # 아직 읍/면/동/리를 못 찾은 상태에서 찾으면 표시
+        if not found_umd and umd_pattern.search(token):
+            found_umd = True
+            continue
+
+        # 읍/면/동/리 찾은 뒤 첫 지번이 나오면 여기까지 채택
+        if found_umd and jibun_pattern.match(token):
+            found_jibun = True
+            break
+
+    # 혹시 지번이 없더라도, 최소한 앞부분 행정주소만 사용
+    normalized = " ".join(cleaned_tokens).strip()
+    return normalized
+
 
 # ==========================
 # 사용 예시
@@ -442,3 +514,12 @@ if __name__ == "__main__":
 
     case3 = get_lawd_by_name("서울특별시 중구 남대문로4가")
     print(f"결과 3 (남대문로4가): {case3}")
+
+    case4 = get_lawd_by_name("인천 남동구 구월동 1457, 2층210호 (구월동,이노프라자) 외 1개호 ")
+    print(f"결과 4 (구월동): {case4}")
+
+    case5 = get_lawd_by_name("서울특별시 광진구 능동 177-3 빌라헤르메스 지층103호 외 2필지")
+    print(f"결과 5 (능동): {case5}")
+
+    case6 = get_lawd_by_name("인천광역시 남동구 만수동 841-27, 대명빌라 5동 지층 1호 ")
+    print(f"결과 5 (테스트): {case6}")
