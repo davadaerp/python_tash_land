@@ -211,7 +211,8 @@ function sendAnalysisToPanel() {
         });
         console.log('📊 실시간 분석 전송:', payload.totalCount, '개 매물');
     } catch (error) {
-        console.warn('자동 분석 실패:', error);
+        //console.warn('자동 분석 실패:', error);
+        console.log('자동 분석 실패:', error);
     }
 }
 

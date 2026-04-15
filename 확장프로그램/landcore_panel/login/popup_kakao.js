@@ -11,6 +11,7 @@ const SUB_CREATE_URL = `${SERVER}/api/subscription/create`;
 
 const loginSection    = document.getElementById("login-section");
 const userSection     = document.getElementById("user-section");
+// let userSection     = null;
 const loginLinks      = document.getElementById("login-links");
 const nicknameEl      = document.getElementById("nickname");
 const panelNicknameEl = document.getElementById("panel-nickname");
@@ -27,12 +28,7 @@ const btnLogin     = document.getElementById("btn-login");
 const btnLogout    = document.getElementById("btn-logout");
 const btnMypage    = document.getElementById("btn-mypage");
 let toast        = document.getElementById("toast");
-if (!toast) {
-  toast = document.createElement("div");
-  toast.id = "toast";
-  toast.className = "toast hidden";
-  document.body.appendChild(toast);
-}
+
 
 // ---- 유틸: chrome.storage를 Promise로 래핑 ----
 function csGet(keys) {
@@ -45,17 +41,28 @@ function csSet(obj) {
 }
 
 function showToast(msg) {
+    const toast = document.getElementById('toast');
+    if (!toast) {
+        console.warn('[showToast] toast 요소가 없습니다.');
+        return;
+    }
+
     toast.textContent = msg;
-    toast.classList.remove("hidden");
-    setTimeout(() => toast.classList.add("hidden"), 1500);
+    toast.classList.remove('hidden');
+    toast.classList.add('show');
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.classList.add('hidden');
+    }, 5000);
 }
 
 function setLoggedOutUI() {
     topUserStrip?.classList.add("hidden");
-    userSection.classList.add("hidden");
+    userSection?.classList.add("hidden");
     loginLinks?.classList.add("hidden");
     userInfoPanel?.classList.add("hidden");
-    loginSection.classList.remove("hidden");
+    loginSection?.classList.remove("hidden");
 }
 
 function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
@@ -268,7 +275,7 @@ function safeAddListener(selectorOrEl, event, handler, options) {
       : selectorOrEl;
 
     if (!el) {
-      console.warn("⚠️ addEventListener 대상이 없습니다:", selectorOrEl);
+      //console.warn("⚠️ addEventListener 대상이 없습니다:", selectorOrEl);
       return false;
     }
     el.addEventListener(event, handler, options);
@@ -342,7 +349,6 @@ function openSubscribePopup(token) {
   }
   pop.focus?.();
 }
-
 
 // ====== 이벤트 리스너 등록 ======
 // 로그인 버튼 클릭 - 팝업후 post메시지로 리턴받음
@@ -459,3 +465,6 @@ document.addEventListener("click", (e) => {
 
 // ====== 초기 구동 ======
 document.addEventListener("DOMContentLoaded", restoreSession);
+// document.addEventListener("DOMContentLoaded", () => {
+//     userSection = document.getElementById("user-section");
+// });

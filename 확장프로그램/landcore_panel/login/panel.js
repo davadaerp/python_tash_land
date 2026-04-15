@@ -5,6 +5,7 @@
  */
 
 // DOM Elements
+/*
 const analyzeBtn = document.getElementById('analyze-btn');
 const resetBtn = document.getElementById('reset-btn');
 const realAuctionBtn = document.getElementById('real-auction-btn');
@@ -27,6 +28,29 @@ const siteShortcutMenu = document.getElementById('site-shortcut-menu');
 // 상위목록 중개사 섹션
 const topAgenciesToggle = document.getElementById('top-agencies-toggle');
 const topAgenciesSection = document.getElementById('top-agencies');
+*/
+// DOM Elements (초기에는 null 상태)
+let analyzeBtn;
+let resetBtn;
+let realAuctionBtn;
+let realAuctionMenu;
+let calculatorBtn;
+let smsBtn;
+let formBtn;
+let nplBtn;
+let baehuBtn;
+let naverLandBtn;
+let guideBtn;
+let statusBar;
+let resultsContainer;
+let areaChartContainer;
+let historyList;
+//
+let siteShortcutBtn;
+let siteShortcutMenu;
+// 상위목록 중개사 섹션
+let topAgenciesToggle;
+let topAgenciesSection;
 
 // API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
 const LANDCORE_URL = "https://www.landcore.co.kr";
@@ -70,19 +94,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('Panel Initialized');
     // 여기 정의하면 NPL팝업식으로 열릴때 계속실행되어버림 ㅠ.ㅠ
     //await ensureNaverLandTabOnPanelOpen();
-    loadHistory();
 
-    analyzeBtn.addEventListener('click', startAnalysis);
-    resetBtn.addEventListener('click', resetPanel);
-    realAuctionBtn.addEventListener('click', toggleAnalysisMenu);
-    calculatorBtn.addEventListener('click', openCalculator);
-    baehuBtn.addEventListener('click', openBaehu);
+    console.log('[panel.js check]', {
+        href: location.href,
+        readyState: document.readyState,
+        hasAnalyzeBtn: !!document.getElementById('analyze-btn'),
+        hasResultsContainer: !!document.getElementById('results-container'),
+        scripts: [...document.scripts].map(s => s.src)
+    });
+
+    // 🔥 여기서 DOM 요소 가져오기 (핵심)
+    analyzeBtn = document.getElementById('analyze-btn');
+    resetBtn = document.getElementById('reset-btn');
+    realAuctionBtn = document.getElementById('real-auction-btn');
+    realAuctionMenu = document.getElementById('real-auction-menu');
+    calculatorBtn = document.getElementById('calculator-btn');
+    smsBtn = document.getElementById('sms-btn');
+    formBtn = document.getElementById('form-btn');
+    nplBtn = document.getElementById('npl-btn');
+    baehuBtn = document.getElementById('baehu-btn');
+    naverLandBtn = document.getElementById('naver-land-btn');
+    guideBtn = document.getElementById('guide-btn');
+    statusBar = document.getElementById('status-bar');
+    resultsContainer = document.getElementById('results-container');
+    areaChartContainer = document.getElementById('area-chart');
+    historyList = document.getElementById('history-list');
+
+    siteShortcutBtn = document.getElementById('site-shortcut-btn');
+    siteShortcutMenu = document.getElementById('site-shortcut-menu');
+    // 상위목록 중개사 섹션
+    topAgenciesToggle = document.getElementById('top-agencies-toggle');
+    topAgenciesSection = document.getElementById('top-agencies');
+
+    analyzeBtn?.addEventListener('click', startAnalysis);
+    resetBtn?.addEventListener('click', resetPanel);
+    realAuctionBtn?.addEventListener('click', toggleAnalysisMenu);
+    calculatorBtn?.addEventListener('click', openCalculator);
+    baehuBtn?.addEventListener('click', openBaehu);
     smsBtn?.addEventListener('click', openSmsSendFromPanel);
     formBtn?.addEventListener('click', openFormDownloadFromPanel);
     nplBtn?.addEventListener('click', openNplSearchFromPanel);
     //memoBtn.addEventListener('click', openMemo);
-    naverLandBtn.addEventListener('click', openNaverLand);
-    guideBtn.addEventListener('click', (e) => {
+    naverLandBtn?.addEventListener('click', openNaverLand);
+    guideBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         openGuide();
     });
@@ -91,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     topAgenciesToggle?.addEventListener('click', toggleTopAgenciesSection);
 
     // 결과 영역 내 목록/최저가 전환 및 정렬 처리
-    resultsContainer.addEventListener('click', (e) => {
+    resultsContainer?.addEventListener('click', (e) => {
         // floor select 자체 클릭은 상위 click 위임 로직에서 제외
         if (e.target.closest('[data-floor-select]') || e.target.closest('.floor-filter-select-wrap')) {
             return;
@@ -148,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 층 필터 변경은 click이 아닌 change 이벤트로 처리 (select 요소의 고유 이벤트)
-    resultsContainer.addEventListener('change', (e) => {
+    resultsContainer?.addEventListener('change', (e) => {
         const floorSelect = e.target.closest('[data-floor-select]');
         if (floorSelect) {
             e.stopPropagation();
@@ -397,7 +451,8 @@ function openNaverLand() {
  * 사용가이드 페이지 열기
  */
 function openGuide() {
-    const guideUrl = chrome.runtime.getURL('guide/UserGuide.html');
+    //const guideUrl = chrome.runtime.getURL('guide/UserGuide.html');
+    const guideUrl = `${LANDCORE_URL}/api/form_guide?menu=guide`;
     chrome.tabs.create({ url: guideUrl });
 }
 
@@ -1037,54 +1092,6 @@ async function ensureNaverLandTabOnPanelOpen() {
 /**
  * 분석 시작
  */
-async function startAnalysis_old() {
-    // 분석 시작 전 네이버부동산 탭 보장
-    await ensureNaverLandTabOnPanelOpen();
-
-    analyzeBtn.disabled = true;
-    analyzeBtn.textContent = '[분석 중...]';
-    resultsContainer.innerHTML = '<div class="empty-state">데이터를 가져오는 중입니다...</div>';
-
-    // 새 분석 시작 전 이전 결과를 0 기준으로 초기화
-    resetAnalysisUiForNewRun();
-
-    try {
-        const response = await chrome.runtime.sendMessage({ type: 'START_ANALYSIS' });
-
-        if (response?.success) {
-            lastAnalysisData = response.data;
-
-            // 지역 + 탭구분 반영
-            setCurrentRegionInfo(response.data);
-
-            displayResults(response.data);
-            displayAreaChart(response.data);
-            displayTopAgencies(response.data);
-            saveToHistory(response.data);
-            //
-            // 분석 응답에 포함된 지역정보를 바로 반영
-            applyRegionLabelFromAnalysisData(response.data);
-            analyzeBtn.disabled = false;
-
-            // 분석 완료 안내 메시지 표시
-            const wolseCount = response.data.listings?.filter(l => l.type === '월세').length || 0;
-            const maemaeCount = response.data.listings?.filter(l => l.type === '매매').length || 0;
-            showAnalysisCount(wolseCount, maemaeCount);
-
-            // 매물 목록에 평당가/평수 배지 표시
-            chrome.runtime.sendMessage({ type: 'SHOW_BADGES' }).catch(() => { });
-        } else {
-            throw new Error(response?.error || '분석 실패');
-        }
-    } catch (error) {
-        console.error(error);
-        resultsContainer.innerHTML = `<div class="empty-state">오류: ${error.message}</div>`;
-        setStatus('error', '분석 실패 (0개)');
-        analyzeBtn.textContent = '매물 분석하기';
-        analyzeBtn.disabled = false;
-    }
-}
-
 async function startAnalysis() {
 
     // 현재 탭이 fin/new/tankauction 분석 지원 페이지가 아니면 그때만 네이버 탭 보장
@@ -1112,7 +1119,7 @@ async function startAnalysis() {
             displayResults(response.data);
             displayAreaChart(response.data);
             displayTopAgencies(response.data);
-            saveToHistory(response.data);
+            //saveToHistory(response.data);
 
             // 분석 응답에 포함된 지역정보를 바로 반영
             applyRegionLabelFromAnalysisData(response.data);
@@ -1829,55 +1836,6 @@ function displayTopAgencies(data) {
     syncTopAgenciesToggleIcon();
 }
 
-/**
- * 히스토리 저장
- */
-function saveToHistory(data) {
-    if (!data || !data.stats) return;
-
-    chrome.storage.local.get(['analysisHistory'], (result) => {
-        const history = result.analysisHistory || [];
-        const newEntry = {
-            timestamp: new Date().toISOString(),
-            total: data.stats.total,
-            wolseCount: data.stats.wolse?.count || 0,
-            maemaeCount: data.stats.maemae?.count || 0
-        };
-
-        history.unshift(newEntry);
-        if (history.length > 10) history.pop();
-
-        chrome.storage.local.set({ analysisHistory: history });
-        loadHistory();
-    });
-}
-
-/**
- * 히스토리 로드
- */
-function loadHistory() {
-    chrome.storage.local.get(['analysisHistory'], (result) => {
-        const history = result.analysisHistory || [];
-
-        if (history.length === 0) {
-            historyList.innerHTML = '<div class="empty-history">분석 기록이 없습니다</div>';
-            return;
-        }
-
-        const historyHTML = history.slice(0, 5).map(entry => {
-            const date = new Date(entry.timestamp);
-            const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-            return `
-                <div class="history-item">
-                    <span class="history-date">${dateStr}</span>
-                    <span class="history-stats">총 ${entry.total}개 (월세 ${entry.wolseCount}, 매매 ${entry.maemaeCount})</span>
-                </div>
-            `;
-        }).join('');
-
-        historyList.innerHTML = historyHTML;
-    });
-}
 
 /**
  * 숫자 포맷 (천 단위 콤마)
