@@ -1987,7 +1987,6 @@ function analyzeCatchmentDemand() {
 
 // 네이버 매물검색 처리
 function searchNaverListings() {
-
     // 기본 컨트롤 박스 가져오기
     const onoffPanel = document.querySelector('.filter_area');
     onoffPanel.style.display = 'inline-block'; // 줄 바꿈 방지
@@ -2011,68 +2010,25 @@ function searchNaverListings() {
 
     // 클릭 시 지정 URL을 새 팝업창으로 엽니다.
     naverSearch.addEventListener('click', function() {
+        alert('준비중입니다.');
         // 로그인여부 체크
-        loginValid().then(valid => {
-            if (!valid) return;   // 로그인 실패 시 여기서 중단
-            //
-            let menu = '';
-            if (tabGubun === 'apt') {
-                menu = 'apt_search';
-            } else if (tabGubun === 'sanga') {
-                menu = 'sanga_search';
-            } else {
-                alert('빌라 매물검색은 준비중입니다.');
-                return;
-            }
-            const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
-            const popupHeight = 1200;  // 원하는 팝업 높이
-            openExtensionPopup(menu, { customTag: menu}, "realDataPopup", popupWidth, popupHeight);
-            /*
-            // 지역선택 가져오기
-            const {region, sigungu, umdNm} = getSelectedRegions();
-            //alert(region + ',' + sigungu + ',' + umdNm);
-            // '경기도,김포시,구래동'
-            const regions = region + ',' + sigungu + ',' + umdNm;
-
-            let search_menu = "";
-            if (tabGubun === 'sanga') {
-                search_menu = "menu=sanga_search&regions=" + regions + '&api_key=' + sanga_key;
-            } else if (tabGubun === 'villa') {
-                search_menu = "menu=villa&regions=" + regions + '&api_key=' + villa_key;
-                alert('빌라 매물검색은 준비중입니다.');
-                return;
-            }  if (tabGubun === 'apt') {
-                //search_menu = "menu=apt&regions=" + regions + '&api_key=' + sanga_key;
-                search_menu = "menu=apt_search&regions=" + regions + '&api_key=' + sanga_key;
-            }
-            // 확장툴url
-            //let ext_url = BASE_URL + "/api/ext_tool?" + search_menu;
-            let ext_url = LOCAL_BASE_URL + "/api/ext_tool?" + search_menu;
-
-            const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
-            const popupHeight = 1200;  // 원하는 팝업 높이
-            const left = (screen.width - popupWidth) / 2;
-            const top = (screen.height - popupHeight) / 2;
-            // window.open(ext_url, "realDataPopup",
-            //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
-            window.open(
-                  ext_url,
-                  "realDataPopup",
-                  `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,location=no,menubar=no,toolbar=no,status=no`
-                );
-
-             */
-        });
+        // loginValid().then(valid => {
+        //     if (!valid) return;   // 로그인 실패 시 여기서 중단
+        //     //
+        //     let menu = '';
+        //     if (tabGubun === 'apt') {
+        //         menu = 'apt_search';
+        //     } else if (tabGubun === 'sanga') {
+        //         menu = 'sanga_search';
+        //     } else {
+        //         alert('빌라 매물검색은 준비중입니다.');
+        //         return;
+        //     }
+        //     const popupWidth = tabGubun === 'sanga' || tabGubun === 'apt' ? 1490 : 1100;   // 원하는 팝업 너비
+        //     const popupHeight = 1200;  // 원하는 팝업 높이
+        //     openExtensionPopup(menu, { customTag: menu}, "realDataPopup", popupWidth, popupHeight);
+        // });
   });
-    // tabGubun에 따라 버튼 위치 결정
-    // if (tabGubun === 'apt') {
-    //     // 국토부 실거래분석 버튼뒤에 실거래검색 버튼 추가
-    //     const pirSearch = document.getElementById("pirSearch");
-    //     pirSearch.parentNode.insertBefore(naverSearch, pirSearch.nextSibling);
-    // } else {
-    //     // onoffPanel에 실거래검색 버튼 추가
-    //     onoffPanel.appendChild(naverSearch);
-    // }
     // onoffPanel에 실거래검색 버튼 추가
     onoffPanel.appendChild(naverSearch);
 }
@@ -2306,8 +2262,17 @@ function openCommericalAreaPopup() {
             const left = window.screenX + (window.outerWidth - popupWidth) / 2;
             const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;
 
+            // 2. 파라미터 통합 (기본값 + 외부 주입값)
+            const finalParams = {
+                tk: access_token// 전역 변수 가정
+            };
+
+            // 3. URL 생성
+            const urlParams = new URLSearchParams(finalParams);
+            const extUrl = `${BASE_URL}/api/ext_tool/map?${urlParams.toString()}`;
+
             const popup = window.open(
-                BASE_URL + '/api/ext_tool/map?menu=map_popup',
+                extUrl,
                 'commercialAreaMapPopup',
                 `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
             );

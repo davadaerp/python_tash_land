@@ -2014,7 +2014,7 @@ def ext_tool_realtor_pop(user_id):
     return render_template("crawling_realtor_message_pop.html")
 
 # 실거래와 경매 화면데이타를 address전송하는 팝업방식 현재통계에서 사용함.- GET방식
-@app.route("/api/ext_tool/map_real_auction", methods=["GET"])
+@app.route("/api/ext_tool/map", methods=["GET"])
 @kakao_extool_auth_required
 def ext_tool_map_real_auction(user_id):
     # 인증토큰
@@ -2022,7 +2022,8 @@ def ext_tool_map_real_auction(user_id):
 
     return render_template("extool_map_popup.html", access_token=access_token)
 
-@app.route("/api/ext_tool/map", methods=["POST"])
+# 판넬버전에서 실거래및 경매데이타 조회-새로운버전
+@app.route("/api/ext_tool/map_panel", methods=["POST"])
 @kakao_extool_auth_required
 def ext_tool_map_post(user_id):
     menu = request.form.get("menu", "")
