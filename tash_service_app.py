@@ -2350,6 +2350,16 @@ def form_submit():
     </html>
     """
 
+@app.route('/api/form_guide', methods=['GET'])
+def form_guide():
+    menu = request.args.get("menu", 'checklist')
+    if menu == 'checklist':
+        return render_template("form_investment_checklist.html")
+    elif menu == 'guide':
+        return render_template("form_user_guide.html")
+    else:
+        return render_template("form_user_guide.html")
+
 
 #====== 투자가의삶님 아파트분석 ======
 @app.route('/api/pastapt/categories', methods=['GET'])

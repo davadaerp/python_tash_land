@@ -12,13 +12,13 @@ LOGIN_FILES=("popup.js" "popup_kakao.js" "popup.html" "popup_kakao.html")
 PANEL_FILES=("panel.css" "panel.js" "panel.html")
 
 # 3. tools 디렉토리에서 복사할 파일들
-TOOLS_FILES=("guide.html" "memo.js" "memo.html")
+TOOLS_FILES=("guide.html")
 
 # 4. 루트 디렉토리에서 복사할 파일들
 ROOT_FILES=("manifest.json" "landcore.js" "landcore_panel.js" "background.js" "config.json")
 
 # 5. 이 중 "난독화"를 적용할 파일명 (확장자 포함)
-OBFUSCATE_LIST=("popup.js" "popup_kakao.js" "landcore.js" "landcore_panel.js" "memo.js")
+OBFUSCATE_LIST=("popup.js" "popup_kakao.js" "landcore.js" "landcore_panel.js")
 
 # --------------------------------------------
 

@@ -69,7 +69,7 @@ setTimeout(() => {
     if (isTankAuctionListPage()) {
         console.log('🏛️ 탱크옥션 목록 감시 시작');
         extractPropertyInfoTank();
-        observeMutationsTank();
+        //observeMutationsTank();
         return;
     }
 
@@ -2299,6 +2299,7 @@ function extractPropertyInfoTank() {
 }
 
 // 탱크옥션 페이지에서 매물 정보 변경 감지하여 평당가 자동 계산 트리거 (300ms 디바운스)
+// 경매와 공매를 구분해서 적용처리함.
 function extractPropertyInfoDetailTank() {
     console.log('🏛️ 탱크옥션 상세분석 및 데이터 전송 로직 시작');
 
@@ -2309,10 +2310,11 @@ function extractPropertyInfoDetailTank() {
     const tbody = document.querySelector('.Btbl_list');
     if (!tbody) return;
 
-    const headerCells = tbody.querySelectorAll('th');
+    const thList = tbody.querySelectorAll('th');
+    console.log('[TankAuction] thList count:', thList.length);
 
     // 1. 면적 추출 (평당가 계산용)
-    for (const headerCell of headerCells) {
+    for (const headerCell of thList) {
         const isLand = headerCell.textContent.includes('토지면적');
         const isBuilding = headerCell.textContent.includes('건물면적');
 
@@ -2332,13 +2334,12 @@ function extractPropertyInfoDetailTank() {
     }
 
     // 2. 가격 정보 추출 및 화면 표시
-    for (const headerCell of headerCells) {
+    for (const headerCell of thList) {
         // 감정가 추출
         if (headerCell.textContent.includes('감정가')) {
             const price1Element = headerCell.nextElementSibling;
             if (!price1Element) continue;
 
-            // 파라미터 전송용 숫자 추출
             appraisalPrice = price1Element.textContent.trim().replace(/[,원]/g, '');
 
             if (!price1Element.dataset.highlighted) {
@@ -2356,7 +2357,6 @@ function extractPropertyInfoDetailTank() {
             const price2Element = headerCell.nextElementSibling;
             if (!price2Element) continue;
 
-            // 파라미터 전송용 숫자 추출 (유찰비율 제외)
             minimumPrice = price2Element.textContent.trim().replace(/\(\d+%\)\s*/g, '').replace(/[,원]/g, '');
 
             if (!price2Element.dataset.priceCalculated) {
@@ -2377,17 +2377,39 @@ function extractPropertyInfoDetailTank() {
         objectType = objectTypeSpan.textContent.trim();
     }
 
-    // 4. 주소 영역 탐색 및 버튼 추가
-    const addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
-    if (!addrDiv) return;
+    // 4. 경매/공매 구분
+    const viewTitle = document.querySelector('#lyCnt_num .viewtitle.clear, .viewtitle.clear');
+    const viewTitleText = viewTitle ? viewTitle.textContent.replace(/\s+/g, ' ').trim() : "";
+    const isPublicSale = viewTitleText.includes('공매');
+    const isAuction = viewTitleText.includes('경매');
 
-    const addrSpan = addrDiv.querySelector('span.bold');
-    if (addrSpan) {
-        let fullAddr = addrSpan.textContent.trim();
-        let searchAddr = fullAddr.split(',')[0].trim();
+    console.log('[TankAuction] viewTitleText:', viewTitleText);
+    console.log('[TankAuction] isAuction:', isAuction, 'isPublicSale:', isPublicSale);
 
-        // [수정] 도로명주소 추출
-        let newAddr = "";
+    let addrDiv = null;
+    let addrSpan = null;
+    let existingBtn = null;
+    let fullAddr = "";
+    let searchAddr = "";
+    let newAddr = "";
+
+    // =========================
+    // 4-1. 경매 주소 처리
+    // =========================
+    if (isAuction) {
+        addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
+        console.log('[TankAuction] auction addrDiv:', addrDiv);
+
+        if (!addrDiv) return;
+
+        addrSpan = addrDiv.querySelector('span.bold');
+        console.log('[TankAuction] auction addrSpan:', addrSpan);
+
+        if (!addrSpan) return;
+
+        fullAddr = addrSpan.textContent.trim();
+        searchAddr = fullAddr.split(',')[0].trim();
+
         const roadAddrSpan = Array.from(addrDiv.querySelectorAll('span')).find(span =>
             span.textContent.includes('도로명주소:')
         );
@@ -2399,55 +2421,120 @@ function extractPropertyInfoDetailTank() {
             }
         }
 
-        // 중복 추가 방지
-        if (addrDiv.querySelector('.naver-forward-btn')) return;
+        existingBtn = addrDiv.querySelector('.button');
+    }
 
-        const naverBtn = document.createElement('span');
-        naverBtn.className = 'button btn_small btn_white naver-forward-btn';
-        naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
-        naverBtn.textContent = '네이버 이동';
+    // =========================
+    // 4-2. 공매 주소 처리
+    // =========================
+    else if (isPublicSale) {
+        const lyCntNum = document.querySelector('#lyCnt_num');
+        console.log('[TankAuction] public sale lyCntNum:', lyCntNum);
 
-        // 5. 클릭 이벤트: 추출된 모든 정보를 파라미터로 전달
-        naverBtn.onclick = function() {
-            const serverUrl = `https://www.landcore.co.kr/api/ext_tool/forward-map`;
+        if (!lyCntNum) return;
 
-            // 1. 숨겨진 Form 생성
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = serverUrl;
-            form.target = '_blank'; // 새창 열기
-            form.acceptCharset = "UTF-8";
+        const candidateDivs = Array.from(lyCntNum.querySelectorAll('div'));
+        addrDiv = candidateDivs.find(div => {
+            const text = div.textContent.replace(/\s+/g, ' ').trim();
+            return text.includes('도로명주소:') && !text.includes('매각일자');
+        });
 
-            // 2. 전달할 데이터를 hidden input으로 추가
-            const data = {
-                address: searchAddr,
-                addressRoad: newAddr,
-                objectType: objectType,
-                appraisalPrice: appraisalPrice,
-                minimumPrice: minimumPrice
-            };
-            console.log("== extractPropertyInfoDetailTank data", data)
+        console.log('[TankAuction] public sale addrDiv:', addrDiv);
 
-            for (const key in data) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = data[key];
-                form.appendChild(input);
+        if (!addrDiv) return;
+
+        const spans = addrDiv.querySelectorAll('span');
+        addrSpan = Array.from(spans).find(span => {
+            const text = span.textContent.replace(/\s+/g, ' ').trim();
+            return text && !text.includes('도로명주소:');
+        });
+
+        console.log('[TankAuction] public sale addrSpan:', addrSpan);
+
+        if (!addrSpan) return;
+
+        fullAddr = addrSpan.textContent.trim();
+        searchAddr = fullAddr.split(',')[0].trim();
+
+        const roadAddrSpan = Array.from(spans).find(span =>
+            span.textContent.includes('도로명주소:')
+        );
+
+        if (roadAddrSpan) {
+            const match = roadAddrSpan.textContent.match(/도로명주소:\s*([^\]]+)/);
+            if (match) {
+                newAddr = match[1].trim();
+            } else {
+                newAddr = roadAddrSpan.textContent
+                    .replace('[', '')
+                    .replace(']', '')
+                    .replace('도로명주소:', '')
+                    .trim();
             }
+        }
 
-            // 3. 폼 제출 후 제거
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
+        existingBtn = addrSpan;
+    } else {
+        console.log('[TankAuction] 경매/공매 구분 실패');
+        return;
+    }
+
+    console.log('[TankAuction] fullAddr:', fullAddr);
+    console.log('[TankAuction] searchAddr:', searchAddr);
+    console.log('[TankAuction] newAddr:', newAddr);
+
+    // 중복 추가 방지
+    if (addrDiv.querySelector('.naver-forward-btn')) return;
+
+    const naverBtn = document.createElement('span');
+    naverBtn.className = 'button btn_small btn_white naver-forward-btn';
+    naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
+    naverBtn.textContent = '네이버 이동';
+
+    // 5. 클릭 이벤트: 추출된 모든 정보를 파라미터로 전달
+    naverBtn.onclick = function() {
+        const serverUrl = `https://www.landcore.co.kr/api/ext_tool/forward-map`;
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = serverUrl;
+        form.target = '_blank';
+        form.acceptCharset = "UTF-8";
+
+        const data = {
+            address: searchAddr,
+            addressRoad: newAddr,
+            objectType: objectType,
+            appraisalPrice: appraisalPrice,
+            minimumPrice: minimumPrice
         };
+        console.log("== extractPropertyInfoDetailTank data", data);
 
-        const existingBtn = addrDiv.querySelector('.button');
+        for (const key in data) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    };
+
+    // 버튼 삽입
+    if (isAuction) {
         if (existingBtn) {
             existingBtn.parentNode.insertBefore(naverBtn, existingBtn.nextSibling);
+        } else {
+            addrSpan.insertAdjacentElement('afterend', naverBtn);
         }
+    } else if (isPublicSale) {
+        addrSpan.insertAdjacentElement('afterend', naverBtn);
     }
 }
+
 
 /**
  * [추가] 옥션원 상세페이지 정보 추출 함수

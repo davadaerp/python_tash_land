@@ -56,7 +56,6 @@
             "/libs/jquery-3.6.4.min.js",
             "/login/popup_kakao.js",
             "/sidepanel/panel.js",
-            "/tools/memo.js",
 			"landcore.js",
             "landcore_panel.js"
         ],

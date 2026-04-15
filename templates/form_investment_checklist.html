@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>투자체크리스트</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-dark: #2f4ed8;
+      --secondary: #2ec4b6;
+      --bg: #f1f4fb;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --header-bg: linear-gradient(135deg, #4361ee 0%, #3156df 60%, #2444bf 100%);
+      --soft-blue: #eef2ff;
+      --soft-green: #ecfdf5;
+      --soft-orange: #fff7ed;
+      --danger: #ef4444;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: linear-gradient(180deg, #eef3ff 0%, #f8fbff 100%);
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      background: var(--header-bg);
+      color: #fff;
+      border-radius: 24px;
+      padding: 20px 32px 20px 32px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      right: -40px;
+      top: -40px;
+      width: 180px;
+      height: 180px;
+      background: rgba(255,255,255,0.10);
+      border-radius: 50%;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero p {
+      margin: 10px 0 0;
+      color: rgba(255,255,255,0.88);
+      font-size: 0.98rem;
+      line-height: 1.6;
+      max-width: 860px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .main-card,
+    .side-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .main-card {
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      /* top, right, bottom, left */
+      padding: 13px 22px 10px 22px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      flex-wrap: wrap;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-title {
+      font-size: 1.08rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-right: 8px;
+    }
+
+    .type-switch {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .type-switch input[type="radio"] {
+      display: none;
+    }
+
+    .type-switch label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 18px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #475569;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .type-switch label:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .type-switch input[type="radio"]:checked + label {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+      box-shadow: 0 8px 18px rgba(67, 97, 238, 0.24);
+    }
+
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .score-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 12px;
+      background: var(--soft-blue);
+      color: var(--primary-dark);
+      font-weight: 800;
+      border: 1px solid #c7d2fe;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 11px 16px;
+      font-weight: 800;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-print {
+      background: #0f172a;
+      color: #fff;
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+    }
+
+    .btn-reset {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .content-wrap {
+      /* top, right, bottom, left */
+      padding: 10px 22px 10px 22px;
+    }
+
+    .info-banner {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 13px 18px 13px 18px;
+      border-radius: 16px;
+      margin-bottom: 10px;
+      line-height: 1.6;
+      border: 1px solid transparent;
+    }
+
+    .info-banner.apartment {
+      background: var(--soft-blue);
+      border-color: #c7d2fe;
+      color: #334155;
+    }
+
+    .info-banner.villa {
+      background: #ecfeff;
+      border-color: #a5f3fc;
+      color: #155e75;
+    }
+
+    .info-banner.store {
+      background: var(--soft-orange);
+      border-color: #fed7aa;
+      color: #9a3412;
+    }
+
+    .table-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .table-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .table-title strong {
+      font-size: 1rem;
+    }
+
+    .table-title .caption {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 920px;
+    }
+
+    thead th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.92rem;
+      font-weight: 800;
+      padding: 11px 12px 11px 12px;
+      text-align: center;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 10px 12px 10px 12px;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 0.94rem;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover {
+      background: #fafcff;
+    }
+
+    tbody tr.checked-row {
+      background: #f8fffb;
+    }
+
+    .col-no {
+      width: 70px;
+      text-align: center;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    .col-item {
+      width: 260px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .col-check {
+      width: 120px;
+      text-align: center;
+    }
+
+    .check-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      background: #f8fafc;
+      border: 1px solid #dbe4ee;
+      border-radius: 999px;
+    }
+
+    .check-toggle input[type="checkbox"] {
+      display: none;
+    }
+
+    .check-toggle label {
+      min-width: 52px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.87rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+      color: #64748b;
+    }
+
+    .check-toggle input[type="checkbox"] + label {
+      background: transparent;
+    }
+
+    .check-toggle input[type="checkbox"]:checked + label {
+      background: #dcfce7;
+      color: #166534;
+      box-shadow: inset 0 0 0 1px #86efac;
+    }
+
+    .desc {
+      color: #475569;
+      line-height: 1.65;
+      white-space: pre-line;
+    }
+
+    .notes-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .note-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+      overflow: hidden;
+    }
+
+    .note-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+
+    .note-head strong {
+      font-size: 1rem;
+    }
+
+    .note-list {
+      margin: 0;
+      padding: 14px 18px 18px 38px;
+    }
+
+    .note-list li {
+      margin-bottom: 12px;
+      color: #334155;
+      line-height: 1.7;
+    }
+
+    .note-list li:last-child {
+      margin-bottom: 0;
+    }
+
+    .note-sub {
+      color: var(--muted);
+      font-size: 0.93rem;
+      margin-top: 4px;
+      display: block;
+    }
+
+    .side-card {
+      padding: 22px;
+      position: sticky;
+      top: 24px;
+    }
+
+    .side-card h3 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .summary-box {
+      padding: 16px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+      border: 1px solid #dbeafe;
+      margin-bottom: 14px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: #334155;
+      font-size: 0.95rem;
+    }
+
+    .summary-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .summary-row strong {
+      font-size: 1.05rem;
+      color: var(--primary-dark);
+    }
+
+    .progress-wrap {
+      margin-top: 14px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #4361ee 0%, #2ec4b6 100%);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .decision-box {
+      margin-top: 14px;
+      padding: 16px;
+      border-radius: 16px;
+      font-weight: 800;
+      line-height: 1.6;
+      border: 1px solid transparent;
+    }
+
+    .decision-box.good {
+      background: #ecfdf5;
+      color: #166534;
+      border-color: #86efac;
+    }
+
+    .decision-box.warn {
+      background: #fff7ed;
+      color: #9a3412;
+      border-color: #fdba74;
+    }
+
+    .decision-box.neutral {
+      background: #f8fafc;
+      color: #334155;
+      border-color: #cbd5e1;
+    }
+
+    .legend {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      font-size: 0.9rem;
+      color: #475569;
+      line-height: 1.7;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1180px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .side-card {
+        position: static;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 14px;
+      }
+
+      .hero {
+        padding: 22px 20px;
+      }
+
+      .hero h1 {
+        font-size: 1.55rem;
+      }
+
+      .toolbar {
+        padding: 16px;
+      }
+
+      .content-wrap {
+        padding: 16px;
+      }
+    }
+
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 12mm;
+      }
+
+      body {
+        padding: 0;
+        background: #fff;
+      }
+
+      .hero {
+        box-shadow: none;
+        border-radius: 0;
+        padding: 14px 18px;
+        margin-bottom: 8px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .side-card,
+      .toolbar-right,
+      .btn,
+      .type-switch {
+        display: none !important;
+      }
+
+      .main-card,
+      .note-card,
+      .table-card {
+        box-shadow: none;
+        border: 1px solid #cbd5e1;
+      }
+
+      .toolbar {
+        padding: 10px 14px;
+      }
+
+      .content-wrap {
+        padding: 12px;
+      }
+
+      .table-responsive {
+        overflow: visible;
+      }
+
+      table {
+        min-width: auto;
+      }
+
+      .note-card,
+      .table-card,
+      .info-banner {
+        break-inside: avoid;
+      }
+    }
+
+    #guideText {
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="printArea">
+    <section class="hero">
+      <h1><i class="fa-solid fa-list-check"></i> 투자체크리스트</h1>
+    </section>
+
+    <div class="layout">
+      <section class="main-card">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <span class="toolbar-title">체크리스트 유형 선택</span>
+            <div class="type-switch">
+              <input type="radio" name="assetType" id="typeApartment" value="apartment" checked>
+              <label for="typeApartment"><i class="fa-solid fa-building"></i> 아파트</label>
+
+              <input type="radio" name="assetType" id="typeVilla" value="villa">
+              <label for="typeVilla"><i class="fa-solid fa-house-chimney-window"></i> 빌라</label>
+
+              <input type="radio" name="assetType" id="typeStore" value="store">
+              <label for="typeStore"><i class="fa-solid fa-store"></i> 상가</label>
+            </div>
+          </div>
+
+          <div class="toolbar-right">
+            <div class="score-box"><i class="fa-solid fa-square-check"></i> 체크 점수 <span id="scoreText">0 / 11</span></div>
+            <button class="btn btn-reset" type="button" onclick="resetChecks()"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
+            <button class="btn btn-print" type="button" onclick="printCurrentChecklist()"><i class="fa-solid fa-print"></i> 인쇄</button>
+          </div>
+        </div>
+
+        <div class="content-wrap">
+          <div id="guideBanner" class="info-banner apartment">
+            <i class="fa-solid fa-circle-info" style="margin-top:3px;"></i>
+            <div id="guideText">아파트 체크리스트 기준: 9점 이상이면 투자 가능, 8점 이하면 재검토를 권장합니다.</div>
+          </div>
+
+          <div class="table-card">
+            <div class="table-title" style="display: none">
+              <div>
+                <strong id="tableHeading">아파트 투자 체크리스트</strong>
+                <span class="caption" id="tableCaption">(순번 · 항목 · 체크 · 설명 형태로 현장 점검이 가능하도록 구성했습니다.)</span>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 70px;">순번</th>
+                    <th style="width: 260px;">항목</th>
+                    <th style="width: 130px;">체크</th>
+                    <th>설명</th>
+                  </tr>
+                </thead>
+                <tbody id="checklistBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="notes-grid">
+            <div class="note-card" id="inquirySection">
+              <div class="note-head">
+                <strong><i class="fa-solid fa-comments"></i> 부동산 문의사항</strong>
+                <span class="caption">체크리스트 아래에서 바로 확인 가능</span>
+              </div>
+              <ol class="note-list" id="inquiryList"></ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-card">
+        <h3><i class="fa-solid fa-chart-simple"></i> 체크 현황</h3>
+
+        <div class="summary-box">
+          <div class="summary-row"><span>현재 유형</span><strong id="summaryType">아파트</strong></div>
+          <div class="summary-row"><span>총 항목 수</span><strong id="summaryTotal">11개</strong></div>
+          <div class="summary-row"><span>체크 완료</span><strong id="summaryChecked">0개</strong></div>
+
+          <div class="progress-wrap">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="decisionBox" class="decision-box neutral">
+          아직 체크된 항목이 없습니다. 항목을 선택하면 현재 투자 판단 기준에 맞춰 점검 결과가 표시됩니다.
+        </div>
+
+        <div class="legend" id="legendBox">
+          <strong>판단 기준</strong><br>
+          아파트는 9점 이상 투자 가능, 8점 이하는 재검토입니다.
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const DATA = {
+      apartment: {
+        title: '아파트 투자 체크리스트',
+        guide: '아파트 체크리스트 기준: 9점 이상이면 투자 가능, 8점 이하면 재검토를 권장합니다.',
+        caption: '',
+        className: 'apartment',
+        threshold: 9,
+        items: [
+          { item: '세대수 300세대 이상', desc: '관리비 절감 및 거래 선호도 측면에서 최소 300세대 이상 단지를 선호합니다.' },
+          { item: '역세권 여부', desc: '도보 10분 내 지하철역 또는 간선버스정류장. 지방은 주요 환승노선 여부까지 확인합니다.' },
+          { item: '교육시설 도보 5분', desc: '실거주 선호도 핵심 요소입니다. 없으면 학군 수요가 낮아질 수 있습니다.' },
+          { item: '브랜드 아파트 여부', desc: '브랜드 유무에 따라 매매 전환 속도와 거래 회전율 차이가 발생합니다.' },
+          { item: '남향 여부', desc: '전통적인 선호 기준이며 향후 매각 시에도 영향을 미칩니다.' },
+          { item: '1층/15층/사이드 여부 제외', desc: '로얄동·로얄층 여부를 확인합니다. 매도 및 임대 경쟁력에 직접적인 영향을 줍니다.' },
+          { item: '주차시설 여유 여부(세대당 1대 가능)', desc: '특히 2000년 이전 아파트는 주차 약점이 많아 지하주차장 및 세대당 주차면수를 확인해야 합니다.' },
+          { item: '인구 30만 이상 지역', desc: '지방 인구소멸 위험을 피하기 위한 기준입니다. 30만 미만은 중장기 수요 위축 가능성이 큽니다.' },
+          { item: '반경 20km 내 산업단지/대기업', desc: '전세 수요와 실수요를 동시에 뒷받침하는 핵심 요소입니다.' },
+          { item: '1998년 이후 입주', desc: '안목치수 적용 여부와 단열, 구조의 현대화 여부를 함께 점검합니다.' },
+          { item: '전세가율 85% 이상', desc: '투자 안정성 판단 지표입니다. 전세가율 85% 이상이면 매매가 상승 전환 가능성이 높습니다.' },
+          { item: '공급물량 여부', desc: '최근 3년 평균 공급물량을 초과하면 역전세 위험이 있으므로 반드시 점검해야 합니다.' }
+        ],
+        inquiries: [
+          { q: '최근에 어떤 업종 또는 수요층으로 거래·임대가 많이 이루어졌는가?', sub: '물건 히스토리, 급매·상속·사정매각 여부를 함께 확인합니다.' },
+          { q: '가장 잘 나가는 평형대는 무엇인가?', sub: '실거주·투자 수요가 몰리는 평형대를 확인합니다.' },
+          { q: '최근 매수 또는 임차 문의는 어떤 조건으로 많이 들어왔는가?', sub: '가격대, 층수, 향, 학군, 주차 등 시장 선호 요소를 확인합니다.' },
+          { q: '매도 기준은 수익률인지, 평단가인지, 실거주 선호도인지?', sub: '현재 나온 매물보다 더 저렴한 경쟁 매물이 있는지 함께 확인합니다.' }
+        ]
+      },
+      villa: {
+        title: '빌라 투자 체크리스트',
+        guide: '빌라 체크리스트 기준: 실거주 선호도와 매도 유동성이 크게 갈리므로 주차, 엘리베이터, 동선, 누수, 도로 여건을 특히 꼼꼼히 봐야 합니다.',
+        className: 'villa',
+        threshold: null,
+        items: [
+          { item: '년식 여부', desc: '10년 이내 준신축에 해당하는지 여부를 확인합니다.' },
+          { item: '엘리베이터 존재 여부', desc: '빌라는 엘리베이터 유무에 따라 가격 차이가 매우 크게 발생합니다.' },
+          { item: '주차시설 여유 여부(세대당 1대 가능)', desc: '중복 없는 바로 출차 가능 구조 또는 차단기 설치 여부까지 확인하면 선호도가 높습니다.' },
+          { item: '역세권 여부', desc: '도보 10분 내 지하철역 또는 간선버스정류장 여부를 확인합니다.' },
+          { item: '교육시설 도보 5분', desc: '실거주 선호도에 중요한 요소이며, 없으면 가족 단위 수요가 약해질 수 있습니다.' },
+          { item: '남향 여부 및 빌라 간 간격 여부', desc: '일조권, 사생활, 채광, 향후 매각 선호도에 영향을 줍니다.' },
+          { item: '방 크기 기준 충족 여부', desc: '방 3개 기준 15평 내외, 소형이면 방 2개 11평 내외 등 실제 체감 크기를 확인해야 합니다.' },
+          { item: '반경 20km 내 산업단지/대기업', desc: '전세 수요와 실수요를 동시에 뒷받침합니다.' },
+          { item: '단지형 빌라 여부', desc: '관리비 절감과 주차 관리 측면에서 선호도가 높습니다.' },
+          { item: '옥상 및 누수 여부', desc: '최상층은 옥상 누수를 반드시 확인하고, 대상 물건의 아래층 누수도 꼭 확인해야 합니다.' },
+          { item: '도로폭 및 경사 여부', desc: '도로가 좁거나 경사가 심하면 겨울철 차량 진입과 생활 편의성이 크게 떨어집니다.' }
+        ],
+        inquiries: [
+          { q: '최근 이 지역 빌라에서 가장 잘 거래되는 구조와 평형은 무엇인가?', sub: '방 수, 실평수, 주차 여건, 엘리베이터 유무를 중심으로 확인합니다.' },
+          { q: '최근 임차인은 어떤 조건을 가장 중요하게 보았는가?', sub: '역거리, 학교, 주차, 층수, 누수 이력 여부를 함께 물어봅니다.' },
+          { q: '매도 또는 급매로 나온 특별한 사유가 있는가?', sub: '상속, 자금압박, 공실, 누수, 관리문제 등 히스토리를 체크합니다.' },
+          { q: '주변 경쟁 빌라와 비교했을 때 이 물건의 강점과 약점은 무엇인가?', sub: '도로, 경사, 일조, 주차, 엘리베이터, 단지형 여부를 비교합니다.' }
+        ]
+      },
+      store: {
+        title: '상가 투자 체크리스트',
+        guide: '상가는 월세 흐름, 공실 위험, 업종 경쟁력(임대 가능성:업종제한), 관리비, 명도, 건물 관리상태를 함께 봐야 합니다.\n일반적으로 월세는 10/5/3만원, 주변 배후세대는 5천세대, 실거래는 거래가보다 10% 저렴한지까지 검토합니다.',
+        caption: '',
+        className: 'store',
+        threshold: null,
+        items: [
+          { item: '년식 및 외관 여부', desc: '10년 이내 준신축 여부와 함께 화장실, 복도 상태를 확인합니다. 건축물대장과 현황이 다르게 이용되는지, 위반건축물 여부도 체크합니다.' },
+          { item: '화장실 및 복도 상태', desc: '공용부 관리 수준은 임차인 선호도와 건물 이미지에 큰 영향을 줍니다.' },
+          { item: '엘리베이터 존재 여부', desc: '건물 연식에 따른 엘리베이터 유지·충당금 부담도 함께 확인합니다.' },
+          { item: '총주차시설 여유 여부', desc: '총주차대수, 임차인(방문객) 주차 가능 기준, 진출입 동선을 함께 봅니다.' },
+          { item: '전체층 공실 여부', desc: '상단부터 하단까지 층별 공실 현황을 체크해 건물 전체 분위기를 판단합니다.' },
+          { item: '해당 매물 이웃사촌 체크', desc: '옆 호실 업종이 좋아야 임대와 매매가 수월합니다. 위락·소음 업종은 특히 주의합니다.' },
+          { item: '내부 체크 및 동선 체크', desc: '층고, 조망권, 기둥 위치, 누수, 엘리베이터 하차 후 동선까지 점검합니다.' },
+          { item: '명도 여부 체크', desc: '명도에 따른 예상 철거비, 원상복구비, 인테리어 비용 산정에 필요합니다.' },
+          { item: '관리비 체크', desc: '미납관리비, 연체내역, 평당 관리비(분양/전용 기준)를 확인합니다.' },
+          { item: '업종 관련 규약 체크', desc: '약국, 편의점 등 업종제한과 간판 위치 가능 여부를 판단합니다.' },
+          { item: '임차인 관리비 연체 여부', desc: '관리단 운영 수준과 연체 시 단전·단수 규약 여부 등을 체크합니다.' },
+          { item: '수익률 기준', desc: '자신만의 절대 수익률 기준 10%, 레버리지 수익률 기준 50% 등 명확한 기준을 세웁니다.' },
+          { item: '연락처 확보', desc: '관리소장, 임차인, 소유주, 입주자대표 연락처를 확보해 임대차 관련 이슈에 대비합니다.' },
+          { item: '기타 물건 히스토리', desc: '왜 매물이 나왔는지, 소유자 문제나 내부 사정이 있는지 확인합니다.' }
+        ],
+        inquiries: [
+          { q: '최근에 어떤 업종으로 임대차 계약이 이루어졌는가?', sub: '물건 히스토리, 급매·상속·특수 사정 여부까지 함께 확인합니다.' },
+          { q: '가장 잘 나가는 평수는 무엇인가?', sub: '랜드코어 업종 분석 데이터와 함께 차후 임대 가능 업종을 판단합니다.' },
+          { q: '최근에 임대한 손님은 어떤 업종으로 찾아왔는가?', sub: '주변 인기 업종, 선호 평수, 적정 임대료 수준까지 함께 체크합니다.' },
+          { q: '매도 기준은 수익률인가, 평단가인가?', sub: '현재 나온 매물보다 더 싼 경쟁 매물이 있는지, 예를 들어 평당 얼마 미만 매물이 있는지 확인합니다.' }
+        ]
+      }
+    };
+
+    let currentType = 'apartment';
+    let checkedState = {
+      apartment: [],
+      villa: [],
+      store: []
+    };
+
+    function initializeState() {
+      Object.keys(DATA).forEach(type => {
+        checkedState[type] = DATA[type].items.map(() => false);
+      });
+    }
+
+    function renderChecklist(type) {
+      currentType = type;
+      const data = DATA[type];
+      const tbody = document.getElementById('checklistBody');
+      const inquiryList = document.getElementById('inquiryList');
+      const guideBanner = document.getElementById('guideBanner');
+      const guideText = document.getElementById('guideText');
+      const tableHeading = document.getElementById('tableHeading');
+      const tableCaption = document.getElementById('tableCaption');
+      const summaryType = document.getElementById('summaryType');
+      const summaryTotal = document.getElementById('summaryTotal');
+      const legendBox = document.getElementById('legendBox');
+
+      guideBanner.className = `info-banner ${data.className}`;
+      guideText.textContent = data.guide;
+      tableHeading.textContent = data.title;
+      tableCaption.textContent = data.caption;
+      summaryType.textContent = typeLabel(type);
+      summaryTotal.textContent = `${data.items.length}개`;
+
+      tbody.innerHTML = data.items.map((row, idx) => {
+        const checked = checkedState[type][idx];
+        return `
+          <tr class="${checked ? 'checked-row' : ''}">
+            <td class="col-no">${idx + 1}</td>
+            <td class="col-item">${row.item}</td>
+            <td class="col-check">
+              <div class="check-toggle">
+                <input type="checkbox" id="chk_${type}_${idx}" ${checked ? 'checked' : ''} onchange="toggleCheck('${type}', ${idx}, this.checked)">
+                <label for="chk_${type}_${idx}">${checked ? '✓' : ''}</label> <!-- X를 뺌 -->
+              </div>
+            </td>
+            <td class="desc">${row.desc}</td>
+          </tr>
+        `;
+      }).join('');
+
+      inquiryList.innerHTML = data.inquiries.map(item => `
+        <li>
+          <strong>${item.q}</strong>
+          <span class="note-sub">${item.sub}</span>
+        </li>
+      `).join('');
+
+      if (data.threshold) {
+        legendBox.innerHTML = `<strong>판단 기준</strong><br>${typeLabel(type)}는 ${data.threshold}점 이상 투자 가능, 그 미만은 재검토입니다.`;
+      } else if (type === 'villa') {
+        legendBox.innerHTML = `<strong>점검 포인트</strong><br>빌라는 주차, 엘리베이터, 누수, 도로폭과 경사를 중점적으로 보고 실거주 선호도를 판단합니다.`;
+      } else {
+        legendBox.innerHTML = `<strong>점검 포인트</strong><br>상가는 공실, 업종 제한, 임대 가능성, 관리비, 명도, 내부 동선, 수익률을 종합적으로 체크해야 합니다.`;
+      }
+
+      updateSummary();
+    }
+
+    function toggleCheck(type, index, checked) {
+      checkedState[type][index] = checked;
+      renderChecklist(type);
+    }
+
+    function updateSummary() {
+      const total = DATA[currentType].items.length;
+      const checked = checkedState[currentType].filter(Boolean).length;
+      const progress = total ? Math.round((checked / total) * 100) : 0;
+      const threshold = DATA[currentType].threshold;
+
+      document.getElementById('summaryChecked').textContent = `${checked}개`;
+      document.getElementById('scoreText').textContent = `${checked} / ${total}`;
+      document.getElementById('progressFill').style.width = `${progress}%`;
+
+      const decisionBox = document.getElementById('decisionBox');
+      if (threshold) {
+        if (checked >= threshold) {
+          decisionBox.className = 'decision-box good';
+          decisionBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> 현재 체크 점수는 <strong>${checked}점</strong>입니다. 기준 점수 ${threshold}점 이상으로 투자 가능 구간에 들어왔습니다.`;
+        } else if (checked > 0) {
+          decisionBox.className = 'decision-box warn';
+          decisionBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 현재 체크 점수는 <strong>${checked}점</strong>입니다. 기준 점수 ${threshold}점 미만이므로 투자 재검토가 필요합니다.`;
+        } else {
+          decisionBox.className = 'decision-box neutral';
+          decisionBox.innerHTML = '아직 체크된 항목이 없습니다. 항목을 선택하면 현재 투자 판단 기준에 맞춰 점검 결과가 표시됩니다.';
+        }
+      } else {
+        if (checked === 0) {
+          decisionBox.className = 'decision-box neutral';
+          decisionBox.innerHTML = '아직 체크된 항목이 없습니다. 항목을 선택하면 현재 점검 현황이 표시됩니다.';
+        } else {
+          decisionBox.className = checked >= Math.ceil(total * 0.7) ? 'decision-box good' : 'decision-box warn';
+          decisionBox.innerHTML = `<i class="fa-solid fa-clipboard-check"></i> 현재 <strong>${checked}개</strong> 항목을 체크했습니다. ${typeLabel(currentType)}는 정량 점수보다 현장 상태와 유동성까지 함께 판단하는 것이 중요합니다.`;
+        }
+      }
+    }
+
+    function resetChecks() {
+      checkedState[currentType] = DATA[currentType].items.map(() => false);
+      renderChecklist(currentType);
+    }
+
+    function printCurrentChecklist() {
+      window.print();
+    }
+
+    function typeLabel(type) {
+      if (type === 'apartment') return '아파트';
+      if (type === 'villa') return '빌라';
+      return '상가';
+    }
+
+    document.querySelectorAll('input[name="assetType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        renderChecklist(e.target.value);
+      });
+    });
+
+    initializeState();
+    renderChecklist('apartment');
+  </script>
+</body>
+</html>
