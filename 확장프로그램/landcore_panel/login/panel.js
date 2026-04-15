@@ -556,7 +556,7 @@ async function openLandCoreFromPanel(param_menu = 'wishlist') {
         console.log("== openLandCoreFromPanel (Requesting map): ", address, propertyType);
 
         // 2. 서버 설정에 맞춘 타겟 URL 수정 (map -> map2)
-        const targetUrl = `${LANDCORE_URL}/api/ext_tool/map`;
+        const targetUrl = `${LANDCORE_URL}/api/ext_tool/map_panel`;
 
         // 3. 숨겨진 form 엘리먼트 생성
         const form = document.createElement('form');
