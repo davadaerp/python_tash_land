@@ -3,32 +3,6 @@
  * 1. 실시간 분석 업데이트 수신 및 처리
  * 2. 분석도구 제공으로 실거래, 업종분석, 통계분석, 매물검색 팝업 열기
  */
-
-// DOM Elements
-/*
-const analyzeBtn = document.getElementById('analyze-btn');
-const resetBtn = document.getElementById('reset-btn');
-const realAuctionBtn = document.getElementById('real-auction-btn');
-const realAuctionMenu = document.getElementById('real-auction-menu');
-const calculatorBtn = document.getElementById('calculator-btn');
-const smsBtn = document.getElementById('sms-btn');
-const formBtn = document.getElementById('form-btn');
-const nplBtn = document.getElementById('npl-btn');
-//const memoBtn = document.getElementById('memo-btn');
-const baehuBtn = document.getElementById('baehu-btn');
-const naverLandBtn = document.getElementById('naver-land-btn');
-const guideBtn = document.getElementById('guide-btn');
-const statusBar = document.getElementById('status-bar');
-const resultsContainer = document.getElementById('results-container');
-const areaChartContainer = document.getElementById('area-chart');
-const historyList = document.getElementById('history-list');
-//
-const siteShortcutBtn = document.getElementById('site-shortcut-btn');
-const siteShortcutMenu = document.getElementById('site-shortcut-menu');
-// 상위목록 중개사 섹션
-const topAgenciesToggle = document.getElementById('top-agencies-toggle');
-const topAgenciesSection = document.getElementById('top-agencies');
-*/
 // DOM Elements (초기에는 null 상태)
 let analyzeBtn;
 let resetBtn;
@@ -36,7 +10,8 @@ let realAuctionBtn;
 let realAuctionMenu;
 let calculatorBtn;
 let smsBtn;
-let formBtn;
+let imjangAnalysisMenu;
+let imjangAnalysisBtn;
 let nplBtn;
 let baehuBtn;
 let naverLandBtn;
@@ -95,14 +70,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 여기 정의하면 NPL팝업식으로 열릴때 계속실행되어버림 ㅠ.ㅠ
     //await ensureNaverLandTabOnPanelOpen();
 
-    console.log('[panel.js check]', {
-        href: location.href,
-        readyState: document.readyState,
-        hasAnalyzeBtn: !!document.getElementById('analyze-btn'),
-        hasResultsContainer: !!document.getElementById('results-container'),
-        scripts: [...document.scripts].map(s => s.src)
-    });
-
     // 🔥 여기서 DOM 요소 가져오기 (핵심)
     analyzeBtn = document.getElementById('analyze-btn');
     resetBtn = document.getElementById('reset-btn');
@@ -110,7 +77,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     realAuctionMenu = document.getElementById('real-auction-menu');
     calculatorBtn = document.getElementById('calculator-btn');
     smsBtn = document.getElementById('sms-btn');
-    formBtn = document.getElementById('form-btn');
+    imjangAnalysisMenu = document.getElementById('imjang-analysis-menu');
+    imjangAnalysisBtn = document.getElementById('imjang-analysis-btn');
     nplBtn = document.getElementById('npl-btn');
     baehuBtn = document.getElementById('baehu-btn');
     naverLandBtn = document.getElementById('naver-land-btn');
@@ -132,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     calculatorBtn?.addEventListener('click', openCalculator);
     baehuBtn?.addEventListener('click', openBaehu);
     smsBtn?.addEventListener('click', openSmsSendFromPanel);
-    formBtn?.addEventListener('click', openFormDownloadFromPanel);
+    imjangAnalysisBtn?.addEventListener('click', toggleImjangAnalysisMenu);
     nplBtn?.addEventListener('click', openNplSearchFromPanel);
     //memoBtn.addEventListener('click', openMemo);
     naverLandBtn?.addEventListener('click', openNaverLand);
@@ -221,12 +189,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.tool-dropdown')) {
             realAuctionMenu?.classList.add('hidden');
+            imjangAnalysisMenu?.classList.add('hidden');
         }
 
         if (!e.target.closest('.tools-header-shortcut')) {
             siteShortcutMenu?.classList.add('hidden');
         }
 
+        // 데이터분석 메뉴버튼
         const menuBtn = e.target.closest('[data-analysis-menu]');
         if (menuBtn) {
             const menuType = menuBtn.getAttribute('data-analysis-menu');
@@ -247,6 +217,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // 임장분석 메뉴버튼
+        const imjangMenuBtn = e.target.closest('[data-imjang-menu]');
+        if (imjangMenuBtn) {
+            const menuType = imjangMenuBtn.getAttribute('data-imjang-menu');
+            imjangAnalysisMenu?.classList.add('hidden');
+
+            if (menuType === 'checklist') {
+                openChecklistFromPanel();
+            } else if (menuType === 'formDownload') {
+                openFormDownloadFromPanel();
+            }
+            return;
+        }
+
+        // 사이트바로가기 메뉴버튼
         const siteBtn = e.target.closest('[data-site-url]');
         if (siteBtn) {
             const url = siteBtn.getAttribute('data-site-url');
@@ -462,7 +447,7 @@ function openGuide() {
 async function loginForPanel() {
     return new Promise((resolve) => {
         chrome.storage.local.get(
-            ["access_token", "is_subscribed", "apt_key", "villa_key", "sanga_key"],
+            ["access_token", "is_subscribed"],
             async (items) => {
                 const accessToken = items.access_token || '';
                 const subscribed = items.is_subscribed || '';
@@ -490,10 +475,7 @@ async function loginForPanel() {
                     if (result.result === 'Success') {
                         return resolve({
                             ok: true,
-                            access_token: accessToken,
-                            apt_key: items.apt_key || '',
-                            villa_key: items.villa_key || '',
-                            sanga_key: items.sanga_key || ''
+                            access_token: accessToken
                         });
                     }
 
@@ -850,13 +832,34 @@ async function openSmsSendFromPanel() {
     );
 }
 
+// 임장분석 메뉴열기
+function toggleImjangAnalysisMenu(e) {
+    e.stopPropagation();
+    imjangAnalysisMenu?.classList.toggle('hidden');
+    realAuctionMenu?.classList.add('hidden');
+}
+
+// 투자체크리스트 새탭에서 열기
+async function openChecklistFromPanel() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    const guideUrl = `${LANDCORE_URL}/api/form_guide?menu=checklist`;
+    chrome.tabs.create({ url: guideUrl });
+}
+
 // 매물 분석 양식 다운로드 페이지 열기 (토큰 및 구독 상태 체크 포함)
 async function openFormDownloadFromPanel() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
-    const regionInfo = await getCurrentRegionsString(auth.access_token);
-    const regions = regionInfo.regions || "경기도,김포시,운양동";
+    console.log("== openFormDownloadFromPanel: ", currentRegionInfo);
+    if (!currentRegionInfo) {
+        throw new Error('법정동 정보(주소)가 비어 있습니다.');
+    }
+    //
+    const regions = currentRegionInfo.region + ',' + currentRegionInfo.sigungu  + ',' + currentRegionInfo.umdNm ;
+    console.log("== openLandCoreFromPanel regions: ", regions);
 
     const urlParams = new URLSearchParams({
         menu: 'form_down',
@@ -1434,7 +1437,7 @@ function getListingTableHTML(listings, selectedType) {
                 <td>${item.direction || '-'}</td>
                 <td>${formatPricePerPyeong(item.pricePerPyeong)}</td>
                 <td>${formatAreaDisplay(item.area)}</td>
-                <td>${formatListingPrice(item)}</td>
+                <td class="listing-price-cell" style="min-width: 170px; white-space: nowrap;">${formatListingPrice(item)}</td>
             </tr>
         `;
     }).join('');
@@ -1614,7 +1617,24 @@ function getCurrentRegionDisplayText() {
 }
 
 function formatListingPrice(item) {
-    if (item?.fullPrice) return item.fullPrice;
+    if (item?.fullPrice) {
+        const fullPriceText = String(item.fullPrice);
+
+        // 월세일 때만 "=> 환산가" 추가
+        if (item?.type === '월세' && fullPriceText.includes('/')) {
+            const price = Number(item.price) || 0;
+
+            // 🔥 item.price * 200 (만원 기준)
+            const converted = price * 200;
+
+            // 🔥 핵심 변경: 소수 억 변환
+            const convertedText = `${(converted / 10000).toFixed(1).replace('.0','')}억`;
+
+            return `${fullPriceText} <span style="color:#d32f2f; font-weight:800;">&gt; ${convertedText}</span>`;
+        }
+
+        return fullPriceText;
+    }
 
     if (item?.type === '월세') {
         const deposit = Number(item.deposit) || 0;

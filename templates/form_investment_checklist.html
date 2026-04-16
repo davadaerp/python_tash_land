@@ -82,7 +82,13 @@
 
     .layout {
       display: grid;
+      /*
+       * 이 부문은 왼쪽이 사이즈 오른쪽이 리스트형식
+      grid-template-columns: 340px minmax(0, 1fr);
+      grid-template-areas: "side main";
+      */
       grid-template-columns: minmax(0, 1fr) 340px;
+      grid-template-areas: "main side";
       gap: 20px;
       align-items: start;
     }
@@ -96,6 +102,7 @@
     }
 
     .main-card {
+      grid-area: main;
       overflow: hidden;
     }
 
@@ -420,6 +427,7 @@
     }
 
     .side-card {
+      grid-area: side;
       padding: 22px;
       position: sticky;
       top: 24px;
@@ -525,6 +533,9 @@
     @media (max-width: 1180px) {
       .layout {
         grid-template-columns: 1fr;
+        grid-template-areas:
+          "main"
+          "side";
       }
 
       .side-card {

@@ -212,17 +212,14 @@ async function restoreSession() {
             access_token: token,
             is_subscribed: me.is_subscribed,
             nickname: me.nickname,
-            sms_count: me.sms_count,
-            apt_key: me.apt_key,
-            villa_key: me.villa_key,
-            sanga_key: me.sanga_key
+            sms_count: me.sms_count
         });
 
         // ✨ 현재 팝업 DIV UI 업데이트만 수행 (닫지 않음)
         setLoggedInUI(me);
       } catch (e) {
         // 만료/오류 시 정리
-        await csSet({ access_token: "" });
+        //await csSet({ access_token: "" });
         //
         setLoggedOutUI();
       }
@@ -287,17 +284,9 @@ let mypagePopup = null;  // 전역변수로 팝업 핸들 저장
 
 // ====== 마이페이지 처리 ======
 async function openMypageWithToken() {
-      let access_token = '';
-      try { access_token = localStorage.getItem('access_token') || ''; } catch (e) {}
-
-      if (!access_token && typeof chrome !== 'undefined' && chrome.storage?.local) {
-        await new Promise((resolve) => {
-          chrome.storage.local.get(['access_token'], (res) => {
-            if (res && res.access_token) access_token = res.access_token;
-            resolve();
-          });
-        });
-      }
+      //
+      const cs = await csGet(["access_token"]);
+      let access_token = cs.access_token || '';
 
       const base = (typeof SERVER !== 'undefined' && SERVER) ? SERVER : '';
       // const query = access_token ? `?access_token=${encodeURIComponent(access_token)}` : '';
@@ -462,9 +451,5 @@ document.addEventListener("click", (e) => {
   }
 });
 
-
 // ====== 초기 구동 ======
 document.addEventListener("DOMContentLoaded", restoreSession);
-// document.addEventListener("DOMContentLoaded", () => {
-//     userSection = document.getElementById("user-section");
-// });
