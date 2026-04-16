@@ -1660,8 +1660,20 @@ function addBadgesToListings() {
             const currentTabGubun = getSelectedTabGubun();
             const showConvertedPrice = shouldShowWolseConvertedPrice(currentTabGubun);
             if (isWolse && showConvertedPrice) {
-                // 1. 월세 * 200(수익율 6% 기준) 환산
-                const convertedPrice = listingData.price * 200;
+                // 🔥 층 정보 기반 수익률 적용
+                const floorInfo = extractFloorInfo(listingData.floor);
+
+                // 기본 6% (200)
+                let multiplier = 200;
+
+                // 🔥 1층, 2층 → 5% 적용 (240)
+                if (floorInfo && (floorInfo.category === '1층' || floorInfo.category === '2층')) {
+                    multiplier = 240;
+                }
+
+                // 🔥 환산가 계산
+                const convertedPrice = listingData.price * multiplier;
+
                 let priceLabel = "";
 
                 // 2. '2.4억' 또는 '9,000만' 형태로 포맷팅

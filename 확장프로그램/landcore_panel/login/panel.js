@@ -1624,10 +1624,17 @@ function formatListingPrice(item) {
         if (item?.type === '월세' && fullPriceText.includes('/')) {
             const price = Number(item.price) || 0;
 
-            // 🔥 item.price * 200 (만원 기준)
-            const converted = price * 200;
+            // 🔥 층 정보 파싱
+            const floorInfo = extractFloorInfo(item.floor);
+            let multiplier = 200; // 기본 6% (기존)
 
-            // 🔥 핵심 변경: 소수 억 변환
+            // 🔥 1층, 2층 → 5% 적용 (240)
+            if (floorInfo && floorInfo.type === 'number' && floorInfo.num <= 2) {
+                multiplier = 240; // 5% 수익률
+            }
+
+            // 🔥 환산가 계산
+            const converted = price * multiplier;
             const convertedText = `${(converted / 10000).toFixed(1).replace('.0','')}억`;
 
             return `${fullPriceText} <span style="color:#d32f2f; font-weight:800;">&gt; ${convertedText}</span>`;
