@@ -72,7 +72,7 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
   if (isSubscribed) {
     const safePlanName = plan_name || "0개월";
     const safePlanDate = plan_date || "0일남음";
-    subStatusEl.textContent = `${safePlanName}-${safePlanDate}`;
+    subStatusEl.textContent = `${safePlanName}(${safePlanDate})`;
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";
@@ -82,13 +82,13 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
   } else if (isRequesting) {
     const safePlanName = plan_name || "구독요청";
     const safePlanDate = plan_date || "확인중";
-    subStatusEl.textContent = `${safePlanName}-${safePlanDate}`;
+    subStatusEl.textContent = `${safePlanName}(${safePlanDate})`;
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";
     subStatusEl.style.color = "#326CF9";
   } else {
-    subStatusEl.textContent = "미구독-0일남음";
+    subStatusEl.textContent = "미구독(0일남음)";
     subStatusEl.className = "top-user-period";
     subStatusEl.classList.remove("hidden");
     subStatusEl.style.background = "transparent";

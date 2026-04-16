@@ -2025,7 +2025,7 @@ def ext_tool_map_real_auction(user_id):
 # 판넬버전에서 실거래및 경매데이타 조회-새로운버전
 @app.route("/api/ext_tool/map_panel", methods=["POST"])
 @kakao_extool_auth_required
-def ext_tool_map_post(user_id):
+def ext_tool_map_panel(user_id):
     menu = request.form.get("menu", "")
     # 자산구분타입(apt, villa, sanga => naver tabGubun에 해당함.
     tab_gubun = request.form.get("tabGubun", "상가")
@@ -2043,15 +2043,13 @@ def ext_tool_map_post(user_id):
     asset_type = asset_type_map.get(tab_gubun, "상가")
 
     # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # 최종 리턴 필드 설명
     # ---------------------------------------------------------
-    # 리턴 데이터 조립 및 필드 설명
-    # ---------------------------------------------------------
-    # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
-    # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
-    # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
-    # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
-    # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
-    # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+    # 1. lawd_cd      : 전체 법정동 코드 (예: 4157010300)
+    # 2. lawd_name    : 실질 상위 행정구역명
+    #                   예: "경기도 수원시 권선구 호메실동", "경기도 파주시 파주읍", "경기도 김포시 운양동"
+    # 6. umd_name     : 실제 조회용 읍/면/동
+    #                   예: "호매실동", "파주읍", "운양동", "적산면"
     # ---------------------------------------------------------
     row = get_lawd_by_name(address)
 
@@ -2059,7 +2057,7 @@ def ext_tool_map_post(user_id):
     lawd_name = row.get("lawd_name", "")
     umd_name = row.get("umd_name", "")
 
-    print("==== ext_tool_map : ", menu, lawd_cd, lawd_name, umd_name, asset_type, access_token)
+    print("==== ext_tool_map_panel : ", menu, lawd_cd, lawd_name, umd_name, asset_type, access_token)
 
     # 데이터 수집
     params_data = {
@@ -2099,11 +2097,18 @@ def forward_map():
     print(f"forward_map() received address: {address}, {addressRoad}, objectType: {objectType}, appraisalPrice: {appraisalPrice}, minimumPrice: {minimumPrice}")
 
     # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # ---------------------------------------------------------
+    # 1. lawd_cd      : 전체 법정동 코드 (예: 4157010300)
+    # 2. lawd_name    : 실질 상위 행정구역명
+    #                   예: "경기도 수원시 권선구 호매실동", "경기도 파주시 파주읍", "경기도 김포시 운양동"
+    # 6. umd_name     : 실제 조회용 읍/면/동
+    #                   예: "호매실동", "파주읍", "운양동", "적산면"
+    # ---------------------------------------------------------
     row = get_lawd_by_name(address)
 
     lawd_cd = row.get("lawd_cd", "")
     lawd_name = row.get("lawd_name", "")
-    #umd_name = row.get("umd_name", "")
+    umd_name = row.get("umd_name", "")
 
     # 1. 유틸리티 인스턴스 생성
     geo_service = VWorldGeocoding(MAP_API_KEY)
@@ -2117,7 +2122,7 @@ def forward_map():
         if result:  # 결과가 정상적으로 돌아왔을 때만 할당
             latitude, longitude = result
 
-    print(f"forward_map() 주소: {address}, 법정동코드: {lawd_cd}, 법정동명: {lawd_name}", f"위도: {latitude}, 경도: {longitude}")
+    print(f"forward_map() 주소: {address}, 법정동코드: {lawd_cd}, 법정동명: {lawd_name},  읍면동: {umd_name}",  f"위도: {latitude}, 경도: {longitude}")
 
     # 3. 토큰 및 베이스 URL 설정
     tk = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0Mzk5ODU0NjkxIiwiaWF0IjoxNzc2MDQ3MDgyLCJleHAiOjE3NzYxMzM0ODIsImp0aSI6IjQzOTk4NTQ2OTEtMTc3NjA0NzA4MiJ9.Kz6Vfj - svb2I_p - C4OgB9R9yGNVJFTNd57rLN2aErdE"

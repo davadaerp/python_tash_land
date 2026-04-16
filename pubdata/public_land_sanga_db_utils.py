@@ -143,8 +143,8 @@ def read_sanga_db(lawd_cd: str, umd_nm: str, dealYear: Optional[str] = None, dea
     base = f"SELECT {', '.join(SANGA_COLUMNS)} FROM {TABLE_NAME} WHERE lawd_cd = ?"
     params: List[str] = [str(lawd_cd)]
     if umd_nm is not None:
-        base += " AND umdNm = ?"
-        params.append(str(umd_nm))
+        base += " AND umdNm LIKE ?"
+        params.append(f"%{umd_nm}%")
 
     if dealYear is not None:
         base += " AND dealYear = ?"

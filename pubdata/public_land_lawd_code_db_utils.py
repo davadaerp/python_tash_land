@@ -188,45 +188,102 @@ def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str,
 
         # --- 데이터 준비 (예시 데이터 기준) ---
         res_lawd_cd = final_row[0]  # 예: "4157010300"
-        res_lawd_name = final_row[1]  # 예: "경기도 수원시 권선구 호매실동"
+        res_lawd_name = final_row[1]  # 예: "경기도 수원시 권선구 호매실동" / "경기도 파주시 파주읍 파주리"
 
         # 공백 기준으로 이름 분리
         name_parts = res_lawd_name.split()
 
-        # 1. lawd_name: 전체 명칭
-        lawd_name = res_lawd_name
+        # ---------------------------------------------------------
+        # 주소 구조 해석 규칙
+        # ---------------------------------------------------------
+        # 1) 기본적으로 마지막 토큰이 "리"로 끝나면
+        #    -> 실제 검색 기준 행정구역은 그 앞의 "읍/면" 이므로
+        #       umd_name = 마지막 앞 토큰
+        #       lawd_name = 그 앞까지
+        #
+        # 2) 마지막 토큰이 "동/읍/면"으로 끝나면
+        #    -> umd_name = 마지막 토큰
+        #
+        # 예시)
+        # - "경기도 수원시 권선구 호매실동"
+        #      lawd_name    = "경기도 수원시 권선구 호메실동"
+        #      region       = "경기도"
+        #      sigungu_name = "수원시 권선구"
+        #      umd_name     = "호매실동"
+        #
+        # - "경기도 파주시 파주읍 파주리"
+        #      lawd_name    = "경기도 파주시 파주읍"
+        #      region       = "경기도"
+        #      sigungu_name = "파주시"
+        #      umd_name     = "파주읍"
+        #
+        # - "경기도 김포시 운양동"
+        #      lawd_name    = "경기도 김포시 운양동"
+        #      region       = "경기도"
+        #      sigungu_name = "김포시"
+        #      umd_name     = "운양동"
+        #
+        # - "경기도 파주시 적산면 적산리"
+        #      lawd_name    = "경기도 파주시 적산면"
+        #      region       = "경기도"
+        #      sigungu_name = "파주시"
+        #      umd_name     = "적산면"
+        # ---------------------------------------------------------
 
-        # 2. region: 첫 번째 단어 (시/도)
+        # 1. region: 첫 번째 단어 (시/도)
         region = name_parts[0] if len(name_parts) > 0 else ""
 
-        # 3. sigungu_code: lawd_cd의 앞 5자리
+        # 2. sigungu_code: 법정동 코드 앞 5자리
         sigungu_code = res_lawd_cd[:5]
 
-        # 4. sigungu_name: 중간 단어들을 합침 (시/군/구)
-        # 첫 번째(시/도)와 마지막(읍/면/동)을 제외한 나머지 부분을 합칩니다.
-        sigungu_name = " ".join(name_parts[1:-1])
+        # 3. umd_name / lawd_name 분기 처리
+        umd_name = ""
+        lawd_name = ""
 
-        # 5. umd_name & eub_myeon_dong: 마지막 단어
-        umd_name = name_parts[-1] if len(name_parts) > 1 else ""
+        if len(name_parts) >= 2:
+            last_part = name_parts[-1]
+
+            # 마지막이 "리"이면 실제 읍/면을 umd_name 으로 사용
+            if last_part.endswith("리") and len(name_parts) >= 3:
+                umd_name = name_parts[-2]
+                lawd_name = " ".join(name_parts[:-1])
+            else:
+                # 마지막이 동/읍/면인 일반 구조
+                umd_name = last_part
+                lawd_name = res_lawd_name
+        else:
+            # 예외 케이스 방어
+            umd_name = name_parts[-1] if name_parts else ""
+            lawd_name = res_lawd_name
+
+        # 4. sigungu_name: lawd_name 에서 region 제외한 나머지
+        lawd_name_parts = lawd_name.split()
+        sigungu_name = " ".join(lawd_name_parts[1:]) if len(lawd_name_parts) > 1 else ""
 
         # ---------------------------------------------------------
-        # 리턴 데이터 조립 및 필드 설명
+        # 최종 리턴 필드 설명
         # ---------------------------------------------------------
-        # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
-        # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
-        # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
-        # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
-        # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
-        # 6. umd_name: 가장 하위 행정구역 읍/면/동  명칭 (예: 호매실동, 진교면)
+        # 1. lawd_cd      : 전체 법정동 코드 (예: 4157010300)
+        # 2. lawd_name    : 실질 상위 행정구역명
+        #                   예: "경기도 수원시 권선구 호매실동", "경기도 파주시 파주읍", "경기도 김포시 운양동"
+        # 3. region       : 광역 지자체명
+        #                   예: "경기도"
+        # 4. sigungu_code : 법정동 코드 앞 5자리
+        #                   예: "41570"
+        # 5. sigungu_name : 기초 지자체명
+        #                   예: "수원시 권선구", "파주시", "김포시"
+        # 6. umd_name     : 실제 조회용 읍/면/동
+        #                   예: "호매실동", "파주읍", "운양동", "적산면"
         # ---------------------------------------------------------
         return {
             "lawd_cd": res_lawd_cd,
-            "lawd_name": res_lawd_name,
+            "lawd_name": lawd_name,
             "region": region,
             "sigungu_code": sigungu_code,
             "sigungu_name": sigungu_name,
             "umd_name": umd_name
         }
+
     finally:
         conn.close()
 
@@ -522,4 +579,10 @@ if __name__ == "__main__":
     print(f"결과 5 (능동): {case5}")
 
     case6 = get_lawd_by_name("인천광역시 남동구 만수동 841-27, 대명빌라 5동 지층 1호 ")
+    print(f"결과 5 (테스트): {case6}")
+
+    case6 = get_lawd_by_name("경기도 파주시 파주읍 파주리 841-27, 대명빌라 5동 지층 1호 ")
+    print(f"결과 5 (테스트): {case6}")
+
+    case6 = get_lawd_by_name("대구광역시 달성군 가창면 용계리 841-27, 대명빌라 5동 지층 1호 ")
     print(f"결과 5 (테스트): {case6}")

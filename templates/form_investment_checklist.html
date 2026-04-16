@@ -568,23 +568,44 @@
     @media print {
       @page {
         size: A4 landscape;
-        margin: 12mm;
+        margin: 6mm;
+      }
+
+      html, body {
+        width: 297mm;
+        height: 210mm;
+        overflow: hidden;
       }
 
       body {
         padding: 0;
         background: #fff;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+
+      #printArea {
+        width: 100%;
+        max-width: none;
+        transform: none;   /* 🔥 제거 */
       }
 
       .hero {
         box-shadow: none;
         border-radius: 0;
-        padding: 14px 18px;
-        margin-bottom: 8px;
+        padding: 8px 12px;
+        margin-bottom: 4px;
+      }
+
+      .hero h1 {
+        font-size: 1.2rem;
+        margin: 0;
+        gap: 8px;
       }
 
       .layout {
         grid-template-columns: 1fr;
+        gap: 6px;
       }
 
       .side-card,
@@ -602,31 +623,131 @@
       }
 
       .toolbar {
-        padding: 10px 14px;
+        padding: 6px 10px;
+        min-height: auto;
+      }
+
+      .toolbar-title {
+        font-size: 0.92rem;
       }
 
       .content-wrap {
-        padding: 12px;
+        padding: 6px 10px;
+      }
+
+      .info-banner {
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 0.82rem;
+        line-height: 1.35;
+      }
+
+      .table-title {
+        padding: 8px 10px;
+      }
+
+      table {
+        min-width: auto;
+        width: 100%;
+        table-layout: auto;   /* 🔥 fixed → auto */
+      }
+
+      thead th {
+        font-size: 0.74rem;
+        padding: 5px 6px;
+      }
+
+      tbody td {
+        font-size: 0.72rem;
+        padding: 4px 10px;
+        line-height: 1.2;
+      }
+
+      .col-no {
+        width: 42px;
+      }
+
+      .col-item {
+        width: auto;   /* 🔥 */
+      }
+
+      .col-check {
+        width: 70px;
+      }
+
+      .check-toggle {
+        padding: 2px;
+      }
+
+      .check-toggle label {
+        min-width: 34px;
+        padding: 3px 6px;
+        font-size: 0.68rem;
+      }
+
+      .desc {
+        line-height: 1.25;
+      }
+
+      .notes-grid {
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .note-head {
+        padding: 8px 10px;
+      }
+
+      .note-head strong {
+        font-size: 0.86rem;
+      }
+
+      .note-list {
+        padding: 8px 12px 10px 24px;
+        margin: 0;
+      }
+
+      .note-list li {
+        margin-bottom: 4px;
+        font-size: 0.74rem;
+        line-height: 1.25;
+      }
+
+      .note-sub {
+        font-size: 0.7rem;
+        margin-top: 2px;
+        line-height: 1.2;
       }
 
       .table-responsive {
         overflow: visible;
       }
 
-      table {
-        min-width: auto;
-      }
-
       .note-card,
       .table-card,
-      .info-banner {
+      .info-banner,
+      tr,
+      td,
+      th {
         break-inside: avoid;
+        page-break-inside: avoid;
       }
     }
 
     #guideText {
       white-space: pre-line;
     }
+
+    #guideText .guide-keyword {
+      font-weight: 800;
+      color: #111111; /* 검정 - 필요시 변경 */
+    }
+
+    #guideText .guide-value {
+      font-weight: 800;
+      color: #2563eb; /* 파랑 - 필요시 변경 */
+    }
+
   </style>
 </head>
 <body>
@@ -839,7 +960,11 @@
       const legendBox = document.getElementById('legendBox');
 
       guideBanner.className = `info-banner ${data.className}`;
-      guideText.textContent = data.guide;
+      if (type === 'store') {
+        guideText.innerHTML = '상가는 월세 흐름, 공실 위험, 업종 경쟁력(임대 가능성:업종제한), 관리비, 명도, 건물 관리상태를 함께 봐야 합니다.\n일반적으로 <span class="guide-keyword">월세</span>는 1층/2층/2층이상 <span class="guide-value">10/5/3만원</span>, <span class="guide-keyword">배후세대</span>는 <span class="guide-value">5천세대</span>, <span class="guide-keyword">실거래</span>는 <span class="guide-value">거래가보다 10% 저렴</span>한지까지 검토합니다.';
+      } else {
+        guideText.textContent = data.guide;
+      }
       tableHeading.textContent = data.title;
       tableCaption.textContent = data.caption;
       summaryType.textContent = typeLabel(type);
@@ -924,7 +1049,20 @@
     }
 
     function printCurrentChecklist() {
+      const heroTitle = document.querySelector('.hero h1');
+      if (!heroTitle) {
+        window.print();
+        return;
+      }
+
+      const originalTitle = heroTitle.innerHTML;
+      const currentLabel = typeLabel(currentType);
+
+      heroTitle.innerHTML = `<i class="fa-solid fa-list-check"></i> 투자체크리스트(${currentLabel})`;
+
       window.print();
+
+      heroTitle.innerHTML = originalTitle;
     }
 
     function typeLabel(type) {

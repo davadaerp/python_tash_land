@@ -5,19 +5,22 @@ import datetime
 import json
 from collections import OrderedDict
 
+from common.vworld_utils import VWorldGeocoding
 from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code
 from pubdata.public_land_apt_db_utils import init_apt_db, read_apt_db, insert_apt_items
 from pubdata.public_land_sanga_db_utils import init_sanga_db, insert_sanga_items, read_sanga_db
 from pubdata.public_land_villa_db_utils import init_villa_db, read_villa_db, insert_villa_items
 from config import MAP_API_KEY, VWORLD_URL
 
-# ==============================
-# 아파트/빌라/상가/비주거 월검색 API
+# ======================================
+# 아파트/빌라/상가/비주거 월검색 API => json방식
+#========================================
 def fetch_land_month(url: str, params: dict, lawd_cd: str, lawd_nm: str, umd_nm: str, year: int, month: int, verify: bool = False):
-    """상가/비주거 월별 조회 (XML -> dict)"""
+    """상가/비주거 월별 조회 (JSON -> dict)"""
     month_str = f"{month:02d}"
     params["DEAL_YMD"] = f"{year}{month_str}"
-    print("fetch_land_month 조회:", lawd_cd, lawd_nm, umd_nm, year, month, month_str)
+    params["_type"] = "json"
+    print(f"fetch_land_month 조회: {lawd_cd}, {lawd_nm}, {umd_nm}, {year}, {month}, {month_str}")
 
     response = requests.get(url, params=params, verify=verify)
     if response.status_code != 200:
@@ -25,28 +28,31 @@ def fetch_land_month(url: str, params: dict, lawd_cd: str, lawd_nm: str, umd_nm:
         return []
 
     try:
-        response_dict = xmltodict.parse(response.text)
-        response_data = response_dict.get('response', {})
-        body = response_data.get('body', {})
-        items = body.get('items', {})
+        response_data = response.json().get("response", {})
+        body = response_data.get("body", {})
+        items = body.get("items", {})
 
-        if not items or not isinstance(items, dict) or 'item' not in items:
+        if not items or not isinstance(items, dict) or "item" not in items:
             print(f"{year}년 {month_str}월: 검색된 데이터가 없습니다.")
             return []
 
-        items = items['item']
+        items = items["item"]
         if isinstance(items, dict):
             items = [items]
 
         items_sorted = sorted(
             items,
-            key=lambda x: (x.get('dealYear', ''), x.get('dealMonth', ''), x.get('dealDay', ''))
+            key=lambda x: (x.get("dealYear", ""), x.get("dealMonth", ""), x.get("dealDay", ""))
         )
 
         # 👉 특정 시군구명(sgg_nm)만 필터링
-        # 읍면동 공백 대비(트림)
+        # 읍면동 공백 대비(트림) like개념 적용
+        # ex)파주읍 이면 파주읍 봉암리, 파주리, 백석리등
         umd_nm = (umd_nm or "").strip()
-        filtered_items = [it for it in items_sorted if it.get("umdNm", "") == umd_nm]
+        filtered_items = [
+            it for it in items_sorted
+            if (it.get("umdNm") or "").startswith(umd_nm)
+        ]
 
         # 각 item에 위도/경도 추가
         for it in filtered_items:
@@ -55,7 +61,7 @@ def fetch_land_month(url: str, params: dict, lawd_cd: str, lawd_nm: str, umd_nm:
             jibun = it.get("jibun", "")
             # 전체 주소 조합및 geocoding
             address = f"{lawd_nm} {umdNm} {jibun}"
-            print("Geocoding address:", address)
+            print(f"Geocoding address: {address}")
             geo = geocode_vworld(address)
             it["lat"] = str(geo["lat"])
             it["lon"] = str(geo["lng"])
@@ -63,68 +69,39 @@ def fetch_land_month(url: str, params: dict, lawd_cd: str, lawd_nm: str, umd_nm:
         return filtered_items
 
     except Exception as e:
-        print(f"{year}년 {month_str}월: XML 파싱 오류: {e}")
+        print(f"{year}년 {month_str}월: JSON 파싱 오류: {e}")
+        print(f"응답 원본: {response.text[:1000]}")
         return []
 
-
 # // vWorld 지오코딩 래퍼-api호출은 tash서버에서 처리함
-def geocode_vworld(address: str) -> dict:
+def geocode_vworld(address: str, address_type: str = "parcel") -> dict[str, float]:
     """
-    tash 서버에 구축된 vWorld 지오코딩 래퍼 API 호출
-    address: 문자열 주소
-    return: {"lat": float, "lng": float}
+    vWorldGeocoding 클래스를 사용한 좌표 변환
+    :param address: 주소 문자열
+    :param address_type: "parcel"(지번) | "road"(도로명)
+    :return: {"lat": float, "lng": float}
     """
-    url = "https://www.landcore.co.kr/api/geocode"
-    params = {"address": address}
 
     try:
-        res = requests.get(url, params=params, timeout=5)
-        if res.status_code != 200:
-            print("Network response not ok", res.status_code)
+        if not address or "*" in address:
             return {"lat": 0.0, "lng": 0.0}
 
-        data = res.json()
-        status = data.get("response", {}).get("status")
-        point  = data.get("response", {}).get("result", {}).get("point")
+        geo_service = VWorldGeocoding(MAP_API_KEY)
 
-        if status != "OK" or not point or point.get("x") is None or point.get("y") is None:
-            print("Geocode failed:", data)
+        # =========================
+        # 🔥 입력받은 타입 사용
+        # =========================
+        lat, lng = geo_service.get_lat_lng(address, address_type=address_type)
+
+        if lat is None or lng is None:
+            print("Geocode failed:", address)
             return {"lat": 0.0, "lng": 0.0}
 
         return {
-            "lat": float(point.get("y") or 0.0),
-            "lng": float(point.get("x") or 0.0)
+            "lat": float(lat),
+            "lng": float(lng)
         }
-    except Exception as e:
-        print("geocode_vworld error:", e)
-        return {"lat": 0.0, "lng": 0.0}
 
-# 차후 서버상에서는 아래로 수정함
-def geocode(address: str) -> dict:
-    params = {
-        "service":"address",
-        "request":"getcoord",
-        "format":"json",
-        "crs":"epsg:4326",
-        "type":"parcel",
-        "address":address,
-        "key":MAP_API_KEY
-    }
-    try:
-        r = requests.get(VWORLD_URL, params=params, timeout=5)
-        data = r.json() # jsonify 처리 체크
-        #
-        status = data.get("response", {}).get("status")
-        point  = data.get("response", {}).get("result", {}).get("point")
-
-        if status != "OK" or not point or point.get("x") is None or point.get("y") is None:
-            print("Geocode failed:", data)
-            return {"lat": 0.0, "lng": 0.0}
-
-        return {
-            "lat": float(point.get("y") or 0.0),
-            "lng": float(point.get("x") or 0.0)
-        }
     except Exception as e:
         print("geocode_vworld error:", e)
         return {"lat": 0.0, "lng": 0.0}
@@ -150,7 +127,8 @@ def run_sanga(lawd_cd: str, lawd_nm:str, umd_nm: str,  years_count: int = 2, ver
     all_items = []
     for year in years:
         """상가/비주거 1개년 전체 조회"""
-        url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+        url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+        #url = "https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
         service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         params = {
             "serviceKey": service_key,
@@ -292,10 +270,9 @@ def run_villa(lawd_cd: str, lawd_nm:str, umd_nm: str, years_count: int = 2,  ver
     all_items = []
     for year in years:
         # """상가/비주거 1개년 전체 조회"""
-        # url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
-        # service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
-        """빌라 1개년 전체 조회"""
-        url = "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade"
+        url = "http://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade"
+        #"""빌라 1개년 전체 조회"""
+        # url = "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade"
         service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         params = {
             "serviceKey": service_key,
@@ -443,8 +420,6 @@ def run_apt(lawd_cd: str, lawd_nm:str, umd_nm: str, apt_nm:str, years_count: int
     for year in years:
         # """아파트 1개년 전체 조회"""
         # url = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade"
-        # service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
-        """아파트 1개년 전체 조회"""
         url = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade"
         service_key = "B2BtWbuZVFz/EJoLsrDa6corOwSR4SsGwjBKzK2WJQ3JVwRMIUoXOGY3BHXrxZq78nP+ECsW5wB4TEwbgxS2PA=="
         params = {
@@ -572,18 +547,21 @@ if __name__ == "__main__":
     #const lawdCd = selectedLawdCd.slice(0, 5);
     #const umdNm = selectedUmdNm;
 
-    lawd_cd = "41570"  # 11110: 서울시 종로구 창신동, 41570: 경기도 김포시 운양동
+    lawd_cd = "41480"  # 11110: 서울시 종로구 창신동, 41570-00000: 경기도 김포시 운양동, 4148025326:경기도 파주시 파주읍 파주리
     # 3) 코드로 단건 조회
     res = get_lawd_by_code(lawd_cd + "00000")  # 법정동명(서울특별시 종로구)
     print("[READ]", res)
     lawd_nm = res["lawd_name"]  # 서울특별시 종로구
-    umd_nm = "운양동"  # 읍면동(창신동,숭인동, 종로1가, 인사동 등)
+    # 읍,면,동 개념으로 파주읍 파주리 경우는 목록은 파주읍 파주리, 붕원리등 나오나 파주읍만 드간다(네이버 부동산 검색기준임).
+    umd_nm = "파주읍"  # 읍면동(창신동,숭인동, 종로1가, 운양동, 파주읍 등)
+
+    print(f"[main start.] lawd_cd : {lawd_cd} lawd_nm : {lawd_nm} umd_nm : {umd_nm}")
 
     #=== 상가 테스트 ===
     # 1) DB 초기화(테이블 생성)
    #init_sanga_db()
 
-    years_count = 2  # 최근 2개년
+    years_count = 3  # 최근 2개년
 
     # print("\n########## SANGA (비주거) ##########")
     # all_items = run_sanga(lawd_cd, lawd_nm, umd_nm, years_count, verify=False)
@@ -617,5 +595,5 @@ if __name__ == "__main__":
     # (1) all_items를 JSON 타입(리스트[딕셔너리])으로 변환하여
     json_records = apt_items_to_json(all_items, lawd_cd)
     #print(json.dumps(json_records, ensure_ascii=False, indent=2))
-    #
+
     print(f"\n[아파트 총 누적 건수: {len(all_items)}\n")
