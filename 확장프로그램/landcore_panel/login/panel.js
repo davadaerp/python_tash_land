@@ -6,6 +6,7 @@
 // DOM Elements (초기에는 null 상태)
 let analyzeBtn;
 let resetBtn;
+let resetBtnIcon;
 let realAuctionBtn;
 let realAuctionMenu;
 let calculatorBtn;
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 🔥 여기서 DOM 요소 가져오기 (핵심)
     analyzeBtn = document.getElementById('analyze-btn');
     resetBtn = document.getElementById('reset-btn');
+    resetBtnIcon = document.getElementById('reset-btn-icon');
     realAuctionBtn = document.getElementById('real-auction-btn');
     realAuctionMenu = document.getElementById('real-auction-menu');
     calculatorBtn = document.getElementById('calculator-btn');
@@ -111,6 +113,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     //
     siteShortcutBtn?.addEventListener('click', toggleSiteShortcutMenu);
     topAgenciesToggle?.addEventListener('click', toggleTopAgenciesSection);
+
+    // 초기화 아이콘 업데이트
+    updateResetButtonIcon(getCurrentTabGubun());
 
     // 결과 영역 내 목록/최저가 전환 및 정렬 처리
     resultsContainer?.addEventListener('click', (e) => {
@@ -973,6 +978,9 @@ function resetPanel() {
     };
     //
     currentFloorFilter = '전체';
+
+    // 초기화 아이콘 설정
+    updateResetButtonIcon(getCurrentTabGubun());
 }
 
 /**
@@ -1552,11 +1560,59 @@ function setCurrentRegionInfo(data) {
         regions: changed ? '' : (currentRegionInfo.regions || ''),
         tabGubun: nextTabGubun || currentRegionInfo.tabGubun || ''
     };
+
+    // 초기화 아이콘 설정
+    updateResetButtonIcon(currentRegionInfo.tabGubun);
 }
 
 // 현재 탭 구분 반환 (예: 'sanga', 'apt', 'villa')
 function getCurrentTabGubun() {
     return currentRegionInfo?.tabGubun || 'sanga';
+}
+
+function getResetBaseSvg() {
+    return `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="reset-base-svg">
+            <path d="M12 5V1L7 6L12 11V7C15.31 7 18 9.69 18 13C18 16.31 15.31 19 12 19C9.33 19 7.07 17.36 6.24 15H4.17C5.06 18.39 8.26 21 12 21C16.42 21 20 17.42 20 13C20 8.58 16.42 5 12 5Z" fill="currentColor"/>
+        </svg>
+    `;
+}
+
+function getTabTypeIconHtml(tabGubun = '') {
+    switch (tabGubun) {
+        case 'sanga':
+            return `<span class="reset-tab-type-icon reset-tab-type-icon-sanga">🏪</span>`;
+        case 'villa':
+            return `<span class="reset-tab-type-icon reset-tab-type-icon-villa">🏘️</span>`;
+        case 'apt':
+            return `<span class="reset-tab-type-icon reset-tab-type-icon-apt">🏢</span>`;
+        default:
+            return `<span class="reset-tab-type-icon reset-tab-type-icon-default">📌</span>`;
+    }
+}
+
+function updateResetButtonIcon(tabGubun = '') {
+    if (!resetBtnIcon) return;
+
+    resetBtnIcon.innerHTML = `
+        <span class="reset-btn-icon-inner reset-type-${tabGubun || 'default'}">
+            ${getTabTypeIconHtml(tabGubun)}
+            ${getResetBaseSvg()}
+        </span>
+    `;
+
+    // 툴립관련 수정함
+    let title = '초기화'; // default
+
+    if (tabGubun === 'sanga') {
+        title = '상가초기화';
+    } else if (tabGubun === 'villa') {
+        title = '빌라초기화';
+    } else if (tabGubun === 'apt') {
+        title = '아파트초기화';
+    }
+
+    resetBtn.setAttribute('title', title);
 }
 
 // 현재 지역 정보를 문자열로 반환 (예: "경기도,김포시,운양동")

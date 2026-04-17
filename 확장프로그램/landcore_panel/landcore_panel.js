@@ -225,6 +225,7 @@ function getWishlistSelectedLocationFromPage() {
     const latitude = parseFloat(body.dataset.wishlistSelectedLat || '0');
     const longitude = parseFloat(body.dataset.wishlistSelectedLng || '0');
     const address = (body.dataset.wishlistSelectedAddress || '').trim();
+    // 근린상가, 다가구, 다세대, 연립빌라등등
     const objectType = (body.dataset.wishlistSelectedObjectType || '').trim();
 
     if (!latitude || !longitude) {
@@ -1015,6 +1016,8 @@ function parseListingItem(item) {
     // 단일 공백으로 변환하여 숫자 분리 유지
     const text = clone.innerText.replace(/\s+/g, ' ');
     const rawText = item.innerText; // 원본 텍스트 (공백 포함)
+    // 매물 유형 추출
+    const propertyType = extractPropertyTypeFromListingText(text);
 
     // 가격 정보 추출
     const priceInfo = extractPriceInfo(text);
@@ -1049,6 +1052,7 @@ function parseListingItem(item) {
 
     return {
         type: priceInfo.type,           // 매매 or 월세
+        propertyType: propertyType,     // 매물유형 (아파트, 상가점포, 빌라 등)
         category: floorInfo.category,    // 1층, 2층, 상층, 지하
         floor: floorInfo.raw,           // 층 정보 원본
         direction: direction,            // 향
@@ -1060,6 +1064,51 @@ function parseListingItem(item) {
         agencyCount: agencyInfo.count,  // 중개사 수
         verificationDate: verificationDate // 확인 날짜
     };
+}
+
+/**
+ * 매물 카드 텍스트에서 매물유형 추출
+ * 예: 아파트, 오피스텔, 빌라, 원룸, 단독/다가구, 전원주택, 상가주택, 재개발,
+ *     상가점포, 상가, 사무실, 건물, 공장/창고, 지식산업센터
+ */
+function extractPropertyTypeFromListingText(text) {
+    const normalized = (text || '').replace(/\s+/g, '').trim();
+
+    // 긴 문자열/구체 유형 우선
+    const typeKeywords = [
+        '아파트',
+        '오피스텔',
+        '재개발',
+        '아파트분양권',
+        '빌라',
+        '원룸',
+        '연립',
+        '단독',
+        '다가구',
+        '전원주택',
+        '상가주택',
+        '상가점포',
+        '사무실',
+        '상가건물',
+        '빌딩',
+        '지식산업센터',
+        '공장',
+        '창고',
+        '토지'
+    ];
+
+    for (const keyword of typeKeywords) {
+        const keywordNormalized = keyword.replace(/\s+/g, '');
+        if (normalized.includes(keywordNormalized)) {
+            // 공장/창고 통합 처리
+            if (keyword === '공장' || keyword === '창고') {
+                return '공장/창고';
+            }
+            return keyword;
+        }
+    }
+
+    return '';
 }
 
 /**
@@ -1982,102 +2031,51 @@ function getSelectedRegionInfo() {
 }
 
 /**
- * 현재 선택된 부동산 탭 구분 추출
- * 리턴값: 'apt' | 'villa' | 'sanga' | ''
- *
- * 기준:
- * - fin.land.naver.com : 상단 탭 aria-selected / 텍스트 / href / data 속성 기반
- * - new.land.naver.com : 기존 landcore.js의 aria-controls(tab1/tab2/tab4) 방식 우선
+ * 신버전(fin.land) 매물 목록의 propertyType 기준으로 탭 구분 집계
+ * 리턴 예:
+ * {
+ *   apt: 10,
+ *   villa: 3,
+ *   sanga: 7
+ * }
  */
-function getSelectedTabGubun_old버전() {
-    // 1) 구버전(new.land.naver.com) 우선: landcore.js 기존 구조 그대로 반영
-    if (!isNewVersion()) {
-        const tabs = document.querySelectorAll('.lnb_wrap .lnb_item');
+function getFinPropertyTypeTabGubunCounts() {
+    const counts = {
+        apt: 0,
+        villa: 0,
+        sanga: 0
+    };
 
-        for (const tab of tabs) {
-            if (tab.getAttribute('aria-selected') === 'true') {
-                const controls = tab.getAttribute('aria-controls');
+    const items = findListingItems();
+    if (!items || items.length === 0) {
+        return counts;
+    }
 
-                switch (controls) {
-                    case 'tab1':
-                        return 'apt';
-                    case 'tab2':
-                        return 'villa';
-                    case 'tab4':
-                        return 'sanga';
-                    default:
-                        break;
-                }
+    items.forEach(item => {
+        try {
+            const listingData = parseListingItem(item);
+            if (!listingData || !listingData.propertyType) return;
+
+            const detected = detectTabGubunFromText(listingData.propertyType);
+            if (detected && counts.hasOwnProperty(detected)) {
+                counts[detected] += 1;
             }
+        } catch (e) {
+            // 개별 파싱 실패는 무시
         }
-    }
+    });
 
-    // 2) 신버전(fin.land.naver.com)
-    // 선택된 탭/버튼/링크를 넓게 탐색
-    const selectedCandidates = document.querySelectorAll(`
-        [role="tab"][aria-selected="true"],
-        button[aria-selected="true"],
-        a[aria-current="page"],
-        [class*="Tab"][aria-selected="true"],
-        [class*="tab"][aria-selected="true"]
-    `);
+    return counts;
+}
 
-    for (const el of selectedCandidates) {
-        const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-        const href = el.getAttribute('href') || '';
-        const controls = el.getAttribute('aria-controls') || '';
-        const dataType =
-            el.getAttribute('data-type') ||
-            el.getAttribute('data-code') ||
-            el.getAttribute('data-tab') ||
-            '';
-
-        const merged = `${text} ${href} ${controls} ${dataType}`.toLowerCase();
-
-        if (
-            merged.includes('아파트') ||
-            merged.includes('오피스텔') ||
-            merged.includes('complex') ||
-            merged.includes('apt')
-        ) {
-            return 'apt';
-        }
-
-        if (
-            merged.includes('빌라') ||
-            merged.includes('주택') ||
-            merged.includes('house') ||
-            merged.includes('villa')
-        ) {
-            return 'villa';
-        }
-
-        if (
-            merged.includes('상가') ||
-            merged.includes('업무') ||
-            merged.includes('공장') ||
-            merged.includes('토지') ||
-            merged.includes('office') ||
-            merged.includes('store') ||
-            merged.includes('sanga')
-        ) {
-            return 'sanga';
-        }
-    }
-
-    // 3) URL 기반 보조 판별
-    const url = location.href.toLowerCase();
-
-    if (url.includes('/complexes') || url.includes('/complex/')) {
-        return 'apt';
-    }
-    if (url.includes('/houses') || url.includes('/house/')) {
-        return 'villa';
-    }
-    if (url.includes('/offices') || url.includes('/office/') || url.includes('/map')) {
-        return 'sanga';
-    }
-
+/**
+ * count 집계 결과에서 탭 구분 1개 선택
+ * 1차 단순 우선순위: sanga -> villa -> apt
+ */
+function pickSingleTabGubunFromCounts(counts) {
+    if (counts.sanga > 0) return 'sanga';
+    if (counts.villa > 0) return 'villa';
+    if (counts.apt > 0) return 'apt';
     return '';
 }
 
@@ -2086,66 +2084,64 @@ function getSelectedTabGubun_old버전() {
  * 리턴값: 'apt' | 'villa' | 'sanga' | ''
  */
 function getSelectedTabGubun() {
-    // 1) 구버전/new.land - aria-controls 우선
-    const oldTabs = document.querySelectorAll('.lnb_wrap .lnb_item');
-    for (const tab of oldTabs) {
-        if (tab.getAttribute('aria-selected') === 'true') {
-            const controls = tab.getAttribute('aria-controls');
-            const text = (tab.textContent || '').trim();
+    // ==================================================
+    // 1) 구버전(new.land.naver.com)
+    // 기존 탭 DOM 기준 처리
+    // ==================================================
+    if (!isNewVersion()) {
+        const oldTabs = document.querySelectorAll('.lnb_wrap .lnb_item');
 
-            switch (controls) {
-                case 'tab1':
-                    return 'apt';
-                case 'tab2':
-                    return 'villa';
-                case 'tab4':
-                    return 'sanga';
-                default: {
-                    const detected = detectTabGubunFromText(text);
-                    if (detected) return detected;
+        for (const tab of oldTabs) {
+            if (tab.getAttribute('aria-selected') === 'true') {
+                const controls = tab.getAttribute('aria-controls');
+                const text = (tab.textContent || '').trim();
+
+                switch (controls) {
+                    case 'tab1':
+                        return 'apt';
+                    case 'tab2':
+                        return 'villa';
+                    case 'tab4':
+                        return 'sanga';
+                    default: {
+                        const detected = detectTabGubunFromText(text);
+                        if (detected) return detected;
+                    }
                 }
             }
         }
+
+        // 구버전 URL 기반 보조 판별
+        const url = location.href.toLowerCase();
+        const path = location.pathname.toLowerCase();
+
+        if (path.startsWith('/complexes') || url.includes('/complex/')) {
+            return 'apt';
+        }
+        if (path.startsWith('/houses') || url.includes('/house/')) {
+            return 'villa';
+        }
+        if (path.startsWith('/offices') || url.includes('/office/')) {
+            return 'sanga';
+        }
+
+        return '';
     }
 
-    // 2) fin.land / 기타 신버전 - 선택된 탭/버튼/링크에서 텍스트 판별
-    const selectedCandidates = document.querySelectorAll(`
-        [role="tab"][aria-selected="true"],
-        button[aria-selected="true"],
-        a[aria-current="page"],
-        [class*="Tab"][aria-selected="true"],
-        [class*="tab"][aria-selected="true"],
-        .is_selected,
-        .selected
-    `);
+    // ==================================================
+    // 2) 신버전(fin.land.naver.com)
+    // parseListingItem() 에서 구한 propertyType 기준 처리
+    // ==================================================
+    const finCounts = getFinPropertyTypeTabGubunCounts();
+    console.log('== fin propertyType group counts:', finCounts);
 
-    for (const el of selectedCandidates) {
-        const text = (el.textContent || '').trim();
-        const href = el.getAttribute('href') || '';
-        const controls = el.getAttribute('aria-controls') || '';
-        const dataType =
-            el.getAttribute('data-type') ||
-            el.getAttribute('data-code') ||
-            el.getAttribute('data-tab') ||
-            '';
-
-        const merged = `${text} ${href} ${controls} ${dataType}`;
-        const detected = detectTabGubunFromText(merged);
-        if (detected) return detected;
-    }
-
-    // 3) URL 기반 보조 판별
-    const url = location.href.toLowerCase();
-    const path = location.pathname.toLowerCase();
-
-    if (path.startsWith('/complexes') || url.includes('/complex/')) {
-        return 'apt';
-    }
-    if (path.startsWith('/houses') || url.includes('/house/')) {
-        return 'villa';
-    }
-    if (path.startsWith('/offices') || url.includes('/office/')) {
-        return 'sanga';
+    /**
+     * count 집계 결과에서 탭 구분 1개 선택
+     * 1차 단순 우선순위: sanga -> villa -> apt
+     */
+    const picked = pickSingleTabGubunFromCounts(finCounts);
+    if (picked) {
+        return picked;
     }
 
     return '';
@@ -2161,6 +2157,7 @@ function detectTabGubunFromText(text) {
     if (
         normalized.includes('아파트') ||
         normalized.includes('오피스텔') ||
+        normalized.includes('아파트분양권') ||
         normalized.includes('apt') ||
         normalized.includes('officetel') ||
         normalized.includes('complex')
@@ -2172,13 +2169,15 @@ function detectTabGubunFromText(text) {
     if (
         normalized.includes('빌라') ||
         normalized.includes('연립') ||
+        normalized.includes('빌라/연립') ||
         normalized.includes('다세대') ||
         normalized.includes('단독') ||
         normalized.includes('다가구') ||
-        normalized.includes('다중주택') ||
+        normalized.includes('단독/다가구') ||
         normalized.includes('원룸') ||
         normalized.includes('전원주택') ||
         normalized.includes('상가주택') ||
+        normalized.includes('다중주택') ||
         normalized.includes('villa') ||
         normalized.includes('house')
     ) {
@@ -2188,13 +2187,16 @@ function detectTabGubunFromText(text) {
     // 상가 계열
     if (
         normalized.includes('상가') ||
+        normalized.includes('상가점포') ||
         normalized.includes('사무실') ||
         normalized.includes('공장') ||
         normalized.includes('창고') ||
         normalized.includes('지식산업센터') ||
         normalized.includes('건물') ||
+        normalized.includes('상가건물') ||
+        normalized.includes('빌딩') ||
+        normalized.includes('토지') ||
         normalized.includes('office') ||
-        normalized.includes('store') ||
         normalized.includes('factory') ||
         normalized.includes('warehouse') ||
         normalized.includes('sanga')

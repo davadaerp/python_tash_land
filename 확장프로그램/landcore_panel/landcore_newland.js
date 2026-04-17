@@ -336,6 +336,11 @@ window.addEventListener('load', function() {
             console.log('[landcore_newland] naver.com 페이지가 아니므로 DOM 감시를 실행하지 않습니다.');
             return;
         }
+        if (location.hostname === 'fin.land.naver.com') {
+            console.log('[landcore_newland] fin.land는 panel 스크립트에서 처리하므로 observeMutations를 건너뜁니다.');
+            return;
+        }
+
         setTimeout(extractPropertyInfo,50);
         observeMutations(); // DOM 변경 감시 시작
 });
