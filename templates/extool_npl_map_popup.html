@@ -6449,6 +6449,8 @@
       if (sortBidCountEl) sortBidCountEl.textContent = "최저가(유찰회수) ▼";
 
       if (tbody) tbody.innerHTML = "";
+      clearAllMapMarkersForEmptySearch();
+      resetCommercialNearbyUi(true);
 
       nplSearchRows = [];
       nplSelectedRow = null;
@@ -6549,7 +6551,7 @@
         const latitude =
           parseFloat(itemData.latitude || itemData.lat || itemData.y || 0) || 0;
         const longitude =
-          parseFloat(itemData.longitude || itemData.lon || itemData.x || 0) || 0;
+          parseFloat(itemData.longitude || itemData.lng || itemData.lon || itemData.x || 0) || 0;
 
         // =========================
         // [핵심수정]
@@ -7810,8 +7812,8 @@
         ];
       }
 
+      // rows filter 위경도 비교조건 삭제함..
       addresses = rows
-        .filter(item => item.latitude && item.longitude)
         .map(item => ({
           type: item.type,
           address: item.address || getNplRowAddress(currentNplDealAuctionBaseRow || {}),
@@ -7822,8 +7824,8 @@
           area: item.area ? `${item.area}평` : "",
           unitPrice: item.unitPriceText || "-",
           price: item.priceText || "-",
-          latitude: item.latitude,
-          longitude: item.longitude
+          latitude: parseFloat(item.latitude || 0) || 0,
+          longitude: parseFloat(item.longitude || 0) || 0
         }));
 
       const selectEl = document.getElementById("deal-type-filter-select");
