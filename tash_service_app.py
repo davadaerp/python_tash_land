@@ -2648,26 +2648,42 @@ def get_public_real_statistics():
     #
     type = request.args.get("type", "")  # 통계 유형 (기본값: villa)
     # 1. 파라미터 추출
-    region_arg = request.args.get("region", "")
-    region = region_map.get(region_arg, region_arg)  # 시/도 매핑 적용
-    #
+    region = request.args.get("region", "")
     sigungu_name = request.args.get("sigungu_name", "")
     umd_nm = request.args.get("umd_nm", "")
     print("===get_public_real_statistics: " + type, region, sigungu_name, umd_nm)
-    #
-    sgg_nm = region + " " + sigungu_name
+
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # 최종 리턴 필드 설명
+    # ---------------------------------------------------------
+    # 1. lawd_cd      : 전체 법정동 코드 (예: 4157010300)
+    # 1. sigungu_code : 법정동 코드 앞 5자리
+    # 2. lawd_name    : 실질 상위 행정구역명
+    #                   예: "경기도 수원시 권선구 호메실동", "경기도 파주시 파주읍", "경기도 김포시 운양동"
+    # 6. umd_name     : 실제 조회용 읍/면/동
+    #                   예: "호매실동", "파주읍", "운양동", "적산면"
+    # ---------------------------------------------------------
+    address = f"{region} {sigungu_name} {umd_nm}"
+    row = get_lawd_by_name(address)
+
+    # 시군구코드(경기도 김포시), 읍면동명
+    lawd_cd = row.get("lawd_cd", "")
+    sgg_cd = row.get("sigungu_code", "")
+    lawd_name = row.get("lawd_name", "")
+    umd_name = row.get("umd_name", "")
+
     categorys = request.args.getlist("category")  # 여러 개의 house_type 값을 리스트로 가져옴
 
     # 2. 실거래 조회 함수 호출 (이전에 작성한 read_villa_by_region 사용)
     if type == "villa":
         data = public_read_villa_by_region(
-            sgg_nm=sgg_nm,
+            sgg_cd=sgg_cd,
             umd_nm=umd_nm,
             house_types=categorys
         )
     else:
         data = public_read_sanga_by_region(
-            sgg_nm=sgg_nm,
+            sgg_cd=sgg_cd,
             umd_nm=umd_nm,
             building_types=categorys
         )
@@ -2697,35 +2713,64 @@ def get_auction_statistics():
         - category: 물건종별 (다중 선택 가능, 예: ?category=아파트&category=빌라)
     """
     # 1. 파라미터 추출
-    type = request.args.get("type", "")  # 통계 유형 (기본값: sanga/villa)
+    type = request.args.get("type", "sanga")  # 통계 유형 (기본값: sanga/villa)
     #
-    region_arg = request.args.get("region", "")
-    region = region_map.get(region_arg, region_arg)  # 시/도 매핑 적용
-    #
+    region = request.args.get("region", "")
     sigungu_name = request.args.get("sigungu_name", "")
     umd_nm = request.args.get("umd_nm", "")
     print("===get_auction_statistics: " + type, region, sigungu_name, umd_nm)
 
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # 최종 리턴 필드 설명
+    # ---------------------------------------------------------
+    # 1. lawd_cd      : 전체 법정동 코드 (예: 4157010300)
+    # 1. sigungu_code : 법정동 코드 앞 5자리
+    # 2. lawd_name    : 실질 상위 행정구역명
+    #                   예: "경기도 수원시 권선구 호메실동", "경기도 파주시 파주읍", "경기도 김포시 운양동"
+    # 6. umd_name     : 실제 조회용 읍/면/동
+    #                   예: "호매실동", "파주읍", "운양동", "적산면"
+    # ---------------------------------------------------------
+    address = f"{region} {sigungu_name} {umd_nm}"
+    row = get_lawd_by_name(address)
+
+    # 시군구코드(경기도 김포시), 읍면동명
+    lawd_cd = row.get("lawd_cd", "")
+    sigungu_code = row.get("sigungu_code", "")
+    lawd_name = row.get("lawd_name", "")
+    umd_name = row.get("umd_name", "")
+
     # -------------------------------
-    # ✅ category 매핑 처리
+    # ✅ category 매핑 처리(위 상단에 정의되어짐)
     # -------------------------------
-    category_mappings = {
-        "sanga": ["근린상가", "근린생활시설", "상가주택"],
-        "villa": ["연립주택", "도시형생활주택", "다세대주택", "단독주택", "오피스텔(주거)"]
-    }
+    # category_mappings = {
+    #     "아파트": ["아파트"],
+    #     "빌라": ["연립주택", "도시형생활주택", "다세대주택", "단독주택", "오피스텔(주거)"],
+    #     "다가구": ["다가구주택", "상가주택"],
+    #     "상업용외": ["근린상가", "근린생활시설", "오피스텔(상업)", "공장", "지식산업센터", "숙박시설", "의료시설", "목욕탕", "종교시설", "창고시설"]
+    # }
 
     # 1순위: 직접 category 파라미터
     categories = request.args.getlist("category")
 
+    # 영문 -> 한글 매핑 딕셔너리 추가
+    alias_map = {
+        "villa": "빌라",
+        "sanga": "상업용외",
+        "apt": "아파트",
+        "dagagu": "다가구"
+    }
+
     # 2순위: type 기반 자동 매핑
-    if not categories and type in category_mappings:
-        categories = category_mappings[type]
+    # 먼저 영문 키를 한글 키로 변환(get 함수 사용) 후 매핑
+    target_key = alias_map.get(type, type)  # alias에 없으면 원래 type 사용
+    if not categories and target_key in category_mappings:
+        categories = category_mappings[target_key]
 
     # 2. 앞서 만든 DB 조회 함수 호출
     # (이미 작성한 auction_read_by_region 함수를 사용합니다)
     data = auction_read_by_region(
-        region=region,
-        sigungu_name=sigungu_name,
+        sigungu_code=sigungu_code,
+        eub_myeon_dong=umd_name,
         categories=categories
     )
 

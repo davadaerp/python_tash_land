@@ -211,7 +211,7 @@ def print_rows(rows: List[Dict]) -> None:
 
 # sgg_nm 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
 # 경기도 김포시 조건으로 해당 동목록을 가져옴
-def public_read_villa_by_region(sgg_nm: str = "", umd_nm: str = "", house_types: Optional[List[str]] = None, db_path: str = DB_PATH) -> List[Dict]:
+def public_read_villa_by_region(sgg_cd: str = "", umd_nm: str = "", house_types: Optional[List[str]] = None, db_path: str = DB_PATH) -> List[Dict]:
     """
     시군구명(sggNm)과 읍면동명(umdNm)을 조건으로 실거래 데이터를 조회합니다.
     주택유형(houseType)을 리스트로 받아 멀티 필터링이 가능합니다.
@@ -225,10 +225,10 @@ def public_read_villa_by_region(sgg_nm: str = "", umd_nm: str = "", house_types:
     query = f"SELECT {cols_sql} FROM {TABLE_NAME} WHERE 1=1"
     params = []
 
-    # 2. 시군구명 필터 (예: 김포시, 종로구 등)
-    if sgg_nm:
-        query += " AND sggNm LIKE ?"
-        params.append(f"%{sgg_nm}%")
+    # 2. 시군구코드 필터 (예: 김포시, 종로구 등)
+    if sgg_cd:
+        query += " AND sggCd = ?"
+        params.append(f"{sgg_cd}")
 
     # 3. 읍면동명 필터 (선택 사항)
     if umd_nm:

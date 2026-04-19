@@ -330,7 +330,7 @@ def auction_read_db(lawdCd="", umdNm="", year_range="2", categories=None, dangiN
 
 # region과 sigungu_name 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
 # 경기도, 김포시 조건으로 해당 동목록을 가져옴
-def auction_read_by_region(region="", sigungu_name="", categories=None):
+def auction_read_by_region(sigungu_code="", eub_myeon_dong="", categories=None):
     """
     region, sigungu_name 및 category(멀티 선택 가능) 조건을 사용하여
     SQLite DB에서 데이터를 조회합니다.
@@ -344,15 +344,15 @@ def auction_read_by_region(region="", sigungu_name="", categories=None):
     query = f"SELECT * FROM {TABLE_NAME} WHERE 1=1"
     params = []
 
-    # 1. region 필터
-    if region:
-        query += " AND region LIKE ?"
-        params.append(f"%{region}%")
+    # 1. 시군구코드 필터(경기도-김포시)
+    if sigungu_code:
+        query += " AND sigungu_code LIKE ?"
+        params.append(f"{sigungu_code}")
 
-    # 2. sigungu_name 필터
-    if sigungu_name:
-        query += " AND sigungu_name LIKE ?"
-        params.append(f"%{sigungu_name}%")
+    # 2. 읍명동 필터
+    if eub_myeon_dong:
+        query += " AND eub_myeon_dong LIKE ?"
+        params.append(f"%{eub_myeon_dong}%")
 
     # 3. category 멀티 필터 처리
     if categories and isinstance(categories, list):

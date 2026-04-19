@@ -194,7 +194,7 @@ def print_rows(rows: List[Dict]) -> None:
 # sgg_nm 조건을 사용하여 SQLite DB에서 데이터를 조회하는 함수
 # 경기도 김포시 조건으로 해당 동목록을 가져옴
 def public_read_sanga_by_region(
-    sgg_nm: str = "",
+    sgg_cd: str = "",
     umd_nm: str = "",
     building_types: Optional[List[str]] = None,
     db_path: str = DB_PATH
@@ -215,9 +215,9 @@ def public_read_sanga_by_region(
     params = []
 
     # 2. 시군구명 필터 (부분 일치 검색 가능하도록 LIKE 처리)
-    if sgg_nm:
-        query += " AND sggNm LIKE ?"
-        params.append(f"%{sgg_nm}%")
+    if sgg_cd:
+        query += " AND sggCd = ?"
+        params.append(f"{sgg_cd}")
 
     # 3. 읍면동명 필터 (부분 일치 검색 가능하도록 LIKE 처리)
     if umd_nm:

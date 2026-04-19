@@ -366,7 +366,13 @@
                 sales_date: item.sales_date || '-',
                 latitude: item.latitude || 0,
                 longitude: item.longitude || 0,
-                address: address
+                address: address,
+
+                cfloor: item.floor || '-',
+                exclusive_area_pyeong: parseFloat(item.building_py || 0) || 0,
+                sortPyeongPrice: (parseFloat(item.building_py || 0) > 0)
+                    ? ((toNumber(item.min_price) / 10000) / parseFloat(item.building_py || 0))
+                    : 0
             };
         });
 
@@ -378,7 +384,17 @@
                 </span>
             </div>
             <div style="display:flex; align-items:center;">
-                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.2rem;" onclick="closeDetail()"></i>
+                <button class="btn-analysis"
+                        onclick="openVillaAuctionMapAnalysis()"
+                        style="background-color: #ffca28; color: #000;">
+                    <i class="fa-solid fa-map"></i> 지도분석
+                </button>
+                <button class="btn-analysis" onclick="openVillaAuctionPyengAnalysis()">
+                    <i class="fa-solid fa-chart-pie"></i> 평형분석
+                </button>
+                <i class="fa-solid fa-xmark"
+                   style="cursor:pointer; font-size:1.2rem;"
+                   onclick="closeDetail()"></i>
             </div>
         `;
 
@@ -444,6 +460,177 @@
         renderDetailBody();
     }
 
+    // 빌라 경매 평형분석 실행
+    function openVillaAuctionPyengAnalysis() {
+        if (currentDetailList.length === 0) {
+            alert("분석할 데이터가 없습니다.");
+            return;
+        }
+        villaAuctionPyengPopupView(currentDetailList);
+    }
+
+    function villaAuctionPyengPopupView(filteredItems) {
+        const oldPopup = document.getElementById('villaAuctionPyengPopup');
+        if (oldPopup) oldPopup.remove();
+        const oldOverlay = document.getElementById('popupOverlay');
+        if (oldOverlay) oldOverlay.remove();
+
+        const headerText = '경매-평형분석';
+
+        let groups = {};
+        let floorTotals = {};
+
+        filteredItems.forEach(item => {
+            if (!item.cfloor || item.cfloor === "0") return;
+
+            let floorNum = Number(String(item.cfloor).replace(/[^\d\-]/g, ''));
+            let floorGroup = floorNum === 1 ? "1층" : (floorNum === 2 ? "2층" : (floorNum >= 3 ? "상층" : "기타"));
+
+            let areaVal = parseFloat(item.exclusive_area_pyeong);
+            let areaGroup = isNaN(areaVal) ? "미정" : (areaVal < 10 ? "9평대" : `${Math.floor(areaVal / 10) * 10}평대`);
+
+            if (!groups[floorGroup]) {
+                groups[floorGroup] = {};
+                floorTotals[floorGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+            if (!groups[floorGroup][areaGroup]) {
+                groups[floorGroup][areaGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+
+            let unitPrice = parseFloat(item.sortPyeongPrice);
+            if (!isNaN(unitPrice) && unitPrice > 0) {
+                groups[floorGroup][areaGroup].count += 1;
+                groups[floorGroup][areaGroup].sum += unitPrice;
+
+                if (groups[floorGroup][areaGroup].min === null || unitPrice < groups[floorGroup][areaGroup].min) {
+                    groups[floorGroup][areaGroup].min = unitPrice;
+                }
+                if (groups[floorGroup][areaGroup].max === null || unitPrice > groups[floorGroup][areaGroup].max) {
+                    groups[floorGroup][areaGroup].max = unitPrice;
+                }
+
+                floorTotals[floorGroup].count += 1;
+                floorTotals[floorGroup].sum += unitPrice;
+
+                if (floorTotals[floorGroup].min === null || unitPrice < floorTotals[floorGroup].min) {
+                    floorTotals[floorGroup].min = unitPrice;
+                }
+                if (floorTotals[floorGroup].max === null || unitPrice > floorTotals[floorGroup].max) {
+                    floorTotals[floorGroup].max = unitPrice;
+                }
+            }
+        });
+
+        const floorOrderMap = {"1층": 1, "2층": 2, "상층": 3};
+        let floorGroupKeys = Object.keys(groups).sort((a, b) => (floorOrderMap[a] || 99) - (floorOrderMap[b] || 99));
+
+        let tableRowsHtml = "";
+        const floorColors = { "1층": "#ffe0e0", "2층": "#e0f7ff", "상층": "#e0ffe0" };
+
+        floorGroupKeys.forEach(floorGroup => {
+            let areaKeys = Object.keys(groups[floorGroup]).sort((a, b) => {
+                if (a === "미정") return 1;
+                if (b === "미정") return -1;
+                return parseInt(a) - parseInt(b);
+            });
+
+            let rowspan = areaKeys.length + 1;
+            let floorColor = floorColors[floorGroup] || "#f0f0f0";
+
+            areaKeys.forEach((areaGroup, index) => {
+                let groupData = groups[floorGroup][areaGroup];
+                let count = groupData.count;
+                let avg = count > 0 ? (groupData.sum / count).toFixed(1) : "0";
+                let min = count > 0 ? groupData.min.toFixed(1) : "0";
+                let max = count > 0 ? groupData.max.toFixed(1) : "0";
+
+                tableRowsHtml += `
+                    <tr style="background-color: ${floorColor}; text-align: center; font-size:12px;">
+                        ${index === 0 ? `<td rowspan="${rowspan}" style="border: 1px solid #ddd; padding: 5px; font-weight: bold;">${floorGroup}</td>` : ''}
+                        <td style="border: 1px solid #ddd; padding: 5px;">${areaGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${count}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${min}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${avg}</td>
+                        <td style="border: 1px solid #ddd; padding: 5px;">${max}</td>
+                    </tr>`;
+            });
+
+            let ft = floorTotals[floorGroup];
+            tableRowsHtml += `
+                <tr style="background-color: #f9f9f9; text-align: center; font-weight: bold; font-size:12px;">
+                    <td style="border: 1px solid #ddd; padding: 5px;">합계</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.count}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.min ? ft.min.toFixed(1) : 0}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.count > 0 ? (ft.sum / ft.count).toFixed(1) : 0}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;">${ft.max ? ft.max.toFixed(1) : 0}</td>
+                </tr>`;
+        });
+
+        const areaCounts = { '10': 0, '20': 0, '30': 0, '40': 0, '50': 0, '60': 0, '70': 0, '80': 0, '90': 0, '100+': 0 };
+        filteredItems.forEach(item => {
+            const area = parseFloat(item.exclusive_area_pyeong || 0);
+            if (!area) return;
+
+            if (area < 20) areaCounts['10']++;
+            else if (area < 30) areaCounts['20']++;
+            else if (area < 40) areaCounts['30']++;
+            else if (area < 100) areaCounts[Math.floor(area / 10) * 10]++;
+            else areaCounts['100+']++;
+        });
+
+        const maxVal = Math.max(...Object.values(areaCounts), 1);
+        let chartBarsHtml = "";
+
+        Object.entries(areaCounts).forEach(([range, count]) => {
+            const h = Math.max((count / maxVal) * 80, 2);
+            chartBarsHtml += `
+                <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+                    <div style="font-size: 10px; color: #4361ee; font-weight:bold;">${count > 0 ? count : ''}</div>
+                    <div style="width: 18px; height: ${h}px; background-color: #4361ee; opacity: ${count > 0 ? 1 : 0.2}; border-radius: 2px 2px 0 0;"></div>
+                    <div style="font-size: 9px; margin-top: 4px; color: #666;">${range}</div>
+                </div>`;
+        });
+
+        const popupHtml = `
+            <div id="popupOverlay" style="display:block;" onclick="closeVillaAuctionPyengPopup()"></div>
+            <div id="villaAuctionPyengPopup" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border: 1px solid #4361ee; border-radius: 12px; z-index: 3000; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-family: sans-serif;">
+                <h3 style="margin: 0 0 15px 0; display:flex; justify-content:space-between; align-items:center; font-size:1.1rem;">
+                    <span>📊 ${headerText}</span>
+                    <i class="fa-solid fa-xmark" style="cursor:pointer; color:#999;" onclick="closeVillaAuctionPyengPopup()"></i>
+                </h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="background: #f2f2f2; font-size:11px;">
+                                <th style="border: 1px solid #ddd; padding: 5px;">구분</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">평형</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">건수</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">최소</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">평균</th>
+                                <th style="border: 1px solid #ddd; padding: 5px;">최대</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRowsHtml}</tbody>
+                    </table>
+                </div>
+                <div style="border-top: 1px solid #eee; padding-top: 15px;">
+                    <div style="text-align: center; font-weight: bold; font-size: 0.8rem; margin-bottom: 10px;">면적별 매물 분포(평)</div>
+                    <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 100px;">${chartBarsHtml}</div>
+                </div>
+                <button onclick="closeVillaAuctionPyengPopup()" style="width:100%; margin-top:20px; padding:10px; background:#4361ee; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">닫기</button>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', popupHtml);
+    }
+
+    function closeVillaAuctionPyengPopup() {
+        const p = document.getElementById('villaAuctionPyengPopup');
+        const o = document.getElementById('popupOverlay');
+        if (p) p.remove();
+        if (o) o.remove();
+    }
+
+
     function closeDetail() {
         document.getElementById('detailPanel').style.display = 'none';
     }
@@ -480,6 +667,89 @@
         }
 
         window.open(url, '_blank', `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    }
+
+    // 빌라 경매 지도 분석 팝업 호출
+    async function openVillaAuctionMapAnalysis() {
+        if (currentDetailList.length === 0) {
+            alert("지도에 표시할 데이터가 없습니다.");
+            return;
+        }
+
+        const sigungu = document.getElementById('sigunguInput').value;
+        const dongName = document.querySelector('#detailTitle').innerText.split('-')[1] || "";
+        const lawName = `${sigungu} ${dongName}`.trim();
+
+        const auctionAddrs = currentDetailList.map(item => {
+            const amountMan = Number(item.min_price || 0) / 10000;
+            const area = item.building_py || 0;
+            const unitPrice = area > 0 ? Math.round(amountMan / area) : 0;
+
+            return {
+                type: "auction",
+                address: item.address || lawName,
+                buildingName: item.dangi_name || item.category || "빌라경매",
+                date: String(item.sales_date || '').replace(/[.\-]/g, ''),
+                year: '',
+                floor: item.floor ? `${item.floor}` : '',
+                area: area ? `${Number(area).toFixed(1)}평` : "",
+                unitPrice: unitPrice > 0 ? unitPrice.toLocaleString() : "",
+                price: formatVillaAuctionKoreanAmount(item.min_price),
+                latitude: item.latitude || 0,
+                longitude: item.longitude || 0
+            };
+        });
+
+        const payload = {
+            options: [{
+                region: lawName,
+                floor: "전체",
+                area: "전체"
+            }],
+            addresses: auctionAddrs
+        };
+
+        const popupWidth = 1200;
+        const popupHeight = 900;
+        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+        const top = window.screenY + (window.outerHeight - popupHeight) / 2;
+
+        const extUrl = `/api/ext_tool/map?tk=${encodeURIComponent(access_token)}`;
+        const popup = window.open(
+            extUrl,
+            'mapPopup',
+            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
+        );
+
+        if (popup) {
+            const checkLoad = setInterval(() => {
+                try {
+                    if (popup.document.readyState === 'complete') {
+                        popup.postMessage(payload, window.location.origin);
+                        clearInterval(checkLoad);
+                    }
+                } catch (e) {}
+            }, 200);
+        }
+    }
+
+    // 경매 금액을 1억 2,000만 형태로 변환
+    function formatVillaAuctionKoreanAmount(amount) {
+        amount = Number(amount || 0);
+
+        if (amount >= 100000000) {
+            const eok = Math.floor(amount / 100000000);
+            const remain = amount % 100000000;
+            const man = Math.floor(remain / 10000);
+
+            if (man > 0) {
+                return `${eok}억 ${man.toLocaleString()}만`;
+            }
+            return `${eok}억`;
+        } else if (amount >= 10000) {
+            return `${Math.floor(amount / 10000).toLocaleString()}만`;
+        }
+        return amount.toLocaleString();
     }
 
     function formatKoreanPrice(amount) {

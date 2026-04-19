@@ -371,7 +371,9 @@
                 sales_date: item.sales_date || '-',
                 latitude: item.latitude || 0,
                 longitude: item.longitude || 0,
-                address: address
+                address: address,
+                cfloor: item.floor || '-',
+                exclusive_area_pyeong: parseFloat(item.building_py || 0) || 0
             };
         });
 
@@ -383,7 +385,17 @@
                 </span>
             </div>
             <div style="display:flex; align-items:center;">
-                <i class="fa-solid fa-xmark" style="cursor:pointer; font-size:1.2rem;" onclick="closeDetail()"></i>
+                <button class="btn-analysis"
+                        onclick="openAuctionMapAnalysis()"
+                        style="background-color: #ffca28; color: #000;">
+                    <i class="fa-solid fa-map"></i> 지도분석
+                </button>
+                <button class="btn-analysis" onclick="pyengAuctionPopupView()">
+                    <i class="fa-solid fa-chart-pie"></i> 평형분석
+                </button>
+                <i class="fa-solid fa-xmark"
+                   style="cursor:pointer; font-size:1.2rem;"
+                   onclick="closeDetail()"></i>
             </div>
         `;
 
@@ -449,6 +461,175 @@
         renderDetailBody();
     }
 
+    // 상가 경매 평형분석 팝업
+    function pyengAuctionPopupView() {
+        const filteredItems = currentDetailList;
+        const headerText = '경매-평형분석';
+
+        let groups = {};
+        let floorTotals = {};
+
+        filteredItems.forEach(item => {
+            if (!item.cfloor) return;
+
+            let floorNum = parseInt(String(item.cfloor).replace(/[^\d\-]/g, ''));
+            let floorGroup;
+
+            if (floorNum === 1) floorGroup = "1층";
+            else if (floorNum === 2) floorGroup = "2층";
+            else if (floorNum >= 3) floorGroup = "상층";
+            else floorGroup = "기타";
+
+            let areaVal = parseFloat(item.exclusive_area_pyeong);
+            let areaGroup = isNaN(areaVal)
+                ? "미정"
+                : (areaVal < 10 ? "9평대" : `${Math.floor(areaVal / 10) * 10}평대`);
+
+            if (!groups[floorGroup]) {
+                groups[floorGroup] = {};
+                floorTotals[floorGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+
+            if (!groups[floorGroup][areaGroup]) {
+                groups[floorGroup][areaGroup] = { count: 0, sum: 0, min: null, max: null };
+            }
+
+            const minPriceMan = Number(item.min_price || 0) / 10000;
+            const py = parseFloat(item.exclusive_area_pyeong || 0);
+            let unitPrice = py > 0 ? (minPriceMan / py) : 0;
+
+            if (!isNaN(unitPrice) && unitPrice > 0) {
+                groups[floorGroup][areaGroup].count += 1;
+                groups[floorGroup][areaGroup].sum += unitPrice;
+
+                if (groups[floorGroup][areaGroup].min === null || unitPrice < groups[floorGroup][areaGroup].min) {
+                    groups[floorGroup][areaGroup].min = unitPrice;
+                }
+                if (groups[floorGroup][areaGroup].max === null || unitPrice > groups[floorGroup][areaGroup].max) {
+                    groups[floorGroup][areaGroup].max = unitPrice;
+                }
+
+                floorTotals[floorGroup].count += 1;
+                floorTotals[floorGroup].sum += unitPrice;
+
+                if (floorTotals[floorGroup].min === null || unitPrice < floorTotals[floorGroup].min) {
+                    floorTotals[floorGroup].min = unitPrice;
+                }
+                if (floorTotals[floorGroup].max === null || unitPrice > floorTotals[floorGroup].max) {
+                    floorTotals[floorGroup].max = unitPrice;
+                }
+            }
+        });
+
+        const floorOrderMap = {"1층": 1, "2층": 2, "상층": 3};
+        let floorGroupKeys = Object.keys(groups).sort((a, b) => (floorOrderMap[a] || 99) - (floorOrderMap[b] || 99));
+
+        let tableRowsHtml = "";
+        const floorColors = { "1층": "#ffe0e0", "2층": "#e0f7ff", "상층": "#e0ffe0" };
+
+        floorGroupKeys.forEach(floorGroup => {
+            let areaKeys = Object.keys(groups[floorGroup]).sort((a, b) => {
+                if (a === "미정") return 1;
+                if (b === "미정") return -1;
+                return parseInt(a) - parseInt(b);
+            });
+
+            let rowspan = areaKeys.length + 1;
+
+            areaKeys.forEach((areaGroup, index) => {
+                let groupData = groups[floorGroup][areaGroup];
+                let count = groupData.count;
+                let avg = (groupData.sum / count).toFixed(0);
+                let min = groupData.min.toFixed(0);
+                let max = groupData.max.toFixed(0);
+
+                tableRowsHtml += `
+                    <tr style="background-color: ${floorColors[floorGroup] || '#f0f0f0'}; text-align: center; font-size:12px;">
+                        ${index === 0 ? `<td rowspan="${rowspan}" style="border: 1px solid #ddd; font-weight: bold;">${floorGroup}</td>` : ''}
+                        <td style="border: 1px solid #ddd; padding: 4px;">${areaGroup}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${count}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${min}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${avg}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${max}</td>
+                    </tr>`;
+            });
+
+            let ft = floorTotals[floorGroup];
+            if (ft.count > 0) {
+                tableRowsHtml += `
+                    <tr style="background-color: #f9f9f9; text-align: center; font-weight: bold; font-size:12px;">
+                        <td style="border: 1px solid #ddd; padding: 4px;">합계</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${ft.count}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${ft.min.toFixed(0)}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${(ft.sum / ft.count).toFixed(0)}</td>
+                        <td style="border: 1px solid #ddd; padding: 4px;">${ft.max.toFixed(0)}</td>
+                    </tr>`;
+            }
+        });
+
+        const areaCounts = { '10': 0, '20': 0, '30': 0, '40': 0, '50': 0, '60': 0, '70': 0, '80': 0, '90': 0, '100+': 0 };
+
+        filteredItems.forEach(item => {
+            const area = parseFloat(item.exclusive_area_pyeong || 0);
+            if (!area) return;
+
+            if (area < 20) areaCounts['10']++;
+            else if (area < 100) areaCounts[Math.floor(area / 10) * 10]++;
+            else areaCounts['100+']++;
+        });
+
+        const maxVal = Math.max(...Object.values(areaCounts), 1);
+        let chartBarsHtml = "";
+
+        Object.entries(areaCounts).forEach(([range, count]) => {
+            const h = (count / maxVal) * 60;
+            chartBarsHtml += `
+                <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+                    <div style="font-size: 10px; color: #4361ee;">${count || ''}</div>
+                    <div style="width: 15px; height: ${h}px; background: #4361ee; border-radius: 2px 2px 0 0;"></div>
+                    <div style="font-size: 9px; margin-top: 4px; color: #999;">${range}</div>
+                </div>`;
+        });
+
+        const overlay = document.createElement('div');
+        overlay.id = 'popupOverlay';
+        overlay.style.display = 'block';
+        overlay.onclick = () => { document.body.removeChild(overlay); document.body.removeChild(popup); };
+
+        const popup = document.createElement('div');
+        popup.innerHTML = `
+            <div id="pyengAuctionPopup" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 12px; z-index: 3000; width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #ddd;">
+                <h3 style="margin: 0 0 15px 0; font-size: 1.1rem; color: #1e293b; border-bottom: 2px solid #4361ee; padding-bottom: 8px;">${headerText} <small>(단위: 만원/평)</small></h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc;">
+                            <tr style="font-size: 11px; color: #64748b;">
+                                <th style="border: 1px solid #ddd; padding: 6px;">구분</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">평형</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">건수</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">최소</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">평균</th>
+                                <th style="border: 1px solid #ddd; padding: 6px;">최대</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRowsHtml}</tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 20px; display: flex; align-items: flex-end; height: 80px; border-bottom: 1px solid #eee; padding-bottom: 5px;">${chartBarsHtml}</div>
+                <button onclick="closePyengAuctionPopup()" style="display: block; width: 100%; margin-top: 15px; padding: 10px; background: #1e293b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">창 닫기</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.body.appendChild(popup);
+    }
+
+    function closePyengAuctionPopup() {
+        const p = document.getElementById('pyengAuctionPopup');
+        const o = document.getElementById('popupOverlay');
+        if (p) p.remove();
+        if (o) o.remove();
+    }
+
     function closeDetail() {
         document.getElementById('detailPanel').style.display = 'none';
     }
@@ -486,6 +667,86 @@
 
         window.open(url, '_blank', `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
     }
+
+    // 상가 경매 지도 분석 팝업 호출
+    async function openAuctionMapAnalysis() {
+        if (currentDetailList.length === 0) {
+            alert("지도에 표시할 데이터가 없습니다.");
+            return;
+        }
+
+        const sigungu = document.getElementById('sigunguInput').value;
+        const dongName = document.querySelector('#detailTitle').innerText.split('-')[1] || "";
+        const lawName = `${sigungu} ${dongName}`.trim();
+
+        const auctionAddrs = currentDetailList.map(item => {
+            const minPriceWon = Number(item.min_price || 0);
+            const area = Number(item.building_py || 0);
+            const unitPrice = area > 0 ? Math.round((minPriceWon / 10000) / area) : 0;
+
+            return {
+                type: "auction",
+                address: item.address || lawName,
+                buildingName: item.dangi_name || item.category || "상가경매",
+                date: String(item.sales_date || '').replace(/[.\-]/g, ''),
+                year: '',
+                floor: item.floor ? `${item.floor}` : '',
+                area: area ? `${area.toFixed(1)}평` : "",
+                unitPrice: unitPrice > 0 ? unitPrice.toLocaleString() : "",
+                price: formatAuctionKoreanAmount(minPriceWon),
+                latitude: item.latitude || 0,
+                longitude: item.longitude || 0
+            };
+        });
+
+        const payload = {
+            options: [{
+                region: lawName,
+                floor: "전체",
+                area: "전체"
+            }],
+            addresses: auctionAddrs
+        };
+
+        const popupWidth = 1200;
+        const popupHeight = 900;
+        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+        const top = window.screenY + (window.outerHeight - popupHeight) / 2;
+
+        const extUrl = `/api/ext_tool/map?tk=${encodeURIComponent(access_token)}`;
+        const popup = window.open(
+            extUrl,
+            'mapPopup',
+            `width=${popupWidth},height=${popupHeight},top=${top},left=${left},resizable=yes,scrollbars=yes`
+        );
+
+        if (popup) {
+            const checkLoad = setInterval(() => {
+                try {
+                    if (popup.document.readyState === 'complete') {
+                        popup.postMessage(payload, window.location.origin);
+                        clearInterval(checkLoad);
+                    }
+                } catch (e) {}
+            }, 200);
+        }
+    }
+
+    // 경매 금액을 '1.2억' 형태로 변환
+    function formatAuctionKoreanAmount(amount) {
+        amount = Number(amount || 0);
+
+        if (amount >= 100000000) {
+            const eok = Math.floor(amount / 100000000);
+            const remain = amount % 100000000;
+            const man = Math.floor(remain / 10000);
+            return man > 0 ? `${eok}억 ${man.toLocaleString()}만` : `${eok}억`;
+        } else if (amount >= 10000) {
+            return `${Math.floor(amount / 10000).toLocaleString()}만`;
+        }
+
+        return amount.toLocaleString();
+}
 
     function formatKoreanPrice(amount) {
         amount = Number(amount || 0);

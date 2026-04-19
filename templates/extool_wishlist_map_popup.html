@@ -49,6 +49,40 @@
     .header-title .addr { font-weight:800; font-size:15px; line-height:1.2; }
     .header-title .bname { font-weight:600; font-size:13px; opacity:.95; }
 
+    .popup-avg-badge {
+      position:absolute;
+      top:12px;
+      right:48px;
+      height:28px;
+      padding:0 10px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:-0.2px;
+      white-space:nowrap;
+      box-shadow:0 4px 12px rgba(15,23,42,0.16);
+      border:1px solid rgba(255,255,255,0.28);
+      backdrop-filter: blur(2px);
+    }
+
+    .popup-avg-badge.real {
+      background:rgba(220,252,231,0.96);
+      color:#166534;
+    }
+
+    .popup-avg-badge.auction {
+      background:rgba(254,226,226,0.96);
+      color:#991b1b;
+    }
+
+    .popup-avg-badge.mixed {
+      background:rgba(255,255,255,0.94);
+      color:#0f172a;
+    }
+
     .close-x {
       position:absolute; top:10px; right:12px;
       width:28px; height:28px;
@@ -81,6 +115,39 @@
     }
     .filter-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.28); }
     .filter-btn.selected { background:#fff; color:#111827; border-color:#fff; }
+
+        .popup-filter-tools {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-left:auto;
+      flex:0 0 auto;
+    }
+
+    .popup-filter-select {
+      height:30px;
+      min-width:78px;
+      padding:0 28px 0 10px;
+      border:1px solid rgba(255,255,255,0.38);
+      border-radius:999px;
+      background:rgba(255,255,255,0.16);
+      color:#fff;
+      font-size:12px;
+      font-weight:800;
+      outline:none;
+      appearance:none;
+      -webkit-appearance:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;
+      background-position:right 9px center;
+      background-size:12px;
+      cursor:pointer;
+    }
+
+    .popup-filter-select option {
+      color:#111827;
+      background:#fff;
+    }
 
     .custom-popup__body { padding:12px 14px 14px 14px; background:#fafafa; }
     .table-wrap { background:#fff; border:1px solid #eef0f2; border-radius:12px; overflow:hidden; }
@@ -1620,6 +1687,32 @@
       box-shadow: 0 3px 10px rgba(37, 99, 235, 0.10);
     }
 
+    .npl-da-avg-unit-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:34px;
+      padding:0 12px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:-0.2px;
+      white-space:nowrap;
+      box-shadow:0 3px 10px rgba(15,23,42,0.08);
+    }
+
+    .npl-da-avg-unit-badge.real {
+      background:linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%);
+      border:1px solid #86efac;
+      color:#166534;
+    }
+
+    .npl-da-avg-unit-badge.auction {
+      background:linear-gradient(135deg,#fee2e2 0%,#fecaca 100%);
+      border:1px solid #fca5a5;
+      color:#b91c1c;
+    }
+
     .npl-da-table-wrap {
       flex:1;
       min-height:0;
@@ -2816,16 +2909,24 @@
     }
 
     /* 행 HTML 생성 (선택 필터에 맞게) */
-    function buildRowsHTML(itemsSorted, selectedFilter) {
+    function buildRowsHTML(itemsSorted, selectedFilter, selectedFloor = 'all', selectedArea = 'all') {
       const filtered = itemsSorted.filter(it => {
-        if (selectedFilter === 'all') return true;
-        return it.type === selectedFilter;
+        if (selectedFilter !== 'all' && it.type !== selectedFilter) return false;
+
+        const floorText = extractIntString(it.floor);
+        const areaText = extractIntString(it.area);
+
+        if (selectedFloor !== 'all' && floorText !== String(selectedFloor)) return false;
+        if (selectedArea !== 'all' && areaText !== String(selectedArea)) return false;
+
+        return true;
       });
+
       return filtered.map(it => {
         const date = it.date || '';
         const floorText = extractIntString(it.floor);
         const areaText  = extractIntString(it.area);
-        const unitPrice = it.unitPrice ?? '';  // 이미 전처리된 값 사용
+        const unitPrice = it.unitPrice ?? '';
         const price = it.price ?? '';
 
         const isReal = it.type === 'real';
@@ -2843,6 +2944,52 @@
           </tr>
         `;
       }).join('');
+    }
+
+    function getPopupUniqueFloorOptions(items, selectedFilter) {
+      if (selectedFilter === 'all') return [];
+
+      const values = (items || [])
+        .filter(it => it.type === selectedFilter)
+        .map(it => extractIntString(it.floor))
+        .filter(v => v !== '' && !isNaN(Number(v)));
+
+      return [...new Set(values)]
+        .sort((a, b) => Number(a) - Number(b));
+    }
+
+    function getPopupUniqueAreaOptions(items, selectedFilter) {
+      if (selectedFilter === 'all') return [];
+
+      const values = (items || [])
+        .filter(it => it.type === selectedFilter)
+        .map(it => extractIntString(it.area))
+        .filter(v => v !== '' && !isNaN(Number(v)));
+
+      return [...new Set(values)]
+        .sort((a, b) => Number(a) - Number(b));
+    }
+
+    function buildPopupSelectOptions(values, defaultLabel, suffix = '') {
+      const head = `<option value="all">${defaultLabel}</option>`;
+      const body = (values || []).map(v => {
+        return `<option value="${v}">${v}${suffix}</option>`;
+      }).join('');
+      return head + body;
+    }
+
+    function getPopupFilteredItems(itemsSorted, selectedFilter, selectedFloor = 'all', selectedArea = 'all') {
+      return (itemsSorted || []).filter(it => {
+        if (selectedFilter !== 'all' && it.type !== selectedFilter) return false;
+
+        const floorText = extractIntString(it.floor);
+        const areaText = extractIntString(it.area);
+
+        if (selectedFloor !== 'all' && floorText !== String(selectedFloor)) return false;
+        if (selectedArea !== 'all' && areaText !== String(selectedArea)) return false;
+
+        return true;
+      });
     }
 
     /* ===== 팝업 HTML 생성 ===== */
@@ -2902,18 +3049,41 @@
         filterOptions.push({key:'auction', text:`${selectedAssetLabel} 경매 (${auctionCount})`});
       }
       const defaultFilter = filterOptions[0].key; // 혼합이면 all, 아니면 단일 항목
+      const initialFloorOptions = getPopupUniqueFloorOptions(itemsSorted, defaultFilter);
+      const initialAreaOptions = getPopupUniqueAreaOptions(itemsSorted, defaultFilter);
+      //
+      const initialAvgText = nplFormatAverageUnitPriceText(
+        itemsSorted.filter(it => defaultFilter === "all" ? true : it.type === defaultFilter)
+      );
+      const initialAvgClass = getPopupAverageBadgeClass(defaultFilter, meta);
 
       // 필터 버튼 HTML
       const filterButtonsHTML = `
-        <div class="popup-filters" data-filterbar>
-          ${filterOptions.map((opt, idx) =>
-            `<button class="filter-btn ${opt.key==='auction'?'auction':''} ${idx===0?'selected':''}" data-filter="${opt.key}">${opt.text}</button>`
-          ).join('')}
+        <div class="popup-filters" data-filterbar style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:nowrap;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${filterOptions.map((opt, idx) =>
+              `<button class="filter-btn ${opt.key==='auction'?'auction':''} ${idx===0?'selected':''}" data-filter="${opt.key}">${opt.text}</button>`
+            ).join('')}
+          </div>
+
+          <div class="popup-filter-tools" data-filter-tools style="${defaultFilter === 'all' ? 'display:none;' : ''}">
+            <select class="popup-filter-select" data-floor-select>
+              ${buildPopupSelectOptions(initialFloorOptions, '층', '층')}
+            </select>
+
+            <select class="popup-filter-select" data-area-select>
+              ${buildPopupSelectOptions(initialAreaOptions, '평수', '평')}
+            </select>
+
+            <div class="popup-avg-badge ${initialAvgClass}" data-avg-badge style="position:static; top:auto; right:auto; flex:0 0 auto;">
+              ${initialAvgText}
+            </div>
+          </div>
         </div>
       `;
 
       // 초기 테이블 rows
-      const initialRows = buildRowsHTML(itemsSorted, defaultFilter);
+      const initialRows = buildRowsHTML(itemsSorted, defaultFilter, 'all', 'all');
 
       return {
         html: `
@@ -2983,11 +3153,18 @@
         this._position = position;
         this._itemsSorted = payload.itemsSorted;
         this._currentFilter = payload.defaultFilter;
+        this._currentFloor = 'all';
+        this._currentArea = 'all';
         this._pricePerSortDir = null; // null -> 'asc' -> 'desc' 토글 상태
 
         this._el = document.createElement('div');
         this._el.innerHTML = payload.html;
         this._container = this._el.firstElementChild;
+        //
+        const avgBadge = this._container.querySelector('[data-avg-badge]');
+        const filterTools = this._container.querySelector('[data-filter-tools]');
+        const floorSelect = this._container.querySelector('[data-floor-select]');
+        const areaSelect = this._container.querySelector('[data-area-select]');
 
         // 추가: 자동 스크롤 헬퍼
         const tableWrap = this._container.querySelector('.table-wrap');
@@ -3026,14 +3203,93 @@
             btn.classList.add('selected');
             this._currentFilter = f;
 
-            // 테이블 갱신
-            tbody.innerHTML = buildRowsHTML(this._itemsSorted, this._currentFilter);
-            // 정렬 상태 초기화 (필터 바꾸면 헤더 정렬도 초기화)
+            this._currentFloor = 'all';
+            this._currentArea = 'all';
+
+            const floorOptions = getPopupUniqueFloorOptions(this._itemsSorted, this._currentFilter);
+            const areaOptions = getPopupUniqueAreaOptions(this._itemsSorted, this._currentFilter);
+
+            if (filterTools) {
+              filterTools.style.display = this._currentFilter === 'all' ? 'none' : 'flex';
+            }
+
+            if (floorSelect) {
+              floorSelect.innerHTML = buildPopupSelectOptions(floorOptions, '층', '층');
+              floorSelect.value = 'all';
+            }
+
+            if (areaSelect) {
+              areaSelect.innerHTML = buildPopupSelectOptions(areaOptions, '평수', '평');
+              areaSelect.value = 'all';
+            }
+
+            tbody.innerHTML = buildRowsHTML(
+              this._itemsSorted,
+              this._currentFilter,
+              this._currentFloor,
+              this._currentArea
+            );
+
+            const avgItems = getPopupFilteredItems(
+              this._itemsSorted,
+              this._currentFilter,
+              this._currentFloor,
+              this._currentArea
+            );
+
+            if (avgBadge) {
+              avgBadge.textContent = nplFormatAverageUnitPriceText(avgItems);
+              avgBadge.classList.remove('real', 'auction', 'mixed');
+              avgBadge.classList.add(getPopupAverageBadgeClass(this._currentFilter, typeMeta(this._itemsSorted)));
+            }
+
+            // 정렬 상태 초기화
             this._pricePerSortDir = null;
 
             applyAutoScroll(); // ▼▼▼ 추가: 필터로 행 수 변동 시 적용
           });
         }
+
+        //
+        const redrawPopupTableBySelect = () => {
+          tbody.innerHTML = buildRowsHTML(
+            this._itemsSorted,
+            this._currentFilter,
+            this._currentFloor,
+            this._currentArea
+          );
+
+          const avgItems = getPopupFilteredItems(
+            this._itemsSorted,
+            this._currentFilter,
+            this._currentFloor,
+            this._currentArea
+          );
+
+          if (avgBadge) {
+            avgBadge.textContent = nplFormatAverageUnitPriceText(avgItems);
+            avgBadge.classList.remove('real', 'auction', 'mixed');
+            avgBadge.classList.add(getPopupAverageBadgeClass(this._currentFilter, typeMeta(this._itemsSorted)));
+          }
+
+          applyAutoScroll();
+        };
+
+        if (floorSelect) {
+          floorSelect.addEventListener('change', () => {
+            this._currentFloor = floorSelect.value || 'all';
+            redrawPopupTableBySelect();
+          });
+        }
+
+        if (areaSelect) {
+          areaSelect.addEventListener('change', () => {
+            this._currentArea = areaSelect.value || 'all';
+            redrawPopupTableBySelect();
+          });
+        }
+
+
         // 정렬(거래일자)
         // === "거래일자" 헤더 클릭 시 정렬 토글(+ 화살표 표시) ===
         this._dateSortDir = null; // null -> 'asc' -> 'desc' 토글 상태
@@ -3063,9 +3319,16 @@
             this._dateSortDir = (this._dateSortDir === 'asc') ? 'desc' : 'asc';
 
             // 현재 필터 반영한 아이템
-            const filtered = this._itemsSorted.filter(it => {
-              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
-            });
+            // const filtered = this._itemsSorted.filter(it => {
+            //   return (this._currentFilter === 'all') || (it.type === this._currentFilter);
+            // });
+            // 현재 필터 + 층 + 평수 반영한 아이템
+            const filtered = getPopupFilteredItems(
+              this._itemsSorted,
+              this._currentFilter,
+              this._currentFloor,
+              this._currentArea
+            );
 
             // 정렬: 날짜 파싱 (NaN/유효치 못한 날짜는 항상 뒤로)
             filtered.sort((a, b) => {
@@ -3116,10 +3379,13 @@
             // 토글: null -> asc -> desc -> asc ...
             this._pricePerSortDir = (this._pricePerSortDir === 'asc') ? 'desc' : 'asc';
 
-            // 현재 필터 반영한 아이템
-            const filtered = this._itemsSorted.filter(it => {
-              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
-            });
+            // 현재 필터 + 층 + 평수 반영한 아이템
+            const filtered = getPopupFilteredItems(
+              this._itemsSorted,
+              this._currentFilter,
+              this._currentFloor,
+              this._currentArea
+            );
 
             // 정렬: NaN(숫자 아님)은 항상 뒤로
             filtered.sort((a, b) => {
@@ -3170,10 +3436,13 @@
             // 토글: null -> asc -> desc -> asc ...
             this._areaSortDir = (this._areaSortDir === 'asc') ? 'desc' : 'asc';
 
-            // 현재 필터 상태 반영 (all/real/auction)
-            const filtered = this._itemsSorted.filter(it => {
-              return (this._currentFilter === 'all') || (it.type === this._currentFilter);
-            });
+            // 현재 필터 + 층 + 평수 반영한 아이템
+            const filtered = getPopupFilteredItems(
+              this._itemsSorted,
+              this._currentFilter,
+              this._currentFloor,
+              this._currentArea
+            );
 
             // 1차: 평수 숫자 정렬(오름/내림) — NaN은 항상 뒤
             // 2차: 날짜 최신순(desc)
@@ -5937,6 +6206,29 @@
     }
 
     // =========================
+    // [추가] 외부 파라미터 단건 마커 좌측 보정
+    // - 실거래/경매 숫자 마커와 겹칠 때 클릭이 안 되는 문제 완화
+    // - longitude를 아주 조금 줄여서 화면상 왼쪽으로 이동
+    // =========================
+    function getShiftedLatLngForInitialMarker(lat, lng) {
+      const safeLat = parseFloat(lat || 0);
+      const safeLng = parseFloat(lng || 0);
+
+      if (!safeLat || !safeLng) {
+        return { lat: safeLat, lng: safeLng };
+      }
+
+      // 대략 6~8m 정도 왼쪽 이동
+      // 너무 크게 이동하면 실제 위치와 어긋나므로 최소값만 적용
+      const lngOffset = 0.00008;
+
+      return {
+        lat: safeLat,
+        lng: safeLng - lngOffset
+      };
+    }
+
+    // =========================
     // [수정] 초기 전달 latitude / longitude 기준 단건 위치 마커 표시
     // - applyInitialNplRegionData() 에서만 사용
     // - 서버에서 넘겨준 좌표를 바로 사용
@@ -5963,7 +6255,10 @@
       clearNplSampleMarkers();
       closeNplSampleInfoWindow();
 
-      const pos = new naver.maps.LatLng(lat, lng);
+      // [수정] 외부 파라미터 단건 마커만 좌측으로 살짝 이동
+      const shiftedPosData = getShiftedLatLngForInitialMarker(lat, lng);
+      const pos = new naver.maps.LatLng(shiftedPosData.lat, shiftedPosData.lng);
+
       const markerClass = getNplSampleClass(assetType || "상가");
       const markerIcon = getNplSampleIcon(assetType || "상가");
 
@@ -7639,6 +7934,46 @@
       return isNaN(n) ? 0 : n;
     }
 
+    function nplCalcAverageUnitPrice(items) {
+      const safeItems = Array.isArray(items) ? items : [];
+
+      const nums = safeItems
+        .map(item => {
+          return nplSafeNum(
+            item?.sortPyeongPrice ??
+            item?.unitPrice ??
+            item?.unitPriceText ??
+            ""
+          );
+        })
+        .filter(v => v > 0);
+
+      if (!nums.length) return 0;
+
+      const sum = nums.reduce((acc, cur) => acc + cur, 0);
+      return Math.round(sum / nums.length);
+    }
+
+    function nplFormatAverageUnitPriceText(items) {
+      const avg = nplCalcAverageUnitPrice(items);
+      if (!avg) return "평균평당가: -";
+      return `평균평당가: ${formatNumber(avg)}만원`;
+    }
+
+    function nplBuildAverageUnitBadgeHtml(items, theme = "real") {
+      const avg = nplCalcAverageUnitPrice(items);
+      const text = avg ? `평균평당가: ${formatNumber(avg)}만원` : "평균평당가: -";
+      return `<span class="npl-da-avg-unit-badge ${theme}">${text}</span>`;
+    }
+
+    function getPopupAverageBadgeClass(filterKey, meta) {
+      if (filterKey === "real") return "real";
+      if (filterKey === "auction") return "auction";
+      if (meta?.hasReal && meta?.hasAuction) return "mixed";
+      if (meta?.hasReal) return "real";
+      return "auction";
+    }
+
     function nplDateKey(v) {
       return Number(String(v || "").replace(/[^\d]/g, "")) || 0;
     }
@@ -8096,9 +8431,9 @@
               id="npl-real-filter-apt-name"
               type="text"
               value="${String(prevAptNameVal || "").replace(/"/g, "&quot;")}"
-              placeholder="아파트명 입력 후 Enter"
+              placeholder="아파트명 Enter"
               style="
-                width:180px;
+                width:130px;
                 height:34px;
                 padding:0 10px;
                 border:1px solid #d7e3f1;
@@ -8177,7 +8512,12 @@
 
         const tbody = document.getElementById("npl-real-tbody");
         const countEl = document.getElementById("npl-real-filter-count");
-        if (countEl) countEl.textContent = `총 ${sorted.length}건`;
+        if (countEl) {
+          countEl.innerHTML = `
+            ${nplBuildAverageUnitBadgeHtml(sorted, "real")}
+            <span style="margin-left:8px;">총 ${sorted.length}건</span>
+          `;
+        }
 
         tbody.innerHTML = sorted.map((item, idx) => `
           <tr class="npl-popup-real-row" data-idx="${idx}" style="cursor:pointer;">
@@ -8334,7 +8674,12 @@
 
         const tbody = document.getElementById("npl-auction-tbody");
         const countEl = document.getElementById("npl-auction-filter-count");
-        if (countEl) countEl.textContent = `총 ${sorted.length}건`;
+        if (countEl) {
+          countEl.innerHTML = `
+            ${nplBuildAverageUnitBadgeHtml(sorted, "auction")}
+            <span style="margin-left:8px;">총 ${sorted.length}건</span>
+          `;
+        }
 
         tbody.innerHTML = sorted.map((item, idx) => `
           <tr class="npl-popup-auction-row" data-idx="${idx}" style="cursor:pointer;">

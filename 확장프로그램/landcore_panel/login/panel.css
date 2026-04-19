@@ -1581,6 +1581,7 @@ body {
 #imjang-analysis-btn {
   background: linear-gradient(135deg, #ffb300, #ff8f00);
   color: #fff;
+  width: 108px;
 }
 #imjang-analysis-btn:hover {
   background: linear-gradient(135deg, #ffa000, #f57c00);

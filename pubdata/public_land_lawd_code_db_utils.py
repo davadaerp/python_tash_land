@@ -240,7 +240,17 @@ def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str,
         umd_name = ""
         lawd_name = ""
 
-        if len(name_parts) >= 2:
+        if len(name_parts) == 1:
+            # 예: "경기도"
+            lawd_name = res_lawd_name
+            umd_name = ""
+
+        elif len(name_parts) == 2:
+            # 예: "경기도 김포시"
+            lawd_name = res_lawd_name
+            umd_name = ""
+
+        else:
             last_part = name_parts[-1]
 
             # 마지막이 "리"이면 실제 읍/면을 umd_name 으로 사용
@@ -251,14 +261,19 @@ def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str,
                 # 마지막이 동/읍/면인 일반 구조
                 umd_name = last_part
                 lawd_name = res_lawd_name
-        else:
-            # 예외 케이스 방어
-            umd_name = name_parts[-1] if name_parts else ""
-            lawd_name = res_lawd_name
 
-        # 4. sigungu_name: lawd_name 에서 region 제외한 나머지
+        # 4. sigungu_name: region 제외 후, umd_name 이 있으면 마지막 토큰 제외
         lawd_name_parts = lawd_name.split()
-        sigungu_name = " ".join(lawd_name_parts[1:]) if len(lawd_name_parts) > 1 else ""
+
+        if len(lawd_name_parts) <= 1:
+            sigungu_name = ""
+        elif umd_name:
+            # 예: "경기도 김포시 운양동" -> "김포시"
+            # 예: "경기도 파주시 파주읍"   -> "파주시"
+            sigungu_name = " ".join(lawd_name_parts[1:-1]) if len(lawd_name_parts) > 2 else lawd_name_parts[1]
+        else:
+            # 예: "경기도 김포시" -> "김포시"
+            sigungu_name = " ".join(lawd_name_parts[1:])
 
         # ---------------------------------------------------------
         # 최종 리턴 필드 설명
@@ -558,19 +573,36 @@ if __name__ == "__main__":
     print("\n--- [TEST] 결과 내 검색 로직 테스트 ---")
 
     # 케이스 1: '장기' 검색 시 김포시와 포항시가 나오지만, '김포시' 토큰으로 필터링됨
-    case1 = get_lawd_by_name("경기도 김포시 장기동 123")
+    case1 = get_lawd_by_name("김포 장기")
     print(f"결과 1 (김포 장기): {case1}")
 
     # 케이스 2: 숫자가 섞인 주소 처리
     case2 = get_lawd_by_name("경기도 김포시 운양동 611")
-    print(f"결과 2 (운양동): {case2}")
+    print(f"결과 2 (경기도 김포시 운양동 611): {case2}")
+
+    case2_0 = get_lawd_by_name("운양동")
+    print(f"결과 2 (운양동): {case2_0}")
+
+    # 케이스 2: 숫자가 섞인 주소 처리
+    case2_1 = get_lawd_by_name("경기도 김포시")
+    print(f"결과 2 (경기도 김포시): {case2_1}")
+
+    # 케이스 2: 숫자가 섞인 주소 처리
+    case2_1_1 = get_lawd_by_name("경기 김포시")
+    print(f"결과 2 (경기 김포시): {case2_1_1}")
+
+    case2_2 = get_lawd_by_name("경기도 김포시 운양동")
+    print(f"결과 2 (경기도 김포시 운양동): {case2_2}")
+
+    case2_3 = get_lawd_by_name("경기도 김포시 운양동, 2층210호 (구월동,이노프라자) 외 1개호")
+    print(f"결과 2 (경기도 김포시 운양동, 2층210호 (구월동,이노프라자) 외 1개호): {case2_3}")
 
     # 케이스 3: 단순 동 이름만 입력
     case3 = get_lawd_by_name("청운동")
     print(f"결과 3 (청운동): {case3}")
 
     case3 = get_lawd_by_name("서울특별시 중구 남대문로4가")
-    print(f"결과 3 (남대문로4가): {case3}")
+    print(f"결과 3 (서울특별시 중구 남대문로4가): {case3}")
 
     case4 = get_lawd_by_name("인천 남동구 구월동 1457, 2층210호 (구월동,이노프라자) 외 1개호 ")
     print(f"결과 4 (구월동): {case4}")
