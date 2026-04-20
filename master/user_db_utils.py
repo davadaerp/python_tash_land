@@ -326,6 +326,7 @@ def user_drop_table():
     conn.close()
     print(f"테이블 '{TABLE_NAME}' 삭제 완료.")
 
+# 사용자목록 조회
 def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kakao_id: str = ""):
     """
     사용자 데이터 조회.
@@ -358,6 +359,71 @@ def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kaka
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# 페이지 적용 사용자 목록
+def paging_user_read_db(
+    userName: str = "",
+    subscription_month=None,
+    page: int = 1,
+    page_size: int = 10
+):
+    """
+    사용자 데이터 조회 + 페이징
+    - user_name LIKE
+    - subscription_month 정확일치
+    """
+
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    where_sql = f" FROM {TABLE_NAME} WHERE 1=1"
+    params = []
+
+    if userName:
+        where_sql += " AND user_name LIKE ?"
+        params.append(f"%{userName}%")
+
+    if subscription_month is not None:
+        where_sql += " AND subscription_month = ?"
+        params.append(subscription_month)
+
+    # 1) 전체 건수 조회
+    count_query = "SELECT COUNT(*) as cnt" + where_sql
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()["cnt"]
+
+    # 2) 페이지 계산
+    if page < 1:
+        page = 1
+
+    offset = (page - 1) * page_size
+
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+
+    # total_pages보다 큰 page가 들어오면 마지막 페이지로 보정
+    if total_pages > 0 and page > total_pages:
+        page = total_pages
+        offset = (page - 1) * page_size
+
+    # 3) 실제 데이터 조회
+    data_query = "SELECT *" + where_sql + " ORDER BY subscription_end_date DESC LIMIT ? OFFSET ?"
+    data_params = params + [page_size, offset]
+
+    cur.execute(data_query, data_params)
+    rows = cur.fetchall()
+    conn.close()
+
+    items = [dict(row) for row in rows]
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages
+    }
 
 # 단일 사용자 정보 조회
 def get_user_info_db(user_id: str) -> Optional[Dict]:
@@ -393,6 +459,7 @@ def get_user_info_db(user_id: str) -> Optional[Dict]:
 
     # sqlite3.Row → dict 변환
     return dict(row)
+
 
 def verify_user(user_id: str, password: str) -> bool:
     """user_id / user_passwd 단순 검증."""

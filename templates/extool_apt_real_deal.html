@@ -226,6 +226,8 @@
 
         // 상가,아파트,빌라키 처리
         let existingKey = null;
+        // 토큰
+        const access_token = "{{ access_token }}";
 
         // 확장(extension)에서 로컬데이타 보내오는 응답을 수신
         window.addEventListener("message", (event) => {
@@ -1221,8 +1223,9 @@
                 const left = window.screenX + (window.outerWidth - popupWidth) / 2;
                 const top = window.screenY + (window.outerHeight - popupHeight) / 2 - 100;  // 상단에서 -100px
 
+                const extUrl = `${BASE_URL}/api/ext_tool/map?menu=map_popup&tk=${encodeURIComponent(access_token)}`;
                 const popup = window.open(
-                    '/api/ext_tool/map?menu=map_popup',
+                    extUrl,
                     'mapPopup',
                     `width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
                 );

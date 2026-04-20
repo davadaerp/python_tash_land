@@ -2837,12 +2837,39 @@
       if (digits.length === 6) return parseInt('20' + digits, 10);
       return parseInt(digits, 10) || -Infinity;
     }
+
     function extractIntString(val) {
       const m = String(val ?? '').match(/-?\d+(?:\.\d+)?/);
       if (!m) return '';
       const v = Math.trunc(parseFloat(m[0]));
       return String(v);
     }
+
+    function getPopupFloorBucket(floorValue) {
+      const floorNum = parseInt(extractIntString(floorValue), 10);
+      if (isNaN(floorNum)) return '';
+      if (floorNum === 1 || floorNum === 2) return 'low';
+      if (floorNum >= 3) return 'high';
+      return '';
+    }
+
+    function matchPopupFloorFilter(floorValue, selectedFloor) {
+      if (selectedFloor === 'all') return true;
+
+      const floorText = extractIntString(floorValue);
+      const floorNum = parseInt(floorText, 10);
+
+      if (selectedFloor === 'low') {
+        return !isNaN(floorNum) && (floorNum === 1 || floorNum === 2);
+      }
+
+      if (selectedFloor === 'high') {
+        return !isNaN(floorNum) && floorNum >= 3;
+      }
+
+      return floorText === String(selectedFloor);
+    }
+
     function typeMeta(items) {
       const hasReal = items.some(it => it.type === 'real');
       const hasAuction = items.some(it => it.type === 'auction');
@@ -2913,10 +2940,9 @@
       const filtered = itemsSorted.filter(it => {
         if (selectedFilter !== 'all' && it.type !== selectedFilter) return false;
 
-        const floorText = extractIntString(it.floor);
         const areaText = extractIntString(it.area);
 
-        if (selectedFloor !== 'all' && floorText !== String(selectedFloor)) return false;
+        if (!matchPopupFloorFilter(it.floor, selectedFloor)) return false;
         if (selectedArea !== 'all' && areaText !== String(selectedArea)) return false;
 
         return true;
@@ -2949,13 +2975,30 @@
     function getPopupUniqueFloorOptions(items, selectedFilter) {
       if (selectedFilter === 'all') return [];
 
-      const values = (items || [])
+      const floorValues = (items || [])
         .filter(it => it.type === selectedFilter)
         .map(it => extractIntString(it.floor))
         .filter(v => v !== '' && !isNaN(Number(v)));
 
-      return [...new Set(values)]
+      const uniqueFloors = [...new Set(floorValues)]
         .sort((a, b) => Number(a) - Number(b));
+
+      const hasLow = floorValues.some(v => {
+        const n = parseInt(v, 10);
+        return !isNaN(n) && (n === 1 || n === 2);
+      });
+
+      const hasHigh = floorValues.some(v => {
+        const n = parseInt(v, 10);
+        return !isNaN(n) && n >= 3;
+      });
+
+      const result = [];
+
+      if (hasLow) result.push('low');
+      if (hasHigh) result.push('high');
+
+      return result.concat(uniqueFloors);
     }
 
     function getPopupUniqueAreaOptions(items, selectedFilter) {
@@ -2973,7 +3016,12 @@
     function buildPopupSelectOptions(values, defaultLabel, suffix = '') {
       const head = `<option value="all">${defaultLabel}</option>`;
       const body = (values || []).map(v => {
-        return `<option value="${v}">${v}${suffix}</option>`;
+        let label = `${v}${suffix}`;
+
+        if (v === 'low') label = '저층';
+        if (v === 'high') label = '상층';
+
+        return `<option value="${v}">${label}</option>`;
       }).join('');
       return head + body;
     }
@@ -2982,10 +3030,9 @@
       return (itemsSorted || []).filter(it => {
         if (selectedFilter !== 'all' && it.type !== selectedFilter) return false;
 
-        const floorText = extractIntString(it.floor);
         const areaText = extractIntString(it.area);
 
-        if (selectedFloor !== 'all' && floorText !== String(selectedFloor)) return false;
+        if (!matchPopupFloorFilter(it.floor, selectedFloor)) return false;
         if (selectedArea !== 'all' && areaText !== String(selectedArea)) return false;
 
         return true;

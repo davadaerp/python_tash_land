@@ -9,13 +9,14 @@
     body {
       font-family: Arial, sans-serif;
       margin: 0;
-      padding: 0;
+      padding: 0 0 0px 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
       background-color: #f9f9f9;
     }
+
     h2 {
       font-size: 28px;
       color: #333;
@@ -437,10 +438,85 @@
     .confirm-close-btn:hover {
       background-color: #c82333;
     }
+
+    /* 페이징 */
+    .pagination-container {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: calc(100% - 40px);
+      max-width: 1140px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid #dcdcdc;
+      border-bottom: none;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+      z-index: 999;
+    }
+
+    .page-btn {
+      min-width: 38px;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid #d0d7de;
+      background: #fff;
+      color: #333;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      background-color: #007bff;
+      color: #fff;
+      border-color: #007bff;
+    }
+
+    .page-btn.active {
+      background-color: #007bff;
+      color: #fff;
+      border-color: #007bff;
+    }
+
+    .page-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background-color: #f2f2f2;
+    }
+
+    .page-info {
+      margin-left: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .page-size-select {
+      margin-left: 10px;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="/static/js/common.js"></script>
   <script>
+
+    let currentPage = 1;
+    let currentPageSize = 15;
+    let totalPages = 0;
+    let totalCount = 0;
 
     // DOM이 준비되면 window의 load 이벤트로 모든 폼 및 리소스가 완전히 로드될 때 실행합니다.
     window.onload = function() {
@@ -451,17 +527,28 @@
     };
 
     //
-    function fetchData() {
-      const selType = $('#sel_type').val();
-      let searchTitle = $('#locatadd_nm').val();
-      let dangiName = $('#dangiName').val();
+    function fetchData(page = currentPage) {
+      let userName = $('#userName').val();
+      let subscriptionFilter = $('#subscription_filter').val();
+
+      currentPage = page;
+      currentPageSize = parseInt($('#page-size').val(), 10) || 15;
+
       $('#loading').show();
       $('#noData').hide();
+      $('#errorMessage').hide();
       $('table').hide();
+      $('#pagination-container').hide();
+
       $.ajax({
-        url:  BASE_URL + '/api/users',
+        url: BASE_URL + '/api/users',
         method: 'GET',
-        data: { searchTitle: searchTitle, dangiName: dangiName },
+        data: {
+          userName: userName,
+          subscription_month: subscriptionFilter,
+          page: currentPage,
+          page_size: currentPageSize
+        },
         dataType: 'json',
         timeout: 5000,
         beforeSend: function () {
@@ -469,23 +556,36 @@
           $('#noData').hide();
           $('#errorMessage').hide();
           $('table').hide();
+          $('#pagination-container').hide();
         },
-        success: function (data) {
+        success: function (res) {
           $('#loading').hide();
-          if (data.length === 0) {
+
+          const items = res.items || [];
+          totalPages = res.total_pages || 0;
+          totalCount = res.total_count || 0;
+          currentPage = res.page || 1;
+          currentPageSize = res.page_size || 10;
+
+          if (items.length === 0) {
             $('#noData').show();
             $('#errorMessage').hide();
+            $('#pagination-container').hide();
+            $('#dataBody').empty();
           } else {
             $('#noData').hide();
             $('#errorMessage').hide();
             $('table').show();
-            renderTable(data);
+            renderTable(items, currentPage, currentPageSize);
+            renderPagination(currentPage, totalPages, totalCount, currentPageSize);
+            $('#pagination-container').show();
           }
-          // 업데이트: 검색 결과 건수를 #search-count에 출력
-          $("#result-count").text(data.length);
+
+          $("#result-count").text(totalCount);
         },
         error: function (xhr, status, error) {
           $('#loading').hide();
+          $('#pagination-container').hide();
           if (status === "timeout") {
             $('#errorMessage').text("서버 응답이 없습니다. 서버가 실행 중인지 확인하세요.").show();
           } else {
@@ -495,24 +595,26 @@
       });
     }
 
-    function renderTable(data) {
-      const sel_type = document.getElementById("sel_type").value; // .value로 값 가져오기
+    function renderTable(data, page = 1, pageSize = 10) {
       const tableBody = $('#dataBody');
       const statusMap = { active: '구독', request: '구독요청', cancelled: '구독취소' };
 
       tableBody.empty();
-      data.forEach((item, index) => {
-        const userId = item.user_id || item.id; // 제공 필드에 따라 둘 중 하나 사용
-        const humanStatus = statusMap[item.subscription_status] || item.subscription_status;
-        const statusStyle =
-              item.subscription_status === 'active'
-                ? 'style="color:#007bff; font-size:16px; font-weight:bold;"'
-                : item.subscription_status === 'cancelled'
-                  ? 'style="color:#dc3545; font-size:16px; font-weight:bold;"'
-                  : 'style="font-size:12px; font-weight:bold;"';
 
-        // 구독 개월수 select box
-        //"0m": "1주간(체험용)", "1m": "1개월(10만원)", "6m": "6개월(7만원)", "12m": "1년(10만원)"
+      const startNo = (page - 1) * pageSize;
+
+      data.forEach((item, index) => {
+        const displayNo = totalCount - startNo - index;
+        const userId = item.user_id || item.id;
+        const humanStatus = statusMap[item.subscription_status] || item.subscription_status;
+
+        const statusStyle =
+          item.subscription_status === 'active'
+            ? 'style="color:#007bff; font-size:16px; font-weight:bold;"'
+            : item.subscription_status === 'cancelled'
+              ? 'style="color:#dc3545; font-size:16px; font-weight:bold;"'
+              : 'style="font-size:12px; font-weight:bold;"';
+
         const monthOptions = [0, 1, 3, 6, 12].map(m => `
           <option value="${m}" ${item.subscription_month == m ? 'selected' : ''}>
             ${m === 0 ? '체험용' : `${m}개월`}
@@ -540,7 +642,6 @@
             </td>`;
         }
 
-        // (NEW) 문자 충전 상태/버튼
         const rechargeText = (item.recharge_status === 'request') ? '문자요청' : '-';
         const rechargeBtnTd = (item.recharge_status === 'request')
           ? `
@@ -555,24 +656,70 @@
 
         tableBody.append(`
           <tr>
-            <td class="center-align">${index}</td>
-            <td class="center-align">${item.user_name}</td>
-            <td class="center-align">${item.phone_number}</td>
-            <td class="center-align">${item.recharge_sms_count}</td>
-            <td class="center-align">${item.recharge_request_sms_count}</td>
+            <td class="center-align">${displayNo}</td>
+            <td class="center-align">${item.user_name || ''}</td>
+            <td class="center-align">${item.phone_number || ''}</td>
+            <td class="center-align">${item.recharge_sms_count || 0}</td>
+            <td class="center-align">${item.recharge_request_sms_count || 0}</td>
             <td class="center-align">${rechargeText}</td>
             ${rechargeBtnTd}
-            <td class="center-align">${item.subscription_start_date}</td>
+            <td class="center-align">${item.subscription_start_date || ''}</td>
             <td class="center-align">
               <select class="sub-month">
                 ${monthOptions}
               </select>
             </td>
-            <td class="center-align" ${statusStyle}>${humanStatus}</td>
+            <td class="center-align" ${statusStyle}>${humanStatus || ''}</td>
             ${actionTd}
           </tr>
         `);
       });
+    }
+    // 페이지이동
+    function renderPagination(page, totalPages, totalCount, pageSize) {
+      const pagination = $('#pagination');
+      const pageInfo = $('#page-info');
+      pagination.empty();
+
+      if (!totalPages || totalPages <= 0) {
+        pageInfo.text('');
+        return;
+      }
+
+      const makeBtn = (label, targetPage, disabled = false, active = false) => {
+        return `
+          <button class="page-btn ${active ? 'active' : ''}"
+                  ${disabled ? 'disabled' : ''}
+                  onclick="fetchData(${targetPage})">
+            ${label}
+          </button>
+        `;
+      };
+
+      // 처음 / 이전
+      pagination.append(makeBtn('⏮', 1, page === 1));
+      pagination.append(makeBtn('◀', page - 1, page === 1));
+
+      // 숫자 페이지 범위 계산
+      let startPage = Math.max(1, page - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+
+      if ((endPage - startPage) < 4) {
+        startPage = Math.max(1, endPage - 4);
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        pagination.append(makeBtn(i, i, false, i === page));
+      }
+
+      // 다음 / 끝
+      pagination.append(makeBtn('▶', page + 1, page === totalPages));
+      pagination.append(makeBtn('⏭', totalPages, page === totalPages));
+
+      const startRow = totalCount === 0 ? 0 : ((page - 1) * pageSize) + 1;
+      const endRow = Math.min(page * pageSize, totalCount);
+
+      pageInfo.text(` ${startRow}-${endRow} / 총 ${totalCount}건, ${page} / ${totalPages}페이지`);
     }
 
     // 구독 승인/취소 호출
@@ -633,6 +780,21 @@
     }
 
    document.addEventListener("DOMContentLoaded", function() {
+
+      document.getElementById('page-size').value = '15';
+      currentPageSize = 15;
+
+      // 페이지 변경시 이동추가
+      document.getElementById('page-size').addEventListener('change', function() {
+        currentPage = 1;
+        fetchData(1);
+      });
+      // 구독조건
+      document.getElementById('subscription_filter').addEventListener('change', function() {
+        currentPage = 1;
+        fetchData(1);
+      });
+
       // #search-btn 클릭 이벤트
       document.getElementById('search-btn').addEventListener('click', function() {
         // let searchTerm = document.getElementById('locatadd_nm').value.trim();
@@ -641,40 +803,27 @@
         //   document.getElementById('locatadd_nm').focus();
         //   return;
         // }
-        // let dangiName = document.getElementById('dangiName').value.trim();
-        // if (!dangiName) {
+        // let userName = document.getElementById('userName').value.trim();
+        // if (!userName) {
         //   alert("읍면동을 입력하세요.");
-        //   document.getElementById('dangiName').focus();
+        //   document.getElementById('userName').focus();
         //   return;
         // }
+        currentPage = 1;
         fetchData();
       });
       // 중개사 검색
-      document.getElementById('dangiName').addEventListener('keyup', function(event) {
+      document.getElementById('userName').addEventListener('keyup', function(event) {
         if (event.keyCode === 13) {
-            let dangiName = document.getElementById('dangiName').value.trim();
-            if (!dangiName) {
-              alert("중개사 읍명동을 입력하세요.");
-              document.getElementById('dangiName').focus();
+            let userName = document.getElementById('userName').value.trim();
+            if (!userName) {
+              alert("이름을 입력하세요.");
+              document.getElementById('userName').focus();
               return;
             }
             fetchData();
         }
       });
-      // #sel_type변경 이벤트
-      document.getElementById('sel_type').addEventListener('change', function() {
-          $('#dataBody').empty();
-          $('#result-count').text("0");
-          document.getElementById('dangiName').value = "";
-          //
-          if(this.value === "loaner") {
-              $('#dangiName').attr('placeholder', '지역을 입력하세요(서울등)');
-          } else {
-              // 상담사가 아닐 경우 기본값 또는 다른 값으로 설정할 수 있습니다.
-              $('#dangiName').attr('placeholder', '읍면동을 입력하세요');
-          }
-      });
-
       // 회원가입
       document.getElementById('register-btn').addEventListener('click', function() {
             const popupWidth = 1200;
@@ -722,18 +871,22 @@
   </h2>
   <div class="search-container">
     <div class="search-input-group">
-      <label for="sel_type" style="margin-right:1px;">구분:</label>
-      <select id="sel_type" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
-        <option value="realtor">전체</option>
-        <option value="loaner">이름</option>
+      <label for="subscription_filter" style="margin-right:1px;">구독조건:</label>
+      <select id="subscription_filter" style="margin-right:5px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+        <option value="">전체</option>
+        <option value="0">체험</option>
+        <option value="1">1개월</option>
+        <option value="3">3개월</option>
+        <option value="6">6개월</option>
+        <option value="12">12개월</option>
       </select>
-      <input type="text" id="dangiName" placeholder="사용자명을 입력하세요">
-      <!-- 건수 표시용 span 추가 -->
-<!--      <span id="result-count" style="margin-left:10px; font-weight:bold;">0</span>-->
+
+      <input type="text" id="userName" placeholder="사용자명을 입력하세요">
+
       <span id="result-count" style="margin-left: auto;">0</span>
       <button class="search-btn" id="search-btn">검색</button>
       <button class="register-btn" id="register-btn">회원가입</button>
-      <!-- 엑셀 버튼을 이미지 형태로 -->
+
       <button class="excel-btn" id="download-btn">
         <img src="excel_icon.png" alt="엑셀 저장" style="width:24px; height:24px; vertical-align: middle;">
       </button>
@@ -762,6 +915,18 @@
     <div id="loading" class="loading-message" style="display: none;">데이터 검색 중입니다...</div>
     <div id="noData" class="no-data-message">데이터를 검색해 주세요.</div>
     <div id="errorMessage" class="error-message" style="display: none; color: red; margin-top: 10px; text-align: center"></div>
+  </div>
+
+  <div class="pagination-container" id="pagination-container" style="display:none;">
+    <div id="pagination"></div>
+    <span class="page-info" id="page-info"></span>
+    <select id="page-size" class="page-size-select">
+      <option value="10">10개씩</option>
+      <option value="15" selected>15개씩</option>
+      <option value="20">20개씩</option>
+      <option value="30">30개씩</option>
+      <option value="50">50개씩</option>
+    </select>
   </div>
 </body>
 </html>

@@ -65,7 +65,7 @@ from pubdata.public_land_lawd_code_db_utils import get_lawd_by_code, get_lawd_by
 from auction.auction_db_utils import auction_read_db, auction_read_by_region
 from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
-    user_delete_record, user_cancel_record, user_update_exist_record
+    user_delete_record, user_cancel_record, user_update_exist_record, paging_user_read_db
 from master.user_wishlist_db_utils import (
     create_wishlist_table,
     wishlist_exists,
@@ -1051,17 +1051,45 @@ def user_register_cancel():
 
 @app.route('/api/users', methods=['GET'])
 def get_users_data():
-    searchTitle = request.args.get('searchTitle', '')   # 중개사 타이틀
-    userName = request.args.get('dangiName')           # 중개사주소
+    userName = request.args.get('userName', '').strip()
+    subscription_month = request.args.get('subscription_month', '').strip()
 
-    print(f"🔍 중개사: {searchTitle}, 사용자명: {userName}")
+    # 페이지 관련 파라미터
+    try:
+        page = int(request.args.get('page', 1))
+    except ValueError:
+        page = 1
 
-    data = user_read_db("", userName, "")
+    try:
+        page_size = int(request.args.get('page_size', 15))
+    except ValueError:
+        page_size = 15
 
-    print(data)
+    if page < 1:
+        page = 1
 
-    return jsonify(data)
+    # 허용 페이지 크기 제한
+    if page_size not in [10, 15, 20, 30, 50]:
+        page_size = 15
 
+    # subscription_month는 '' 이면 전체검색
+    subscription_month_value = None
+    if subscription_month != '':
+        try:
+            subscription_month_value = int(subscription_month)
+        except ValueError:
+            subscription_month_value = None
+
+    print(f"🔍 구독조건: {subscription_month_value}, 사용자명: {userName}, page={page}, page_size={page_size}")
+
+    result = paging_user_read_db(
+        userName=userName,
+        subscription_month=subscription_month_value,
+        page=page,
+        page_size=page_size
+    )
+
+    return jsonify(result)
 
 # 나에관심물건 관심물건(경매/공매) 데이타 조회
 @app.route('/api/user/wishlist', methods=['GET'])
@@ -1971,7 +1999,7 @@ def ext_tool(user_id):
     #===== 확장툴 접근
     # 아파트 국토부 실거래(내부 확장툴 접근)
     if menu == 'apt_real_deal':
-        return render_template("extool_apt_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key)
+        return render_template("extool_apt_real_deal.html", law_cd=law_cd, lawName=lawName, umdNm=umdNm, api_key=api_key, access_token=access_token)
     # 빌라 국토부 실거래(내부 확장툴 접근)
     if menu == 'villa_real_deal':
         return render_template("extool_villa_real_deal.html", law_cd=law_cd, lawName=lawName, region=region, sigungu=sigungu, umdNm=umdNm, access_token=access_token)
