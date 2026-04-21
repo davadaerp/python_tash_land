@@ -53,7 +53,8 @@ def create_auction_table():
                 dangi_name TEXT,
                 extra_info TEXT,
                 latitude TEXT,
-                longitude TEXT
+                longitude TEXT,
+                crawling_last_date TEXT
             )
         """)
         cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_eub_myeon_dong ON {TABLE_NAME} (eub_myeon_dong)")
@@ -114,12 +115,15 @@ def auction_insert_single(entry):
     #
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
+
+    crawling_last_date = entry.get("crawling_last_date") or datetime.today().strftime("%Y-%m-%d")
+
     insert_query = f"""INSERT INTO {TABLE_NAME} (
          case_number, category, address1, address2, region, sigungu_code, sigungu_name, 
          eub_myeon_dong, building, floor, building_m2, building_py, land_m2, land_py, 
          appraisal_price, min_price, sale_price, min_percent, sale_percent, 
-         pydanga_appraisal, pydanga_min, pydanga_sale, sales_date, dangi_name, extra_info, latitude, longitude
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+         pydanga_appraisal, pydanga_min, pydanga_sale, sales_date, dangi_name, extra_info, latitude, longitude, crawling_last_date
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
     try:
         cursor.execute(insert_query, (
             entry.get("case_number"),
@@ -148,7 +152,8 @@ def auction_insert_single(entry):
             entry.get("dangi_name"),
             entry.get("extra_info"),
             entry.get("latitude"),
-            entry.get("longitude")
+            entry.get("longitude"),
+            crawling_last_date
         ))
         conn.commit()
         print("단일 레코드 삽입 완료.")
@@ -508,6 +513,39 @@ def auction_fill_latlng_by_eub_myeon_dong(eub_myeon_dong: str, vworld_api_key: s
     print(f"[최종요약] {summary}")
     return summary
 
+# 마지막 처리된 crawling_last_date 를 가져오기
+def auction_get_last_crawling_final_date():
+    """
+    auction_data 테이블에서 마지막으로 처리된 crawling_last_date 를 반환합니다.
+    값이 없거나 테이블이 없으면 오늘 날짜를 반환합니다.
+    """
+    today_str = datetime.today().strftime("%Y-%m-%d")
+
+    conn = sqlite3.connect(DB_FILENAME)
+    cur = conn.cursor()
+
+    try:
+        #
+        cur.execute(f"""
+            SELECT crawling_last_date
+            FROM {TABLE_NAME}
+            WHERE crawling_last_date IS NOT NULL
+              AND TRIM(crawling_last_date) != ''
+            ORDER BY crawling_last_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+
+        if row and row[0]:
+            return row[0]
+
+        return today_str
+
+    except Exception as e:
+        print("최종 크롤링일자 조회 오류:", e)
+        return today_str
+    finally:
+        conn.close()
 
 # 테스트용 메인 실행부
 if __name__ == "__main__":

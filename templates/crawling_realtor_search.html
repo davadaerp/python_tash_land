@@ -489,8 +489,7 @@
       $('#noData').hide();
       $('table').hide();
       $.ajax({
-        url:  BASE_URL + '/api/realtor',
-        //url: 'https://erp-dev.bacchuserp.com/api'
+        url:  '/api/realtor',
         method: 'GET',
         data: { lawdCd: selectedLawdCd, selType:selType, searchTitle: searchTitle, dangiName: dangiName },
         dataType: 'json',

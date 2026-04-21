@@ -2659,19 +2659,17 @@
           경매
         </button>
 
-        <!--
         <div id="deal-auction-distance-wrap" class="npl-control-type-group" style="display: inline-block;">
           <label for="deal-auction-distance-select" class="map-select-label">
             <span class="map-icon">📏</span> 반경
           </label>
           <select id="deal-auction-distance-select">
-            <option value="100" selected>100M</option>
-            <option value="300">300M</option>
+            <option value="300" selected>300M</option>
             <option value="500">500M</option>
-            <option value="1000">1K</option>
+            <option value="1000">1KM</option>
+            <option value="2000">2K</option>
           </select>
         </div>
-        -->
 
         <div id="measure-wrap" style="display:inline-flex; align-items:center; gap:8px; margin-left:auto; padding-right:30px;">
           <button id="measure-distance-btn" type="button" style="
@@ -2793,7 +2791,7 @@
     // =========================
     // [추가] 외부 위경도 기준 반경 필터 상태
     // =========================
-    let currentDealAuctionDistanceMeters = 100;   // default 100M
+    let currentDealAuctionDistanceMeters = 300;   // default 300M
 
     // =========================
     // [추가] LEFT 패널 슬라이드 토글 설정
@@ -3698,8 +3696,117 @@
         plotByType(selectedType);
       });
     }
+
+    function getDealAuctionReferenceLatLng() {
+      const datasetLat = parseFloat(document.body?.dataset?.wishlistSelectedLat || 0);
+      const datasetLng = parseFloat(document.body?.dataset?.wishlistSelectedLng || 0);
+      if (datasetLat && datasetLng) {
+        return { lat: datasetLat, lng: datasetLng, source: 'dataset' };
+      }
+
+      const requestedLat = parseFloat(initialRequestedLatLng?.lat || 0);
+      const requestedLng = parseFloat(initialRequestedLatLng?.lng || 0);
+      if (requestedLat && requestedLng) {
+        return { lat: requestedLat, lng: requestedLng, source: 'initialRequestedLatLng' };
+      }
+
+      const baseLat = parseFloat(currentNplDealAuctionBaseRow?.latitude || 0);
+      const baseLng = parseFloat(currentNplDealAuctionBaseRow?.longitude || 0);
+      if (baseLat && baseLng) {
+        return { lat: baseLat, lng: baseLng, source: 'currentNplDealAuctionBaseRow' };
+      }
+
+      return null;
+    }
+
+    function calculateDistanceMeters(lat1, lng1, lat2, lng2) {
+      const toRad = (deg) => deg * Math.PI / 180;
+      const R = 6371000;
+
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function filterDealAuctionRowsByDistance(rows) {
+      const reference = getDealAuctionReferenceLatLng();
+      if (!reference) {
+        return Array.isArray(rows) ? rows : [];
+      }
+
+      const radiusMeters = parseInt(currentDealAuctionDistanceMeters, 10) || 300;
+
+      return (Array.isArray(rows) ? rows : []).filter(item => {
+        const raw = item?.raw || {};
+
+        const latitude = parseFloat(
+          item?.latitude ??
+          item?.lat ??
+          raw?.latitude ??
+          raw?.lat ??
+          raw?.y ??
+          0
+        ) || 0;
+
+        const longitude = parseFloat(
+          item?.longitude ??
+          item?.lng ??
+          item?.lon ??
+          raw?.longitude ??
+          raw?.lng ??
+          raw?.lon ??
+          raw?.x ??
+          0
+        ) || 0;
+
+        if (!(latitude > 0 && longitude > 0)) {
+          return false;
+        }
+
+        const distance = calculateDistanceMeters(reference.lat, reference.lng, latitude, longitude);
+        return distance <= radiusMeters;
+      });
+    }
+
+    // 거리변경 선택
+    function bindDealAuctionDistanceSelect() {
+      const selectEl = document.getElementById('deal-auction-distance-select');
+      if (!selectEl) return;
+
+      currentDealAuctionDistanceMeters = parseInt(selectEl.value || '100', 10) || 300;
+
+      selectEl.addEventListener('change', function() {
+        currentDealAuctionDistanceMeters = parseInt(this.value || '100', 10) || 300;
+
+        const typeSelectEl = document.getElementById('deal-type-filter-select');
+        const selectedType = typeSelectEl?.value || 'all';
+
+        if (selectedType === 'hide') {
+          clearDealAuctionMarkers();
+          return;
+        }
+
+        const hasPopupData =
+          (currentNplDealRows && currentNplDealRows.length) ||
+          (currentNplAuctionRows && currentNplAuctionRows.length);
+
+        if (hasPopupData) {
+          setNplDealAuctionMapData(selectedType);
+        }
+      });
+    }
+
     // 유형선택(실거래,경매) 초기 필터 버튼 상태 설정 (전체 활성화)
     bindDealTypeFilterSelect();
+    // 거리변경 선택
+    bindDealAuctionDistanceSelect();
 
     // 상단 실거래/경매 버튼
     // 현재 상단에 선택된 위치/법정코드 기준으로 조회
@@ -9140,6 +9247,10 @@
             : (currentNplAuctionRows || []))
         ];
       }
+
+      // 거리적용
+      const beforeDistanceFilterCount = rows.length;
+      rows = filterDealAuctionRowsByDistance(rows);
 
       // [수정] address fallback 구성용 기본 지역 텍스트
       // currentNplDealAuctionBaseRow 가 없을 때도 selectedFullNm / selectedUmdNm 으로 보완

@@ -434,6 +434,11 @@
       }
     }
 
+    // ===== (추가) 영수증 처리 =====
+    function handleReceipt() {
+      alert("영수증 처리합니다.");
+    }
+
     // ===== 탭 라우팅 =====
     const loaders = {
       member: loadMember,
@@ -507,13 +512,30 @@
       <tr>
         <th>순번</th>
         <th>구분</th>
-        <th>결재일시</th>
+        <th>결재시작/만료일자</th>
+        <th>잔여일</th>
         <th>결재금액</th>
+        <th>영수증</th>
       </tr>
-      <tr><td>1</td><td>구독</td><td>2025-06-01 10:15</td><td>30,000원</td></tr>
-      <tr><td>2</td><td>문자</td><td>2025-06-03 14:20</td><td>5,000원</td></tr>
-      <tr><td>3</td><td>알림톡</td><td>2025-06-05 09:45</td><td>8,000원</td></tr>
-      <tr><td>4</td><td>등기부등본</td><td>2025-06-10 16:30</td><td>1,000원</td></tr>
+      <tr>
+        <td>1</td><td>구독</td><td>2025-06-01 10:15</td><td>30일</td><td>30,000원</td>
+        <td><button onclick="handleReceipt()">영수증</button></td>
+      </tr>
+
+      <tr>
+        <td>2</td><td>문자</td><td>2025-06-03 14:20</td><td>30일</td><td>5,000원</td>
+        <td><button onclick="handleReceipt()">영수증</button></td>
+      </tr>
+
+      <tr>
+        <td>3</td><td>알림톡</td><td>2025-06-05 09:45</td><td>30일</td><td>8,000원</td>
+        <td><button onclick="handleReceipt()">영수증</button></td>
+      </tr>
+
+      <tr>
+        <td>4</td><td>등기부등본</td><td>2025-06-10 16:30</td><td>30일</td><td>1,000원</td>
+        <td><button onclick="handleReceipt()">영수증</button></td>
+      </tr>
     </table>
   </div>
 

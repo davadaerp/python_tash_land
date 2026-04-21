@@ -181,7 +181,7 @@
         </div>
     </main>
 </div>
-
+<script src="/static/js/common.js"></script>
 <script>
     let currentData = [];
     let processedStats = [];
@@ -323,7 +323,7 @@
                 <tr id="stats-row-${index}">
                     <td><span class="dong-link" onclick="showDetail('${s.name}', ${index})">${s.name}</span></td>
                     <td><span class="badge-count">${s.count}</span></td>
-                    <td><strong>${formatKoreanPrice(avgMinPrice)}</strong></td>
+                    <td><strong>${formatKoreanAmount(avgMinPrice)}</strong></td>
                     <td>${avgBuildingM2}㎡</td>
                     <td>${s.r1}</td>
                     <td>${s.r2}</td>
@@ -418,9 +418,9 @@
                 <tr>
                     <td style="text-align:left; font-weight:600;">${d.category}</td>
                     <td>${d.building_py ? d.building_py.toFixed(1) + '평' : '-'}</td>
-                    <td><strong>${formatKoreanPrice(d.min_price)}</strong></td>
-                    <td>${d.appraisal_price > 0 ? formatKoreanPrice(d.appraisal_price) : '-'}</td>
-                    <td>${d.sale_price > 0 ? formatKoreanPrice(d.sale_price) : '-'}</td>
+                    <td><strong>${formatKoreanAmount(d.min_price)}</strong></td>
+                    <td>${d.appraisal_price > 0 ? formatKoreanAmount(d.appraisal_price) : '-'}</td>
+                    <td>${d.sale_price > 0 ? formatKoreanAmount(d.sale_price) : '-'}</td>
                     <td>${d.floor}</td>
                     <td style="text-align:left;">${d.dangi_name}</td>
                     <td style="font-size:0.75rem;">${d.sales_date}</td>
@@ -693,7 +693,7 @@
                 floor: item.floor ? `${item.floor}` : '',
                 area: area ? `${area.toFixed(1)}평` : "",
                 unitPrice: unitPrice > 0 ? unitPrice.toLocaleString() : "",
-                price: formatAuctionKoreanAmount(minPriceWon),
+                price: formatKoreanAmount(minPriceWon),
                 latitude: item.latitude || 0,
                 longitude: item.longitude || 0
             };
@@ -732,38 +732,14 @@
         }
     }
 
-    // 경매 금액을 '1.2억' 형태로 변환
-    function formatAuctionKoreanAmount(amount) {
-        amount = Number(amount || 0);
+    // 금액을 '1.2억' 형태로 변환해주는 보조 함수
+    function formatKoreanAmount(amount) {
 
-        if (amount >= 100000000) {
-            const eok = Math.floor(amount / 100000000);
-            const remain = amount % 100000000;
-            const man = Math.floor(remain / 10000);
-            return man > 0 ? `${eok}억 ${man.toLocaleString()}만` : `${eok}억`;
-        } else if (amount >= 10000) {
-            return `${Math.floor(amount / 10000).toLocaleString()}만`;
-        }
+        const avgAmount = amount;
+        const avgPrice =  convertNumberToKorean2(avgAmount);
 
-        return amount.toLocaleString();
-}
-
-    function formatKoreanPrice(amount) {
-        amount = Number(amount || 0);
-
-        if (amount >= 100000000) {
-            const eok = Math.floor(amount / 100000000);
-            const remain = amount % 100000000;
-            const man = Math.floor(remain / 10000);
-
-            if (man > 0) {
-                return `${eok}억 ${man.toLocaleString()}만`;
-            }
-            return `${eok}억`;
-        } else if (amount >= 10000) {
-            return `${Math.floor(amount / 10000).toLocaleString()}만`;
-        }
-        return amount.toLocaleString();
+        console.log('== formatKoreanAmount: ', avgAmount, avgPrice);
+        return avgPrice;
     }
 
     function downloadExcel() {

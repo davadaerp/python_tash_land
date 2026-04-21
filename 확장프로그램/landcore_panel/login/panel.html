@@ -189,10 +189,15 @@
 
     <!-- 부동산 중개사 섹션 -->
     <div class="top-agencies-section">
-      <button type="button" id="top-agencies-toggle" class="section-header top-agencies-toggle" aria-expanded="false">
-        <span>🏠🧑‍💼 중개사 상위목록</span>
-        <span id="top-agencies-toggle-icon" class="top-agencies-toggle-icon">▼</span>
-      </button>
+      <div class="top-agencies-header-row" style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="top-agencies-toggle" class="section-header top-agencies-toggle" style="flex:1;" aria-expanded="false">
+          <span>🏠🧑‍💼 중개사 상위목록</span>
+          <span id="top-agencies-toggle-icon" class="top-agencies-toggle-icon">▼</span>
+        </button>
+        <!--
+        <button type="button" id="top-agencies-download-btn" class="section-header top-agencies-download-btn" style="flex:0 0 auto; padding:0 12px; white-space:nowrap;">📥 중개사다운</button>
+        -->
+      </div>
 
       <div id="top-agencies" class="top-agencies-list hidden">
       </div>

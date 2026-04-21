@@ -573,43 +573,6 @@
       color: #0f172a;
       font-weight: 900;
     }
-
-    /* [추가] 클러스터용 원 스타일 */
-    .cluster-marker-s,
-    .cluster-marker-m,
-    .cluster-marker-l {
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border-radius:50%;
-      color:#fff;
-      font-weight:800;
-      box-shadow:0 4px 14px rgba(0,0,0,0.22);
-      border:3px solid rgba(255,255,255,0.95);
-      user-select:none;
-    }
-
-    .cluster-marker-s {
-      width:40px;
-      height:40px;
-      font-size:13px;
-      background:linear-gradient(135deg, #60a5fa, #2563eb);
-    }
-
-    .cluster-marker-m {
-      width:50px;
-      height:50px;
-      font-size:15px;
-      background:linear-gradient(135deg, #34d399, #059669);
-    }
-
-    .cluster-marker-l {
-      width:60px;
-      height:60px;
-      font-size:17px;
-      background:linear-gradient(135deg, #f97316, #ef4444);
-    }
-
   </style>
 </head>
 <body>
@@ -625,7 +588,7 @@
     ========================= -->
     <div id="commercial-nearby-wrap" class="commercial-nearby-wrap" style="display:none;">
       <button id="commercial-nearby-btn" type="button" class="commercial-nearby-btn">
-        주변
+        주변상권
       </button>
 
       <div id="commercial-nearby-panel" class="commercial-nearby-panel">
@@ -655,7 +618,7 @@
     <div class="legend">
       <span class="legend-marker" style="background:#ef4444;"></span><span>경매</span>
     </div>
-    <!-- [추가] 상권분석 버튼 -->
+    <!-- [추가] 상권목록 버튼 -->
     <button id="commercial-area-btn" style="
       padding:6px 12px;
       border:1px solid #2563eb;
@@ -666,7 +629,7 @@
       cursor:pointer;
       display:none;  /* 🔥 기본 숨김 */
     ">
-      상권분석
+      상권목록
     </button>
 
     <!-- [추가] 거리재기 버튼 그룹 -->
@@ -835,100 +798,234 @@
       });
     }
 
-    // 2. 마커 생성 시 map 옵션 제거 (클러스터러가 제어하게 함)
     function createCountMarker(group) {
       const meta = typeMeta(group.items);
+      const count = group.items.length;
       const pos = new naver.maps.LatLng(group.lat, group.lng);
 
       const marker = new naver.maps.Marker({
         position: pos,
+        map,
         icon: {
-          content: `<div class="count-marker ${meta.marker}">${group.items.length}</div>`,
-          anchor: new naver.maps.Point(17, 17)
+          content: `<div class="count-marker ${meta.marker}" title="${group.address}">${count}</div>`,
+          anchor: new naver.maps.Point(17, 17) /* 원 34px 기준 */
         }
       });
 
-      marker.__group = group;
+      // 클러스터 해제 상태에서는 기존처럼 개별 팝업 오픈
+      marker.__groupData = group;
+      marker.__groupMeta = meta;
+      marker.__count = count;
       marker.addListener('click', () => openCustomPopup(group, pos));
-      markers.push(marker);
 
+      markers.push(marker);
+      bounds.extend(pos);
       return marker;
     }
 
-    // [추가] 기존 마커 및 클러스터러를 완전히 지우는 함수
-    function clearMarkers() {
-        if (clusterer) {
-          clusterer.setMap(null);
-          clusterer = null;
-        }
-
-        markers.forEach(marker => {
-          if (marker) marker.setMap(null);
-        });
-        markers = [];
+    function clearMarkerClusterer() {
+      if (!clusterer) return;
+      try {
+        clusterer.setMap(null);
+      } catch (e) {
+        console.warn('clusterer clear failed:', e);
+      }
+      clusterer = null;
     }
 
-    function initClusterer() {
-      if (!markers.length) return;
+    function openClusterCustomPopup(cluster) {
+      if (!cluster) return;
+
+      const clusterMembers = getClusterMembersSafe(cluster);
+
+      if (!Array.isArray(clusterMembers) || clusterMembers.length === 0) return;
+
+      const mergedItems = [];
+      const addressMap = new Map();
+      let latSum = 0;
+      let lngSum = 0;
+      let posCount = 0;
+
+      clusterMembers.forEach(marker => {
+        const group = marker?.__groupData;
+        if (!group) return;
+
+        if (Array.isArray(group.items)) {
+          mergedItems.push(...group.items);
+        }
+
+        const addrKey = (group.address || '').trim();
+        if (addrKey && !addressMap.has(addrKey)) {
+          addressMap.set(addrKey, true);
+        }
+
+        const markerPos = typeof marker.getPosition === 'function' ? marker.getPosition() : null;
+        if (markerPos) {
+          const lat = typeof markerPos.y === 'function' ? markerPos.y() : markerPos.lat();
+          const lng = typeof markerPos.x === 'function' ? markerPos.x() : markerPos.lng();
+          if (isFinite(lat) && isFinite(lng)) {
+            latSum += lat;
+            lngSum += lng;
+            posCount += 1;
+          }
+        }
+      });
+
+      if (!mergedItems.length) return;
+
+      const clusterAddressList = Array.from(addressMap.keys());
+      const clusterAddress = clusterAddressList.length <= 1
+        ? (clusterAddressList[0] || '클러스터 목록')
+        : `${clusterAddressList[0]} 외 ${clusterAddressList.length - 1}곳`;
+
+      let position = null;
+      if (typeof cluster.getCenter === 'function') {
+        position = cluster.getCenter();
+      }
+      if (!position && posCount > 0) {
+        position = new naver.maps.LatLng(latSum / posCount, lngSum / posCount);
+      }
+      if (!position) {
+        const firstMarker = clusterMembers[0];
+        position = firstMarker && typeof firstMarker.getPosition === 'function'
+          ? firstMarker.getPosition()
+          : null;
+      }
+      if (!position) return;
+
+      openCustomPopup({
+        key: `cluster_${Date.now()}`,
+        items: mergedItems,
+        lat: posCount > 0 ? (latSum / posCount) : 0,
+        lng: posCount > 0 ? (lngSum / posCount) : 0,
+        address: clusterAddress
+      }, position);
+    }
+
+    function createDealAuctionClusterer() {
+      clearMarkerClusterer();
+      if (!Array.isArray(markers) || markers.length === 0) return;
 
       clusterer = new MarkerClustering({
         minClusterSize: 2,
         maxZoom: 16,
         map: map,
         markers: markers,
-        disableClickZoom: false,
-        gridSize: 80,
-        icons: [
-          {
-            content: '<div class="cluster-marker-s"></div>',
-            anchor: new naver.maps.Point(20, 20)
-          },
-          {
-            content: '<div class="cluster-marker-m"></div>',
-            anchor: new naver.maps.Point(25, 25)
-          },
-          {
-            content: '<div class="cluster-marker-l"></div>',
-            anchor: new naver.maps.Point(30, 30)
-          }
-        ],
-        indexGenerator: [10, 30, 100],
+        disableClickZoom: true,
+        gridSize: 140,
+        icons: [{
+          content: '<div class="count-marker marker-mixed cluster-marker"></div>',
+          size: new naver.maps.Size(40, 40),
+          anchor: new naver.maps.Point(20, 20)
+        }],
+        indexGenerator: [10, 30, 50, 100, 200],
         stylingFunction: function(clusterMarker, count) {
-          const el = clusterMarker.getElement();
+          const wrapperEl = clusterMarker.getElement();
+          const el = wrapperEl?.firstElementChild || wrapperEl;
           if (!el) return;
 
-          const div = el.querySelector('div');
-          if (!div) return;
+          const groupedMarkers = getClusterMembersSafe(clusterMarker);
+          clusterMarker.__clusterMembers = groupedMarkers;
 
-          div.textContent = count;
+          const hasReal = groupedMarkers.some(marker => marker?.__groupData?.items?.some(it => it.type === 'real'));
+          const hasAuction = groupedMarkers.some(marker => marker?.__groupData?.items?.some(it => it.type === 'auction'));
+
+          el.innerHTML = String(count);
+          el.className = 'count-marker cluster-marker';
+          el.style.pointerEvents = 'auto';
+          el.onclick = null;
+          el.addEventListener('click', function(evt) {
+            if (evt) {
+              evt.preventDefault();
+              evt.stopPropagation();
+              evt.stopImmediatePropagation();
+            }
+            openClusterCustomPopup(clusterMarker);
+            return false;
+          }, { capture: true });
+
+          if (hasReal && hasAuction) {
+            el.classList.add('marker-mixed');
+          } else if (hasReal) {
+            el.classList.add('marker-real');
+          } else if (hasAuction) {
+            el.classList.add('marker-auction');
+          } else {
+            el.classList.add('marker-mixed');
+          }
+
+          if (count >= 100) {
+            el.style.width = '52px';
+            el.style.height = '52px';
+            el.style.fontSize = '16px';
+          } else if (count >= 30) {
+            el.style.width = '44px';
+            el.style.height = '44px';
+            el.style.fontSize = '15px';
+          } else {
+            el.style.width = '38px';
+            el.style.height = '38px';
+            el.style.fontSize = '14px';
+          }
         }
+      });
+
+      naver.maps.Event.addListener(clusterer, 'click', function(cluster) {
+        openClusterCustomPopup(cluster);
+      });
+      naver.maps.Event.addListener(clusterer, 'clusterclick', function(cluster) {
+        openClusterCustomPopup(cluster);
       });
     }
 
-    function updateMarkers(groupedData) {
-      clearMarkers();
+    // 밴처인증 법인(정책자금 인증=> 소프트웨어개발업: 상가나 취득세 이점)
+    function getClusterMembersSafe(clusterLike) {
+      if (!clusterLike) return [];
 
-      if (!Array.isArray(groupedData) || !groupedData.length) return;
-
-      bounds = new naver.maps.LatLngBounds();
-
-      groupedData.forEach(group => {
-        if (!group || !group.lat || !group.lng) return;
-
-        createCountMarker(group);
-        bounds.extend(new naver.maps.LatLng(group.lat, group.lng));
-      });
-
-      initClusterer();
-
-      if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, {
-          top: 40,
-          right: 40,
-          bottom: 40,
-          left: 40
-        });
+      if (typeof clusterLike.getClusterMember === 'function') {
+        const members = clusterLike.getClusterMember();
+        if (Array.isArray(members) && members.length) return members;
       }
+
+      if (typeof clusterLike.getMarkers === 'function') {
+        const members = clusterLike.getMarkers();
+        if (Array.isArray(members) && members.length) return members;
+      }
+
+      if (Array.isArray(clusterLike._clusterMember) && clusterLike._clusterMember.length) {
+        return clusterLike._clusterMember;
+      }
+
+      if (Array.isArray(clusterLike._markers) && clusterLike._markers.length) {
+        return clusterLike._markers;
+      }
+
+      const nestedCluster = clusterLike._cluster || clusterLike.__cluster || clusterLike.cluster || null;
+      if (nestedCluster && nestedCluster !== clusterLike) {
+        const nestedMembers = getClusterMembersSafe(nestedCluster);
+        if (Array.isArray(nestedMembers) && nestedMembers.length) return nestedMembers;
+      }
+
+      if (clusterer) {
+        const candidateLists = [];
+        if (Array.isArray(clusterer._clusters)) candidateLists.push(clusterer._clusters);
+        if (Array.isArray(clusterer._clusterList)) candidateLists.push(clusterer._clusterList);
+        if (Array.isArray(clusterer.clusters)) candidateLists.push(clusterer.clusters);
+
+        for (const list of candidateLists) {
+          for (const c of list) {
+            if (!c) continue;
+
+            const cMarker = c._clusterMarker || c._marker || c.clusterMarker || null;
+            if (c === clusterLike || cMarker === clusterLike) {
+              const nestedMembers = getClusterMembersSafe(c);
+              if (Array.isArray(nestedMembers) && nestedMembers.length) return nestedMembers;
+            }
+          }
+        }
+      }
+
+      return [];
     }
 
     /* 행 HTML 생성 (선택 필터에 맞게) */
@@ -1351,11 +1448,11 @@
 
     /* ===== 렌더링 파이프라인 ===== */
     function plotByType(type) {
-      clearMarkers();
-      if (currentOverlay) {
-        currentOverlay.setMap(null);
-        currentOverlay = null;
-      }
+      clearMarkerClusterer();
+      markers.forEach(m => m.setMap(null));
+      markers = [];
+      bounds = new naver.maps.LatLngBounds();
+      if (currentOverlay) { currentOverlay.setMap(null); currentOverlay = null; }
 
       if (!Array.isArray(addresses) || addresses.length === 0) return;
 
@@ -1366,18 +1463,16 @@
 
       let doneCount = 0;
       const total = groups.length;
-      const resolvedGroups = [];
-
       groups.forEach(g => {
         geocodeIfNeeded(g, (result) => {
           doneCount++;
-
-          if (result && result.lat && result.lng) {
-            resolvedGroups.push(result);
+          if (result) {
+            createCountMarker(g);
           }
 
-          if (doneCount === total) {
-            updateMarkers(resolvedGroups);
+          if (doneCount === total && markers.length) {
+            createDealAuctionClusterer();
+            map.fitBounds(bounds);
           }
         });
       });
@@ -2193,6 +2288,8 @@
 
     // 실거래,경매관련 데이타 삭제함
     function clearDealAuctionMarkers() {
+      clearMarkerClusterer();
+
       if (Array.isArray(markers)) {
         markers.forEach(marker => {
           if (marker && typeof marker.setMap === "function") {

@@ -1,7 +1,6 @@
 
-    //BASE_URL = 'https://erp-dev.bacchuserp.com/ts/';
     //BASE_URL = 'https://www.landcore.co.kr';
-    BASE_URL = 'http://127.0.0.1:5000';
+    //BASE_URL = 'http://127.0.0.1:5000';
 
     // 자동완성 공통필드
     let selectedLawdCd = "";
@@ -206,11 +205,11 @@
 
     /**
      * 숫자를 한글 단위 또는 천 단위 콤마 형식으로 변환합니다.
-     * - 억 단위(>=100,000,000): “1.65억” 형식 (소수점 첫째자리까지)
-     * - 만 단위 이상 억 미만: “6천5백”, “6천” 형식
-     * - 만 단위 이하: “900만” 형식
-     * - 천 단위 이하: “1,000”, “900” 식 콤마 표시
-     * - null 또는 undefined 입력 시 “0” 반환
+     * - 억 단위(>=100,000,000): "1.65억" 형식 (소수점 최대 둘째자리, 불필요한 0 제거)
+     * - 1천만 이상 1억 미만: "6천5백", "6천" 형식
+     * - 100만 이상 1천만 미만: "900만", "100만" 형식
+     * - 100만 미만: "1,000", "900" 식 콤마 표시
+     * - null, undefined 또는 숫자 변환 불가 시 "0" 반환
      */
     function convertNumberToKorean2(amount) {
         if (amount === null || amount === undefined) return "0";
@@ -225,9 +224,9 @@
             // 억 단위는 소수 첫째 자리까지
             return `${(num / 100_000_000).toFixed(2).replace(/\.?0+$/, '')}억`;
         } else if (num >= 10_000_000) {
-            const 천 = Math.floor(num / 10_000 / 10); // 만 단위 기준으로 천 계산
-            const 백 = Math.floor((num / 10_000) % 10); // 천 이하 자리 백
-            return 백 > 0 ? `${천}천${백}백` : `${천}천`;
+            const 천 = Math.floor(num / 10_000_000);          // 천만 단위
+            const 백 = Math.floor((num % 10_000_000) / 1_000_000); // 백만 단위
+            return 백 > 0 ? `${천}천 ${백}백` : `${천}천`;
         } else if (num >= 1_000_000) {
             // 100만 이상은 "900만" 식
             return `${Math.floor(num / 1_000_000)}00만`;
@@ -271,7 +270,7 @@
     async function geocodeVWorld(address) {
       try {
         const res = await fetch(
-          `${BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
+          `/api/geocode?address=${encodeURIComponent(address)}`,
           { credentials: 'include' }
         );
         if (!res.ok) {

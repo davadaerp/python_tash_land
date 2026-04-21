@@ -10,37 +10,16 @@ import re
 import json
 import os
 #
-from auction_db_utils import auction_save_to_sqlite
+from auction_db_utils import auction_save_to_sqlite, auction_get_last_crawling_final_date
+from common.vworld_utils import VWorldGeocoding
 from config import AUCTION_DB_PATH, MAP_API_KEY, VWORLD_URL
-
-# 저장파일명
-last_file_name = os.path.join(AUCTION_DB_PATH, "last_auction_date.txt")
+from pubdata.public_land_lawd_code_db_utils import get_lawd_by_name
 
 # ------------------------------
-# 텍스트 파일에서 마지막 날짜를 읽어오는 함수
-def get_last_sale_date():
-    if os.path.exists(last_file_name):
-        with open(last_file_name, "r", encoding="utf-8") as f:
-            date_str = f.read().strip()
-            if date_str:
-                return date_str
-    return None
-
-# 마지막 날짜를 텍스트 파일에 저장하는 함수
-def save_last_sale_date(date_str):
-    with open(last_file_name, "w", encoding="utf-8") as f:
-        f.write(date_str)
-# ------------------------------
-
 # 스크립트 시작 시 현재 날짜 기준으로 sale_edate를 설정하고,
-# 이전에 저장된 마지막 날짜가 있으면 sale_sdate에 할당, 없으면 현재 날짜로 처리
+# sale_sdate 는 DB에 저장된 마지막 crawling_last_date 를 기준으로 가져옵니다.
 today = datetime.today().strftime("%Y-%m-%d")
-last_sale_date = get_last_sale_date()
-if last_sale_date:
-    sale_sdate = last_sale_date
-else:
-    sale_sdate = today
-    #
+sale_sdate = auction_get_last_crawling_final_date()
 sale_edate = today
 # ------------------------------
 
@@ -52,7 +31,6 @@ BATCH_SIZE = 500     # 레코드 1000건마다 저장
 page_list = "100"
 data_list = []
 saved_count = 0    # 누적 저장 건수
-map_api_key = "AIzaSyBzacpsf9Cw3CRRqWXUHbHkRDNbYlaXGCI"    # 구글맴 api_key
 
 # 팝업 닫기 함수
 def close_popups(driver):
@@ -319,48 +297,6 @@ def navigate_pages(driver, total_records):
             print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
             break
 
-# 위.경도 가져오기..
-# 발급받은 API Key
-def get_lat_lng(address: str) -> tuple[float, float]:
-    """
-    vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
-    :param address: 조회할 도로명 주소 문자열
-    :return: (latitude, longitude)
-    :raises Exception: API 오류 또는 좌표 미발견 시
-    """
-    #url = "https://api.vworld.kr/req/address"
-    url = VWORLD_URL
-    params = {
-        "service": "address",
-        "request": "getcoord",  # 좌표 변환 요청
-        "format": "json",  # JSON 응답
-        "crs": "epsg:4326",  # WGS84 좌표계
-        "type": "parcel",  # road: 도로명, parcel: 지번
-        "address": address,
-        "key": MAP_API_KEY
-    }
-
-    resp = requests.get(url, params=params, timeout=5)
-    resp.raise_for_status()
-
-    data = resp.json()
-    # 응답 구조: data["response"]["status"] == "OK" 인지 확인
-    if data.get("response", {}).get("status") != "OK":
-        # raise Exception(f"API error: {data.get('response', {}).get('error', 'Unknown error')}")
-        return 0.0, 0.0
-
-    # 좌표는 data["response"]["result"]["point"]["y"], ["x"]
-    result = data["response"]["result"]
-    point = result.get("point")
-    if not point or "x" not in point or "y" not in point:
-        # raise Exception("좌표를 찾을 수 없습니다.")
-        return 0.0, 0.0
-
-    lat = float(point["y"])
-    lng = float(point["x"])
-    return lat, lng
-
-
 # 동,층정보 가져오기
 def extract_building_floor(address):
     # 동 앞 숫자 추출
@@ -451,19 +387,37 @@ def extract_info(row_text, idx):
         #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
 
         # 법정코드(시군구) 및 읍면동 가져오기
-        sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
-        # None 값을 빈 문자열로 변환하여 출력
-        # print(f"{idx:<5}"
-        #       f"{address1:<30}"
-        #       f"{sido_code if sido_code else '':<10}"
-        #       f"{sido_name if sido_name else '':<10}"
-        #       f"{sigungu_code if sigungu_code else '':<10}"
-        #       f"{sigungu_name if sigungu_name else '':<10}"
-        #       f"{eub_myeon_dong if eub_myeon_dong else '없음':<10}")
+        #sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
+
+        # ------------------------------------------------------------
+        # 11. 법정동 코드
+        region = ""
+        sigungu_code = ""
+        sigungu_name = ""
+        umd_name = ""
+
+        # 필요시 다시 활성화
+        try:
+            region_info = extract_region_code(address1)
+            region = region_info.get("region", "")
+            sigungu_code = region_info.get("sigungu_code", "")
+            sigungu_name = region_info.get("sigungu_name", "")
+            umd_name = region_info.get("umd_name", "")
+        except Exception as e:
+            print(f"법정동 코드 파싱 오류 idx={idx}: {e}")
+
+        # ------------------------------------------------------------
+        # 12. 위도 / 경도
+        latitude = "0"
+        longitude = "0"
 
         # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등)
-        latitude, longitude = get_lat_lng(address1)
-        print(f"주소: {address1}, 위도: {latitude}, 경도: {longitude}")
+        # param address_type: 주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
+        try:
+            geo_service = VWorldGeocoding(MAP_API_KEY)
+            latitude, longitude = geo_service.get_lat_lng(address1, "parcel")
+        except Exception as e:
+            print(f"좌표 변환 오류 idx={idx}: {e}")
 
         # 데이터 저장
         # data_entry = {
@@ -502,7 +456,7 @@ def extract_info(row_text, idx):
             "region": region,
             "sigungu_code": sigungu_code,
             "sigungu_name": sigungu_name,
-            "eub_myeon_dong": eub_myeon_dong,
+            "eub_myeon_dong": umd_name,
             "building": building,
             "floor": floor,
             "building_m2": building_m2,
@@ -544,6 +498,38 @@ def load_json_data():
 
 # 시도,시군구,읍면동 파싱처리
 def extract_region_code(address):
+
+    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+    # ---------------------------------------------------------
+    # 리턴 데이터 조립 및 필드 설명
+    # ---------------------------------------------------------
+    # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+    # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+    # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
+    # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+    # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+    # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+    # ---------------------------------------------------------
+    row = get_lawd_by_name(address)
+
+    lawd_cd = row.get("lawd_cd", "")
+    lawd_name = row.get("lawd_name", "")
+    region = row.get("region", "")
+    sigungu_code = row.get("sigungu_code", "")
+    sigungu_name = row.get("sigungu_name", "")
+    umd_name = row.get("umd_name", "")
+
+    return {
+        "lawd_cd": lawd_cd,
+        "lawd_name": lawd_name,
+        "region": region,
+        "sigungu_code": sigungu_code,
+        "sigungu_name": sigungu_name,
+        "umd_name": umd_name
+    }
+
+# 시도,시군구,읍면동 파싱처리
+def extract_region_code_old(address):
     """
     주소에서 시도 코드, 시도 이름, 시군구 코드, 시군구 이름, 그리고 읍/면/동을 추출합니다.
     시군구는 보다 구체적인(길이가 긴) 이름부터 매칭하여 처리합니다.
@@ -596,7 +582,7 @@ def main():
     driver = webdriver.Chrome()
     try:
         # 시군구등 법정코드 json 데이타 로딩
-        json_data = load_json_data()
+        #json_data = load_json_data()
 
         driver.get("https://www.tankauction.com/")
         driver.implicitly_wait(1)
@@ -633,8 +619,6 @@ def main():
             saved_count += len(data_list)
             data_list.clear()
         print(f"총 저장 건수: {saved_count} 건")
-        # 스크립트 종료 전에 현재 sale_edate(현재 날짜)를 파일에 저장
-        save_last_sale_date(sale_edate)
 
     except Exception as e:
         print("오류 발생:", e)

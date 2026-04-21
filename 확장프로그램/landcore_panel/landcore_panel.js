@@ -333,6 +333,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 상세 중개사 정보 목록 추출
+    if (message.type === 'GET_AGENCY_MEMO_LIST') {
+        if (!isNaverDomain()) {
+            sendResponse({ success: false, error: '네이버부동산 페이지에서만 중개사 정보 추출이 가능합니다.' });
+            return true;
+        }
+
+        (async () => {
+            try {
+                const items = findListingItems();
+                const agencyList = [];
+                const seenKeys = new Set();
+
+                for (const item of items) {
+                    try {
+                        const listingData = parseListingItem(item);
+                        if (!listingData) continue;
+
+                        const memoData = await extractMemoDataFromListingItem(item, listingData);
+                        const dedupeKey = [
+                            memoData.agencyName || '',
+                            memoData.agencyPhone || '',
+                            memoData.agencyMobile || '',
+                            memoData.agencyAddress || ''
+                        ].join('|');
+
+                        if (!dedupeKey.replace(/\|/g, '').trim()) continue;
+                        if (seenKeys.has(dedupeKey)) continue;
+                        seenKeys.add(dedupeKey);
+
+                        agencyList.push(memoData);
+                    } catch (e) {
+                        console.warn('중개사 목록 추출 실패:', e);
+                    }
+                }
+
+                sendResponse({ success: true, data: agencyList });
+            } catch (error) {
+                console.error('❌ 중개사 목록 추출 오류:', error);
+                sendResponse({ success: false, error: error.message || '중개사 목록 추출 실패' });
+            }
+        })();
+
+        return true;
+    }
+
     return false;
 });
 
@@ -815,6 +861,98 @@ function extractMemoData() {
     console.log('📝 메모 데이터 추출 완료:', result);
     return result;
 }
+
+
+// 중개사 관련 데이터만 정리하는 함수
+async function extractMemoDataFromListingItem(item, listingData = null) {
+    const parsed = listingData || parseListingItem(item);
+    const prevSignature = getCurrentDetailPanelSignature();
+
+    triggerListingItemDetailOpen(item);
+
+    const changed = await waitForDetailPanelChange(prevSignature, 5000);
+    if (!changed) {
+        console.warn('상세 패널 열기/변경 대기 실패, 목록 기준 보조값 사용');
+    }
+
+    await sleep(180);
+
+    const memoData = extractMemoData();
+
+    return {
+        propertyName: memoData.propertyName || parsed?.propertyType || '',
+        agencyName: memoData.agencyName || parsed?.agencyName || (parsed?.agencyCount > 1 ? `중개사 ${parsed.agencyCount}곳` : ''),
+        agencyPhone: memoData.agencyPhone || '',
+        agencyMobile: memoData.agencyMobile || '',
+        agencyAddress: memoData.agencyAddress || ''
+    };
+}
+
+// =============================
+// 상세패널 관련 유틸 함수 START
+// =============================
+// 단순 sleep
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 현재 열린 상세 패널 DOM 반환
+function getCurrentDetailPanelElement() {
+    if (isNewVersion()) {
+        return document.querySelector('#article_detail, [class*="ArticleDetail"]');
+    } else {
+        return document.querySelector('.detail_panel');
+    }
+}
+
+// 상세 패널 변경 여부 판단용 시그니처
+function getCurrentDetailPanelSignature() {
+    const panel = getCurrentDetailPanelElement();
+    if (!panel) return '';
+
+    // 매물번호 + 텍스트 일부 조합 (변경 감지용)
+    const text = panel.innerText || '';
+    return text.slice(0, 200); // 앞부분만 비교 (속도 최적화)
+}
+
+// 리스트 아이템 클릭 → 상세 열기
+function triggerListingItemDetailOpen(item) {
+    if (!item) return;
+
+    // 1순위: 내부 클릭 가능한 링크
+    const clickable =
+        item.querySelector('[class*="link"]') ||
+        item.querySelector('a') ||
+        item;
+
+    // 강제 클릭
+    clickable.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+    }));
+}
+
+// 상세 패널 변경 대기
+async function waitForDetailPanelChange(prevSignature, timeoutMs = 5000) {
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+        await sleep(120);
+
+        const currentSignature = getCurrentDetailPanelSignature();
+
+        if (currentSignature && currentSignature !== prevSignature) {
+            return true;
+        }
+    }
+
+    return false;
+}
+// =============================
+// 상세패널 관련 유틸 함수 END
+// =============================
+
 
 /**
  * 텍스트에서 매물 정보 추출

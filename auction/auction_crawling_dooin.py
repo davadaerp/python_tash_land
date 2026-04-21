@@ -11,39 +11,16 @@ import re
 import json
 import os
 #
-from auction_db_utils import auction_save_to_sqlite
+from auction_db_utils import auction_save_to_sqlite, auction_get_last_crawling_final_date
 from common.vworld_utils import VWorldGeocoding
 from config import AUCTION_DB_PATH, MAP_API_KEY, VWORLD_URL
 from pubdata.public_land_lawd_code_db_utils import get_lawd_by_name
 
-# 저장파일명
-last_file_name = os.path.join(AUCTION_DB_PATH, "last_auction_dooin_date.txt")
-
 # ------------------------------
-# 텍스트 파일에서 마지막 날짜를 읽어오는 함수
-def get_last_sale_date():
-    if os.path.exists(last_file_name):
-        with open(last_file_name, "r", encoding="utf-8") as f:
-            date_str = f.read().strip()
-            if date_str:
-                return date_str
-    return None
-
-# 마지막 날짜를 텍스트 파일에 저장하는 함수
-def save_last_sale_date(date_str):
-    with open(last_file_name, "w", encoding="utf-8") as f:
-        f.write(date_str)
-# ------------------------------
-
 # 스크립트 시작 시 현재 날짜 기준으로 sale_edate를 설정하고,
-# 이전에 저장된 마지막 날짜가 있으면 sale_sdate에 할당, 없으면 현재 날짜로 처리
+# sale_sdate 는 DB에 저장된 마지막 crawling_last_date 를 기준으로 가져옵니다.
 today = datetime.today().strftime("%Y-%m-%d")
-last_sale_date = get_last_sale_date()
-if last_sale_date:
-    sale_sdate = last_sale_date
-else:
-    sale_sdate = today
-    #
+sale_sdate = auction_get_last_crawling_final_date()
 sale_edate = today
 # ------------------------------
 
@@ -973,8 +950,6 @@ def main():
             saved_count += len(data_list)
             data_list.clear()
         print(f"총 저장 건수: {saved_count} 건")
-        # 스크립트 종료 전에 현재 sale_edate(현재 날짜)를 파일에 저장
-        save_last_sale_date(sale_edate)
 
     except Exception as e:
         print("오류 발생:", e)
