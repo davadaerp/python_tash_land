@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>랜드코어 | 부동산 분석 자동화</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+            color: #0f172a;
+        }
+        a { text-decoration: none; color: inherit; }
+        .container {
+            width: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .menu a {
+            color: #334155;
+            font-weight: 700;
+            font-size: 15px;
+        }
+        .menu .link-main {
+            color: #2563eb;
+        }
+        .btn {
+            display: inline-block;
+            padding: 13px 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            transition: 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+            box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+        .hero {
+            padding: 90px 0 70px;
+        }
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 34px;
+            align-items: center;
+        }
+        .hero-badge {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 18px;
+        }
+        .hero h1 {
+            margin: 0 0 20px;
+            font-size: 56px;
+            line-height: 1.18;
+            letter-spacing: -1px;
+        }
+        .hero p {
+            margin: 0 0 28px;
+            font-size: 18px;
+            line-height: 1.85;
+            color: #475569;
+        }
+        .hero-actions {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        .hero-card {
+            background: rgba(255,255,255,0.95);
+            border: 1px solid rgba(191, 219, 254, 0.8);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.09);
+        }
+        .hero-card h3 {
+            margin-top: 0;
+            margin-bottom: 18px;
+            font-size: 24px;
+        }
+        .hero-card ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #334155;
+            line-height: 2;
+            font-size: 15px;
+        }
+        .section {
+            padding: 30px 0 90px;
+        }
+        .section-title {
+            text-align: center;
+            margin-bottom: 14px;
+            font-size: 38px;
+        }
+        .section-desc {
+            text-align: center;
+            margin: 0 auto 34px;
+            max-width: 720px;
+            color: #64748b;
+            line-height: 1.8;
+            font-size: 17px;
+        }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 22px;
+        }
+        .card {
+            background: white;
+            border-radius: 22px;
+            padding: 26px;
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e5edf8;
+        }
+        .card h3 {
+            margin: 0 0 14px;
+            font-size: 22px;
+        }
+        .card p {
+            margin: 0;
+            color: #475569;
+            line-height: 1.8;
+        }
+        .cta-box {
+            margin-top: 70px;
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: white;
+            border-radius: 26px;
+            padding: 42px 34px;
+            box-shadow: 0 24px 48px rgba(37, 99, 235, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .cta-box h3 {
+            margin: 0 0 10px;
+            font-size: 30px;
+        }
+        .cta-box p {
+            margin: 0;
+            opacity: 0.92;
+            line-height: 1.8;
+        }
+        .cta-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        footer {
+            padding: 36px 20px 44px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        @media (max-width: 980px) {
+            .hero-grid,
+            .cards,
+            .cta-box {
+                grid-template-columns: 1fr;
+                display: grid;
+            }
+            .hero h1 {
+                font-size: 42px;
+            }
+            .menu {
+                gap: 14px;
+                font-size: 14px;
+            }
+        }
+        @media (max-width: 640px) {
+            .nav-inner {
+                height: auto;
+                padding: 16px 0;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .menu {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .hero {
+                padding-top: 50px;
+            }
+            .hero h1 {
+                font-size: 34px;
+            }
+            .section-title {
+                font-size: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+{% include "landing/_nav.html" %}
+
+<section class="hero">
+    <div class="container hero-grid">
+        <div>
+            <div class="hero-badge">부동산 분석 자동화 SaaS</div>
+            <h1>실거래, 경매, 공매<br>검토를 더 빠르고 정확하게</h1>
+            <p>
+                랜드코어는 복잡한 부동산 분석 과정을 단순하게 줄여주고,
+                실거래·경매·수익률 검토를 빠르게 확인할 수 있도록 설계된 분석 도구입니다.
+                반복적인 확인 시간을 줄이고, 더 빠른 투자 판단을 돕는 것이 목표입니다.
+            </p>
+            <div class="hero-actions">
+                <a href="/trial" class="btn btn-primary">무료체험 요청하기</a>
+                <a href="/about" class="btn btn-secondary">랜드코어 소개 보기</a>
+                <a href="/reviews" class="btn btn-secondary">사용후기 보기</a>
+            </div>
+        </div>
+
+        <div class="hero-card">
+            <h3>이런 분께 추천합니다</h3>
+            <ul>
+                <li>경매 / 공매 물건을 빠르게 검토하고 싶은 분</li>
+                <li>실거래와 시세 흐름을 함께 보고 싶은 분</li>
+                <li>상가·아파트·빌라 수익률 검토를 단순화하고 싶은 분</li>
+                <li>강의자료나 실무 검토 시간을 줄이고 싶은 운영자/강사</li>
+                <li>기존 부동산 분석 업무를 더 체계화하고 싶은 사용자</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">왜 랜드코어인가</h2>
+        <p class="section-desc">
+            단순한 정보 나열이 아니라, 투자 검토에 필요한 핵심 요소를 빠르게 확인할 수 있도록
+            업무 흐름 중심으로 설계했습니다.
+        </p>
+
+        <div class="cards">
+            <div class="card">
+                <h3>시간 절약</h3>
+                <p>여러 사이트를 오가며 확인하던 과정을 줄여, 핵심 분석 시간을 단축합니다.</p>
+            </div>
+            <div class="card">
+                <h3>빠른 판단</h3>
+                <p>실거래, 경매, 공매, 수익률 데이터를 빠르게 훑어보고 검토할 수 있습니다.</p>
+            </div>
+            <div class="card">
+                <h3>사용후기 확인</h3>
+                <p>직접 사용한 사람들의 후기를 보고, 별점과 내용을 참고하여 더 쉽게 판단할 수 있습니다.</p>
+            </div>
+        </div>
+
+        <div class="cta-box">
+            <div>
+                <h3>가볍게 시작하고, 후기도 함께 확인해보세요</h3>
+                <p>
+                    먼저 무료체험으로 랜드코어의 흐름을 확인하고,
+                    사용후기 게시판에서 실제 이용 경험도 함께 참고해보실 수 있습니다.
+                </p>
+            </div>
+            <div class="cta-actions">
+                <a href="/trial" class="btn btn-primary" style="background:white;color:#1e3a8a;">무료체험 요청</a>
+                <a href="/reviews" class="btn btn-secondary" style="background:transparent;color:white;border-color:rgba(255,255,255,0.45);">사용후기 보기</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    © LANDCORE. All rights reserved.
+</footer>
+
+</body>
+</html>

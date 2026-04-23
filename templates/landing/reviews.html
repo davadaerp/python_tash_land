@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>사용후기 | LANDCORE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        a { text-decoration: none; color: inherit; }
+        .container {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .menu a {
+            font-weight: 700;
+            color: #334155;
+        }
+        .menu .link-main {
+            color: #2563eb;
+        }
+        .page-head {
+            padding: 48px 0 24px;
+        }
+        .page-head h1 {
+            margin: 0 0 12px;
+            font-size: 42px;
+        }
+        .page-head p {
+            margin: 0;
+            color: #64748b;
+            line-height: 1.8;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 24px;
+            padding-bottom: 70px;
+        }
+        .panel {
+            background: white;
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 14px 36px rgba(15,23,42,0.06);
+            border: 1px solid #e5edf8;
+        }
+        .panel h2 {
+            margin-top: 0;
+            margin-bottom: 18px;
+            font-size: 26px;
+        }
+        .review-list {
+            display: grid;
+            gap: 16px;
+        }
+        .review-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 18px;
+            background: #fcfdff;
+        }
+        .review-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .review-title {
+            font-size: 18px;
+            font-weight: 800;
+        }
+        .stars {
+            color: #f59e0b;
+            font-size: 15px;
+            font-weight: 800;
+        }
+        .review-meta {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .review-body {
+            color: #334155;
+            line-height: 1.8;
+        }
+        .review-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-mini {
+            border: none;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .pagination-wrap {
+            margin-top: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .pagination-topbar {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .page-size-select {
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            outline: none;
+        }
+
+        .pagination {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            min-width: 42px;
+            height: 42px;
+            border: 1px solid #dbe4f0;
+            background: #ffffff;
+            padding: 0 12px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 14px;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 0 6px 16px rgba(15,23,42,0.04);
+        }
+
+        .page-btn:hover {
+            transform: translateY(-1px);
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .page-btn.active {
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 10px 22px rgba(37,99,235,0.22);
+        }
+
+        .page-btn.nav-btn {
+            padding: 0 14px;
+            min-width: auto;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 700;
+            color: #334155;
+        }
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 13px 14px;
+            font-size: 15px;
+            outline: none;
+        }
+        .form-group textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+        .btn-submit {
+            width: 100%;
+            border: none;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .help {
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.7;
+            margin-top: 12px;
+        }
+        .empty {
+            text-align: center;
+            color: #94a3b8;
+            padding: 28px 0;
+        }
+        @media (max-width: 980px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+
+{% include "landing/_nav.html" %}
+
+<section class="container page-head">
+    <h1>사용후기 게시판</h1>
+    <p>
+        실제 사용 경험을 간단히 남기고, 다른 사용자들의 평가와 별점을 함께 참고할 수 있는 게시판입니다.
+    </p>
+</section>
+
+<section class="container layout">
+    <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;">
+            <h2 style="margin:0;">후기 목록</h2>
+            <button type="button" class="btn-mini" onclick="resetReviewForm()" style="padding:10px 14px;font-size:14px;">
+                후기등록
+            </button>
+        </div>
+        <div id="reviewList" class="review-list"></div>
+
+        <div class="pagination-wrap">
+            <div class="pagination-topbar">
+                <select id="pageSizeSelect" class="page-size-select">
+                    <option value="3" selected>3개씩 보기</option>
+                    <option value="5">5개씩 보기</option>
+                    <option value="10">10개씩 보기</option>
+                </select>
+            </div>
+            <div id="pagination" class="pagination"></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2 id="formTitle">후기 등록</h2>
+        <form id="reviewForm">
+            <input type="hidden" id="reviewId">
+
+            <div class="form-group">
+                <label for="writer">작성자</label>
+                <input type="text" id="writer" placeholder="작성자 이름">
+            </div>
+
+            <div class="form-group">
+                <label for="title">제목</label>
+                <input type="text" id="title" placeholder="후기 제목">
+            </div>
+
+            <div class="form-group">
+                <label for="rating">별점</label>
+                <select id="rating">
+                    <option value="5">★★★★★ (5점)</option>
+                    <option value="4">★★★★☆ (4점)</option>
+                    <option value="3">★★★☆☆ (3점)</option>
+                    <option value="2">★★☆☆☆ (2점)</option>
+                    <option value="1">★☆☆☆☆ (1점)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="content">내용</label>
+                <textarea id="content" placeholder="랜드코어 사용 경험을 자유롭게 적어주세요"></textarea>
+            </div>
+
+            <button type="submit" class="btn-submit">저장하기</button>
+        </form>
+
+        <div class="help">
+            왼쪽 후기 목록을 클릭하면 오른쪽에서 바로 내용을 확인하고 수정할 수 있습니다.
+            상단의 후기등록 버튼을 누르면 입력폼이 초기화되어 새 후기를 등록할 수 있습니다.
+        </div>
+    </div>
+</section>
+
+<script>
+    let currentPage = 1;
+    let currentPageSize = 3;
+
+    function starsText(n) {
+        const score = Number(n || 0);
+        return "★".repeat(score) + "☆".repeat(5 - score);
+    }
+
+    async function loadReviews(page = 1) {
+        currentPage = page;
+
+        const response = await fetch(`/api/reviews/list?page=${page}&page_size=${currentPageSize}`);
+        const result = await response.json();
+        //
+        const listEl = document.getElementById("reviewList");
+        const paginationEl = document.getElementById("pagination");
+
+        listEl.innerHTML = "";
+        paginationEl.innerHTML = "";
+
+        const items = result.items || [];
+        if (!items.length) {
+            listEl.innerHTML = '<div class="empty">등록된 후기가 없습니다.</div>';
+        } else {
+            items.forEach(item => {
+                const div = document.createElement("div");
+                div.className = "review-item";
+                div.style.cursor = "pointer";
+                div.onclick = () => readReview(item.id);
+
+                div.innerHTML = `
+                    <div class="review-top">
+                        <div class="review-title">${item.title || ""}</div>
+                        <div class="stars">${starsText(item.rating)} (${item.rating})</div>
+                    </div>
+                    <div class="review-meta">작성자: ${item.writer || ""} · 등록일: ${item.created_at || ""}</div>
+                    <div class="review-body">${(item.content || "").replace(/\n/g, "<br>")}</div>
+                    <div class="review-actions">
+                        <button class="btn-mini" onclick="event.stopPropagation(); deleteReview(${item.id})">삭제</button>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }
+
+        const totalPages = result.total_pages || 1;
+
+        function makePageButton(text, targetPage, extraClass = "", disabled = false, isActive = false) {
+            const btn = document.createElement("button");
+            btn.className = "page-btn" + (extraClass ? " " + extraClass : "") + (isActive ? " active" : "");
+            btn.textContent = text;
+            btn.disabled = disabled;
+            btn.onclick = () => loadReviews(targetPage);
+            return btn;
+        }
+
+        paginationEl.appendChild(
+            makePageButton("처음", 1, "nav-btn", page === 1)
+        );
+
+        paginationEl.appendChild(
+            makePageButton("이전", Math.max(1, page - 1), "nav-btn", page === 1)
+        );
+
+        for (let i = 1; i <= totalPages; i++) {
+            paginationEl.appendChild(
+                makePageButton(String(i), i, "", false, i === page)
+            );
+        }
+
+        paginationEl.appendChild(
+            makePageButton("다음", Math.min(totalPages, page + 1), "nav-btn", page === totalPages)
+        );
+
+        paginationEl.appendChild(
+            makePageButton("마지막", totalPages, "nav-btn", page === totalPages)
+        );
+    }
+
+    async function readReview(id) {
+        const response = await fetch("/api/reviews/crud", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                action: "read",
+                id: id
+            })
+        });
+
+        const result = await response.json();
+        const item = result.item;
+        if (!item) return;
+
+        document.getElementById("reviewId").value = item.id || "";
+        document.getElementById("writer").value = item.writer || "";
+        document.getElementById("title").value = item.title || "";
+        document.getElementById("rating").value = item.rating || "5";
+        document.getElementById("content").value = item.content || "";
+        document.getElementById("formTitle").textContent = "후기 수정";
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
+
+    function resetReviewForm() {
+        document.getElementById("reviewForm").reset();
+        document.getElementById("reviewId").value = "";
+        document.getElementById("formTitle").textContent = "후기 등록";
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
+
+    async function deleteReview(id) {
+        if (!confirm("정말 삭제하시겠습니까?")) return;
+
+        await fetch("/api/reviews/crud", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                action: "delete",
+                id: id
+            })
+        });
+
+        await loadReviews(currentPage);
+    }
+
+    document.getElementById("reviewForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById("reviewId").value;
+        const payload = {
+            action: id ? "update" : "create",
+            id: id ? Number(id) : null,
+            writer: document.getElementById("writer").value.trim(),
+            title: document.getElementById("title").value.trim(),
+            rating: Number(document.getElementById("rating").value),
+            content: document.getElementById("content").value.trim()
+        };
+
+        const response = await fetch("/api/reviews/crud", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        alert(result.message || "처리 완료");
+
+        resetReviewForm();
+        await loadReviews(currentPage);
+    });
+
+    document.getElementById("pageSizeSelect").addEventListener("change", function() {
+        currentPageSize = Number(this.value || 3);
+        loadReviews(1);
+    });
+
+    loadReviews(1);
+</script>
+
+</body>
+</html>

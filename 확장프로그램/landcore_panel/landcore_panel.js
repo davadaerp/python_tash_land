@@ -2642,7 +2642,7 @@ function extractPropertyInfoDetailTank() {
     const naverBtn = document.createElement('span');
     naverBtn.className = 'button btn_small btn_white naver-forward-btn';
     naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
-    naverBtn.textContent = '네이버 이동';
+    naverBtn.textContent = '랜드코어 이동';
 
     // 5. 클릭 이벤트: 추출된 모든 정보를 파라미터로 전달
     naverBtn.onclick = function() {
@@ -2805,7 +2805,7 @@ function extractPropertyInfoDetailAuctionOne() {
     const naverBtn = document.createElement('span');
     naverBtn.className = 'button btn_small btn_white naver-forward-btn';
     naverBtn.style.cssText = 'margin-left:5px; cursor:pointer; color:#03cf5d; font-weight:bold;';
-    naverBtn.textContent = '네이버 이동';
+    naverBtn.textContent = '랜드코어 이동';
 
     // ------------------------------------------------------------------
     // 8. 클릭 이벤트
@@ -3058,7 +3058,7 @@ function extractPropertyInfoDetailGGAuction() {
     naverForwardBtn.className =
         'px-8 disabled:bg-secondary-5 disabled:text-font-disabled print:hidden h-24 rounded-4 body-12r';
 
-    naverForwardBtn.textContent = '네이버 이동';
+    naverForwardBtn.textContent = '랜드코어 이동';
 
     // 🔥 핵심: 강제 스타일
     naverForwardBtn.style.backgroundColor = '#03C75A';
@@ -3072,7 +3072,7 @@ function extractPropertyInfoDetailGGAuction() {
     // 8. 클릭 이벤트
     // ------------------------------------------------------------
     naverForwardBtn.onclick = function () {
-        console.log('[GGAuction] 네이버 이동 버튼 클릭');
+        console.log('[GGAuction] 랜드코어 이동 버튼 클릭');
 
         const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
 
@@ -3356,7 +3356,7 @@ function extractPropertyInfoDetailDooinAuction() {
     const naverForwardBtn = document.createElement('button');
     naverForwardBtn.type = 'button';
     naverForwardBtn.id = 'landcore_naver_forward_btn';
-    naverForwardBtn.textContent = '네이버 이동';
+    naverForwardBtn.textContent = '랜드코어 이동'; 
 
     naverForwardBtn.style.display = 'inline-flex';
     naverForwardBtn.style.alignItems = 'center';
@@ -3380,7 +3380,7 @@ function extractPropertyInfoDetailDooinAuction() {
     // 7. 클릭 이벤트
     // ------------------------------------------------------------
     naverForwardBtn.onclick = function () {
-        console.log('[DooinAuction] 네이버 이동 버튼 클릭');
+        console.log('[DooinAuction] 랜드코어 이동 버튼 클릭');
 
         const serverUrl = 'https://www.landcore.co.kr/api/ext_tool/forward-map';
 

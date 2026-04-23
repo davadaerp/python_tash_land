@@ -69,8 +69,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     //updateUserSession();
 
     console.log('Panel Initialized');
-    // 여기 정의하면 NPL팝업식으로 열릴때 계속실행되어버림 ㅠ.ㅠ
-    //await ensureNaverLandTabOnPanelOpen();
+    // 여기 정의하면 팝업식으로 열릴때 계속실행되어버림 ㅠ.ㅠ
+    // 패널이 처음 열릴 때 현재 활성 탭이 지원 페이지가 아니면
+    // 네이버부동산 탭을 자동으로 보장
+    const activeTabUrl = await getActiveTabUrl();
+    if (!isSupportedAnalysisUrl(activeTabUrl)) {
+        await ensureNaverLandTabOnPanelOpen();
+    }
 
     // 🔥 여기서 DOM 요소 가져오기 (핵심)
     analyzeBtn = document.getElementById('analyze-btn');
@@ -2087,10 +2092,10 @@ function displayTopAgencies(data) {
         </div>
     `;
 
-    // 기본은 접힘 유지
-    agencySection.classList.add('hidden');
+    // 기본은 펼침 유지
+    agencySection.classList.remove('hidden');
     if (topAgenciesToggle) {
-        topAgenciesToggle.setAttribute('aria-expanded', 'false');
+        topAgenciesToggle.setAttribute('aria-expanded', 'true');
     }
     syncTopAgenciesToggleIcon();
 }

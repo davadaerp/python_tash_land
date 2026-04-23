@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>가격정책 | LANDCORE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        a { text-decoration: none; color: inherit; }
+        .container {
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .menu a {
+            color: #334155;
+            font-weight: 700;
+        }
+        .hero {
+            padding: 76px 0 34px;
+            text-align: center;
+        }
+        .hero h1 {
+            margin: 0 0 16px;
+            font-size: 48px;
+        }
+        .hero p {
+            max-width: 740px;
+            margin: 0 auto;
+            color: #64748b;
+            line-height: 1.85;
+            font-size: 18px;
+        }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            padding: 30px 0 80px;
+        }
+        .price-card {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 14px 36px rgba(15,23,42,0.06);
+            position: relative;
+        }
+        .price-card.recommended {
+            border: 2px solid #2563eb;
+            transform: translateY(-4px);
+            box-shadow: 0 24px 48px rgba(37,99,235,0.16);
+        }
+        .badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .plan-name {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .plan-desc {
+            color: #64748b;
+            line-height: 1.8;
+            min-height: 64px;
+        }
+        .price {
+            margin: 22px 0 14px;
+            font-size: 42px;
+            font-weight: 900;
+            color: #0f172a;
+        }
+        .price small {
+            font-size: 15px;
+            color: #64748b;
+            font-weight: 700;
+        }
+        .features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 24px;
+            color: #334155;
+            line-height: 2;
+        }
+        .btn {
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-secondary {
+            background: #f8fafc;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+        }
+        .pricing-note {
+            text-align: center;
+            color: #94a3b8;
+            line-height: 1.8;
+            padding-bottom: 34px;
+        }
+        footer {
+            text-align: center;
+            padding: 34px 20px 44px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        @media (max-width: 960px) {
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero h1 {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+{% include "landing/_nav.html" %}
+
+<section class="hero">
+    <div class="container">
+        <h1>간단하고 명확한 가격정책</h1>
+        <p>
+            처음에는 가볍게 체험하고, 이후 사용 목적과 기간에 맞게 선택할 수 있도록
+            단순한 구조로 준비했습니다.
+        </p>
+    </div>
+</section>
+
+<section class="container">
+    <div class="pricing-grid">
+        <div class="price-card">
+            <div class="plan-name">무료체험</div>
+            <div class="plan-desc">가볍게 시작해서 흐름을 확인하고 싶은 분께 적합합니다.</div>
+            <div class="price">무료 <small>/ 체험</small></div>
+            <ul class="features">
+                <li>기본 흐름 확인</li>
+                <li>초기 기능 체험</li>
+                <li>도입 전 검토 가능</li>
+            </ul>
+            <a href="/trial" class="btn btn-secondary">무료체험 요청</a>
+        </div>
+
+        <div class="price-card recommended">
+            <div class="badge">추천</div>
+            <div class="plan-name">일반 이용</div>
+            <div class="plan-desc">실제 분석 업무에 활용하고 싶은 사용자에게 적합합니다.</div>
+            <div class="price">문의 <small>/ 월 기준</small></div>
+            <ul class="features">
+                <li>분석 도구 정식 사용</li>
+                <li>실무 활용 중심</li>
+                <li>기존 사용 흐름에 맞춘 검토</li>
+            </ul>
+            <a href="/trial" class="btn btn-primary">도입 문의하기</a>
+        </div>
+
+        <div class="price-card">
+            <div class="plan-name">장기/협업형</div>
+            <div class="plan-desc">강의, 팀 운영, 장기 활용 목적에 맞춘 협업형 구조입니다.</div>
+            <div class="price">협의 <small>/ 맞춤형</small></div>
+            <ul class="features">
+                <li>장기 이용 협의</li>
+                <li>협업/교육 목적 활용</li>
+                <li>추가 기능 확장 가능</li>
+            </ul>
+            <a href="/trial" class="btn btn-secondary">상담 요청</a>
+        </div>
+    </div>
+
+    <div class="pricing-note">
+        실제 정책은 운영 상황에 따라 조정될 수 있으며, 상세 도입 방식은 별도 안내됩니다.
+    </div>
+</section>
+
+<footer>
+    © LANDCORE. All rights reserved.
+</footer>
+
+</body>
+</html>

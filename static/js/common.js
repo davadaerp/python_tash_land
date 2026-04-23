@@ -1,5 +1,5 @@
 
-    //BASE_URL = 'https://www.landcore.co.kr';
+    BASE_URL = 'https://admin.landcore.co.kr';
     //BASE_URL = 'http://127.0.0.1:5000';
 
     // 자동완성 공통필드

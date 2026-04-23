@@ -1587,3 +1587,32 @@ body {
 #imjang-analysis-btn:hover {
   background: linear-gradient(135deg, #ffa000, #f57c00);
 }
+
+.landcore-link {
+  text-decoration: none;
+  display: inline-flex;   /* 핵심 */
+  align-items: baseline;  /* 글자 높이 자연스럽게 */
+  gap: 3px;               /* 간격 */
+  transition: all 0.25s ease;
+}
+
+.landcore-main {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #1e3a8a;
+}
+
+.landcore-sub {
+  font-size: 19px;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.landcore-link:hover {
+  transform: translateY(-1px);
+}
+
+.landcore-link:hover .landcore-main {
+  color: #2563eb; /* hover 시 블루 */
+}

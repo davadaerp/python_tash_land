@@ -102,6 +102,12 @@ app = Flask(__name__, template_folder=TEMPLATES_NAME)
 # CORS 전체 허용
 CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization"])
 
+# marketing lading page loading..
+from landing.routes import is_landing_host, landing_bp, is_admin_host
+
+app.register_blueprint(landing_bp)
+
+
 # 메모리 기반의 토큰 저장소 (유저ID:토큰)
 active_tokens = {}
 
@@ -139,8 +145,14 @@ def health_ready():
 @app.route("/", methods=["GET"])
 @app.route("/ts/", methods=["GET"])
 def loginForm():
+    if is_landing_host():
+        return render_template("landing/index.html")
+
+    if is_admin_host():
+        return render_template("login.html")
+
+    # 그 외 예외 host는 admin login으로 보내거나 필요시 www로 redirect
     return render_template("login.html")
-    #return render_template("login_kakao.html")
 
 # ===== id및 패스워드를 이용한 토큰 발급 및 로그인/로그아웃 =====
 @app.route("/api/token", methods=["POST"])
@@ -2939,6 +2951,35 @@ def download_listing_searcher():
         SAMPLE_FILE,
         as_attachment=True,
         download_name="매물검색기_샘플.zip",
+        mimetype="application/zip"
+    )
+
+# 확장프로그램 다운로드 테스트
+LANDCORE_V1 = os.path.join(FORM_DIRECTORY, "landcore_ext.zip")
+LANDCORE_V2 = os.path.join(FORM_DIRECTORY, "landcore_panel_ext.zip")
+@app.get("/api/download/landcore")
+def download_landcore():
+
+    # 🔥 1. type 파라미터 받기
+    download_type = request.args.get("type", "").lower()
+
+    # 🔥 2. 파일 선택
+    if download_type == "v2":
+        target_file = LANDCORE_V2
+        download_name = "landcore_v2.zip"
+    else:
+        target_file = LANDCORE_V1
+        download_name = "landcore_v1.zip"
+
+    # 🔥 3. 파일 존재 체크
+    if not os.path.exists(target_file):
+        return jsonify({"message": "다운로드 파일이 서버에 없습니다."}), 404
+
+    # 🔥 4. 다운로드 처리
+    return send_file(
+        target_file,
+        as_attachment=True,
+        download_name=download_name,
         mimetype="application/zip"
     )
 

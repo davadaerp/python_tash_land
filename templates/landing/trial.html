@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>무료체험 요청 | LANDCORE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+            color: #0f172a;
+        }
+        a { text-decoration: none; color: inherit; }
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .menu a {
+            color: #334155;
+            font-weight: 700;
+        }
+        .trial-wrap {
+            padding: 80px 0;
+        }
+        .trial-grid {
+            display: grid;
+            grid-template-columns: 0.95fr 1.05fr;
+            gap: 28px;
+            align-items: start;
+        }
+        .info-box, .form-box {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 16px 40px rgba(15,23,42,0.08);
+        }
+        .info-box h1 {
+            margin-top: 0;
+            font-size: 42px;
+            line-height: 1.25;
+        }
+        .info-box p {
+            color: #475569;
+            line-height: 1.9;
+        }
+        .benefits {
+            margin-top: 22px;
+            padding-left: 18px;
+            line-height: 2;
+            color: #334155;
+        }
+        .form-box h2 {
+            margin-top: 0;
+            font-size: 30px;
+        }
+        .form-desc {
+            color: #64748b;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 14px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 700;
+            color: #334155;
+        }
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 14px 15px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+        }
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .btn {
+            width: 100%;
+            border: none;
+            padding: 15px 18px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .sub-note {
+            margin-top: 14px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: #94a3b8;
+        }
+        .consent-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #f8fafc;
+            border: 1px solid #dbe4f0;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 16px;
+        }
+
+        .consent-box input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            flex: 0 0 auto;
+        }
+
+        .consent-box label {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.7;
+            color: #334155;
+            font-weight: 600;
+        }
+        footer {
+            text-align: center;
+            padding: 36px 20px 46px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        @media (max-width: 960px) {
+            .trial-grid {
+                grid-template-columns: 1fr;
+            }
+            .info-box h1 {
+                font-size: 34px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+{% include "landing/_nav.html" %}
+
+<section class="trial-wrap">
+    <div class="container trial-grid">
+        <div class="info-box">
+            <h1>무료체험으로<br>먼저 가볍게 확인해보세요</h1>
+            <p>
+                랜드코어가 내 분석 방식에 맞는지, 실제 검토 시간을 줄여줄 수 있는지
+                먼저 확인해볼 수 있도록 무료체험 요청을 받습니다.
+            </p>
+            <ul class="benefits">
+                <li>초기 도입 전에 흐름을 먼저 확인 가능</li>
+                <li>실거래 / 경매 / 공매 분석 흐름 체험</li>
+                <li>현재 작업 방식과 비교 검토 가능</li>
+                <li>추후 유료 전환 여부는 자유롭게 결정</li>
+            </ul>
+        </div>
+
+        <div class="form-box">
+            <h2>무료체험 요청하기</h2>
+            <p class="form-desc">
+                기본 정보를 남겨주시면 확인 후 체험 안내를 드립니다.
+            </p>
+
+            <form id="trialForm">
+                <div class="form-group">
+                    <label for="name">이름</label>
+                    <input id="name" type="text" name="name" placeholder="이름을 입력하세요" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">이메일</label>
+                    <input id="email" type="email" name="email" placeholder="이메일을 입력하세요" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">연락처</label>
+                    <input id="phone" type="text" name="phone" placeholder="연락처를 입력하세요" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">관심 분야</label>
+                    <select id="category" name="category">
+                        <option value="">선택해주세요</option>
+                        <option value="apt">아파트</option>
+                        <option value="villa">빌라</option>
+                        <option value="sanga">상가</option>
+                        <option value="auction">경매 / 공매</option>
+                        <option value="etc">기타</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="memo">간단한 메모</label>
+                    <textarea id="memo" name="memo" placeholder="어떤 용도로 사용해보고 싶은지 간단히 적어주세요"></textarea>
+                </div>
+
+                <div class="consent-box">
+                    <input id="privacyAgree" type="checkbox" name="privacy_agree" required>
+                    <label for="privacyAgree">
+                        개인정보 수집 및 이용에 동의합니다.
+                        무료체험 안내 및 연락 목적에 한해 사용되며, 관련 목적 외에는 사용되지 않습니다.
+                    </label>
+                </div>
+
+                <button type="submit" class="btn">무료체험 요청 보내기</button>
+            </form>
+
+            <div class="sub-note">
+                제출하신 정보는 체험 안내 목적에 한해 사용됩니다.
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    © LANDCORE. All rights reserved.
+</footer>
+
+<script>
+    document.getElementById("trialForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const payload = {
+            action: "create",
+            name: document.getElementById("name").value.trim(),
+            email: document.getElementById("email").value.trim(),
+            phone: document.getElementById("phone").value.trim(),
+            category: document.getElementById("category").value,
+            memo: document.getElementById("memo").value.trim(),
+            privacy_agree: document.getElementById("privacyAgree").checked ? "Y" : "N"
+        };
+
+        if (!payload.phone) {
+            alert("전화번호는 필수입니다.");
+            return;
+        }
+
+        if (payload.privacy_agree !== "Y") {
+            alert("개인정보 수집 및 이용에 동의해야 신청할 수 있습니다.");
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/trial/crud", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.result !== "Success") {
+                alert(result.message || "요청 처리 중 오류가 발생했습니다.");
+                return;
+            }
+
+            alert("무료체험 요청이 접수되었습니다.");
+            document.getElementById("trialForm").reset();
+        } catch (error) {
+            console.error(error);
+            alert("서버 요청 중 오류가 발생했습니다.");
+        }
+    });
+</script>
+
+</body>
+</html>
