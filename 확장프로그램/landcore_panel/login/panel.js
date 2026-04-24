@@ -26,7 +26,6 @@ let siteShortcutBtn;
 let siteShortcutMenu;
 // 상위목록 중개사 섹션
 let topAgenciesToggle;
-let topAgenciesDownloadBtn;
 let topAgenciesSection;
 
 // API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
@@ -100,7 +99,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     siteShortcutMenu = document.getElementById('site-shortcut-menu');
     // 상위목록 중개사 섹션
     topAgenciesToggle = document.getElementById('top-agencies-toggle');
-    topAgenciesDownloadBtn = document.getElementById('top-agencies-download-btn');
     topAgenciesSection = document.getElementById('top-agencies');
 
     analyzeBtn?.addEventListener('click', startAnalysis);
@@ -120,7 +118,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     //
     siteShortcutBtn?.addEventListener('click', toggleSiteShortcutMenu);
     topAgenciesToggle?.addEventListener('click', toggleTopAgenciesSection);
-    topAgenciesDownloadBtn?.addEventListener('click', downloadTopAgenciesDetailXls);
+
+    // ✅ 상위 중개사 클릭 이벤트 (부동산명 클릭)
+    topAgenciesSection?.addEventListener('click', (e) => {
+        const agencyLink = e.target.closest('[data-agency-name]');
+        if (!agencyLink) return;
+
+        e.preventDefault();
+
+        const agencyName = agencyLink.getAttribute('data-agency-name') || '';
+        showAgencyDetailByName(agencyName);
+    });
 
     // 초기화 아이콘 업데이트
     updateResetButtonIcon(getCurrentTabGubun());
@@ -540,178 +548,49 @@ function syncTopAgenciesToggleIcon() {
     iconEl.textContent = isExpanded ? '▲' : '▼';
 }
 
-function getCurrentRegionFileLabel() {
-    const sigungu = (currentRegionInfo?.sigungu || '').trim();
-    const umdNm = (currentRegionInfo?.umdNm || '').trim();
-    const fallback = (currentRegionLabel || '상세목록').replace(/[>\s]+/g, '_');
-
-    const parts = [sigungu, umdNm].filter(Boolean);
-    return parts.length ? parts.join('_') : fallback;
-}
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function showTopAgenciesAnalyzingMessage() {
-    if (!topAgenciesSection || !topAgenciesToggle) return;
-
-    // 무조건 펼침
-    topAgenciesSection.classList.remove('hidden');
-    topAgenciesToggle.setAttribute('aria-expanded', 'true');
-    syncTopAgenciesToggleIcon();
-
-    topAgenciesSection.innerHTML = `
-        <div class="listing-detail-section top-agencies-detail-section">
-            <div class="listing-detail-body">
-                <div class="listing-table-wrap">
-                    <table class="listing-detail-table top-agencies-table">
-                        <tbody>
-                            <tr>
-                                <td colspan="5" style="
-                                    text-align:center;
-                                    color:#d32f2f;
-                                    font-weight:700;
-                                    padding:28px 12px;
-                                    font-size:14px;
-                                ">
-                                    중개사분석중입니다.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function clearTopAgenciesAnalyzingMessage() {
-    // 다운로드 완료 후 displayTopAgencies()가 다시 그리므로
-    // 별도 강제 초기화가 꼭 필요하진 않지만, 실패시 대비용으로 둡니다.
-    if (!topAgenciesSection) return;
-}
-
-// 중개사 다운로드
-async function downloadTopAgenciesDetailXls() {
-    const activeTabUrl = await getActiveTabUrl();
-    if (!isSupportedAnalysisUrl(activeTabUrl)) {
-        alert('중개사 다운로드는 네이버부동산 분석 화면에서만 가능합니다.');
+async function showAgencyDetailByName(agencyName) {
+    if (!agencyName) {
+        alert('부동산명이 없습니다.');
         return;
     }
 
-    try {
-        // 1. 먼저 상위목록 펼치고 분석중 메시지 표시
-        showTopAgenciesAnalyzingMessage();
-
-        const response = await chrome.tabs.query({ active: true, currentWindow: true });
-        const activeTab = response?.[0];
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs?.[0];
 
         if (!activeTab?.id) {
             alert('현재 활성 탭을 찾을 수 없습니다.');
             return;
         }
 
-        // 2. landcore_panel.js 에 silent 방식 이벤트 호출
-        const result = await new Promise((resolve) => {
-            chrome.tabs.sendMessage(
-                activeTab.id,
-                { type: 'GET_AGENCY_MEMO_LIST' },
-                (res) => {
-                    if (chrome.runtime.lastError) {
-                        resolve({
-                            success: false,
-                            error: chrome.runtime.lastError.message || '중개사 정보 요청 실패'
-                        });
-                        return;
-                    }
-                    resolve(res || { success: false, error: '중개사 정보 응답이 없습니다.' });
+        chrome.tabs.sendMessage(
+            activeTab.id,
+            {
+                type: 'GET_AGENCY_DETAIL_BY_NAME',
+                agencyName
+            },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    alert('네이버부동산 탭에서 중개사 정보를 가져올 수 없습니다.');
+                    return;
                 }
-            );
-        });
 
-        if (!result?.success) {
-            alert(result?.error || '중개사 정보 추출 실패');
-            return;
-        }
+                if (!response?.success || !response.data) {
+                    alert(`${agencyName}\n\n해당 부동산명의 상세 매물을 찾지 못했습니다.`);
+                    return;
+                }
 
-        const agencyList = Array.isArray(result.data) ? result.data : [];
-        if (!agencyList.length) {
-            alert('저장할 중개사 정보가 없습니다.');
-            return;
-        }
+                const d = response.data;
 
-        const fileRegionLabel = getCurrentRegionFileLabel();
-        const fileName = `${fileRegionLabel}_중개사목록.xls`;
-        const sheetName = `${fileRegionLabel}_중개사목록`;
-
-        const rowsHtml = agencyList.map((item, idx) => `
-            <tr>
-                <td>${idx + 1}</td>
-                <td>${escapeHtml(item.agencyName || '-')}</td>
-                <td>${escapeHtml(item.agencyPhone || '-')}</td>
-                <td>${escapeHtml(item.agencyMobile || '-')}</td>
-                <td>${escapeHtml(item.agencyAddress || '-')}</td>
-            </tr>
-        `).join('');
-
-        const html = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head>
-                <meta charset="UTF-8">
-                <meta http-equiv="Content-Type" content="application/vnd.ms-excel; charset=UTF-8">
-                <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${escapeHtml(sheetName)}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-            </head>
-            <body>
-                <table border="1">
-                    <tr><th colspan="5">${escapeHtml(fileRegionLabel)} 중개사목록</th></tr>
-                    <tr><td colspan="5">건수: ${agencyList.length}</td></tr>
-                    <tr>
-                        <th>번호</th>
-                        <th>중개사명</th>
-                        <th>전화번호</th>
-                        <th>휴대폰</th>
-                        <th>주소</th>
-                    </tr>
-                    ${rowsHtml}
-                </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-        // 3. 상위 TOP 부동산 영역은 기존 분석 데이터로 다시 복구
-        if (lastAnalysisData) {
-            displayTopAgencies(lastAnalysisData);
-        }
-
-    } catch (error) {
-        console.error('중개사 다운로드 오류:', error);
-
-        if (lastAnalysisData) {
-            displayTopAgencies(lastAnalysisData);
-        }
-
-        alert(`중개사 다운로드 중 오류가 발생했습니다.\n${error.message || error}`);
-    }
+                // alert(
+                //     `부동산명: ${d.agencyName || agencyName}\n` +
+                //     `전화번호: ${d.agencyPhone || '-'}\n` +
+                //     `휴대폰: ${d.agencyMobile || '-'}\n` +
+                //     `주소: ${d.agencyAddress || '-'}`
+                // );
+            }
+        );
+    });
 }
-
 
 /**
  * 실거래, 업종분석, 통계분석 열기
@@ -2061,7 +1940,14 @@ function displayTopAgencies(data) {
         return `
             <tr>
                 <td class="top-agency-rank-cell">${idx + 1}</td>
-                <td class="top-agency-name-cell">${agency.name}</td>
+                <td class="top-agency-name-cell">
+                    <button type="button"
+                            class="top-agency-name-link"
+                            data-agency-name="${agency.name}"
+                            title="중개사 상세정보 보기">
+                        ${agency.name}
+                    </button>
+                </td>
                 <td class="top-agency-wolse-count">${agency.wolse}</td>
                 <td class="top-agency-maemae-count">${agency.maemae}</td>
                 <td class="top-agency-total-count">${agency.total}</td>

@@ -13,7 +13,6 @@
 import os
 import threading
 import time
-from uuid import uuid4
 
 import requests
 import secrets
@@ -23,7 +22,7 @@ import re
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from cryptography.fernet import Fernet
-from flask import Flask, jsonify, request, redirect, render_template, url_for, make_response, abort, send_from_directory, send_file
+from flask import Flask, redirect, render_template, url_for, make_response, abort, send_from_directory, send_file
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone, date
 from dateutil.relativedelta import relativedelta
@@ -31,17 +30,14 @@ from pathlib import Path
 from io import BytesIO
 
 # 상가및 아파트 크롤링데이타(예전PC)
-from apt.apt_db_utils import apt_read_db, get_jeonse_min_max
 from common.vworld_utils import VWorldGeocoding
 from license.make_license import generate_fixed_key
 from master.user_hist_db_utils import add_subscription_hist, user_hist_read_db, count_user_trial_hist_db
-from master.user_wishlist_db_utils import wishlist_read_db
 
-from master.user_wishlist_db_utils import wishlist_read_db
 from pubdata.public_land_commerical_area_info_db_utils import search_by_ldong
 from pubdata.public_land_sanga_db_utils import public_read_sanga_by_region
 from pubdata.public_land_villa_db_utils import public_read_villa_by_region
-from sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
+from crawling.sanga.sanga_db_utils import sanga_update_fav, extract_law_codes
 #
 # 상가및 아파트 크롤링데이타(신규서버)
 from crawling.apt_mobile_db_utils import apt_read_db as apt_mobile_read_db, \
@@ -67,7 +63,6 @@ from realtor.realtor_db_utils import realtor_read_db
 from master.user_db_utils import user_insert_record, user_read_db, user_create_table, user_update_record, \
     user_delete_record, user_cancel_record, user_update_exist_record, paging_user_read_db
 from master.user_wishlist_db_utils import (
-    create_wishlist_table,
     wishlist_exists,
     wishlist_insert_single,
     wishlist_update_single,
@@ -89,8 +84,7 @@ from pastapt.kb_apt_sale_price_index_db_utils import fetch_latest_sale_index_by_
 from pubdata.public_population_stats import get_population_rows, prev_month_yyyymm
 #
 # auth.py에서 토큰 관련 함수 가져오기
-from common.auth import create_access_token, token_header_required, extract_user_info_from_token, kakao_token_required, \
-    core_token_required
+from common.auth import create_access_token, extract_user_info_from_token, core_token_required
 #
 from config import TEMPLATES_NAME, FORM_DIRECTORY, LEGAL_DIRECTORY, UPLOAD_FOLDER_PATH, MAP_API_KEY
 
@@ -145,6 +139,14 @@ def health_ready():
 @app.route("/", methods=["GET"])
 @app.route("/ts/", methods=["GET"])
 def loginForm():
+    host = (request.host or "").lower().split(":")[0]
+    mode = (request.args.get("mode") or "").strip().lower()
+
+    # 로컬 테스트용: 127.0.0.1 또는 localhost에서 ?mode=admin 이면 admin 진입
+    if host in {"127.0.0.1", "localhost"} and mode == "admin":
+        print('== loginForm() ' + host)
+        return render_template("login.html")
+
     if is_landing_host():
         return render_template("landing/index.html")
 
@@ -1956,8 +1958,10 @@ def get_jumpo_data():
 
 
 #== 네이버확장툴 접근
+# not used
 @app.route("/api/ext_tool/main", methods=["GET"])
-def ext_tool_main():
+@kakao_extool_auth_required
+def ext_tool_main(user_id):
     return render_template("extool_main_popup.html")
 
 @app.route("/api/ext_tool", methods=["GET", "POST"])

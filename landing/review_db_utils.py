@@ -46,7 +46,7 @@ def review_now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def review_insert_single(writer, title, rating, content):
+def review_insert_single(writer, title, rating, content, password):
     """
     단일 후기 레코드를 삽입합니다.
     """
@@ -57,10 +57,11 @@ def review_insert_single(writer, title, rating, content):
 
     insert_query = f"""
         INSERT INTO {TABLE_NAME} (
-            writer, title, rating, content, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            writer, title, rating, content, created_at, updated_at, password
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
     """
 
+    # 일시적용
     now_str = review_now_str()
 
     try:
@@ -70,7 +71,8 @@ def review_insert_single(writer, title, rating, content):
             max(1, min(5, int(rating))),
             content,
             now_str,
-            now_str
+            now_str,
+            password
         ))
         conn.commit()
         review_id = cursor.lastrowid
@@ -141,6 +143,27 @@ def review_delete_single(review_id):
     except Exception as e:
         print("후기 삭제 오류:", e)
         return False
+    finally:
+        conn.close()
+
+
+# 패스워드 검증
+def review_password_match(review_id, password):
+
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            f"SELECT password FROM {TABLE_NAME} WHERE id = ?",
+            (int(review_id),)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        return str(row["password"] or "") == str(password or "")
     finally:
         conn.close()
 

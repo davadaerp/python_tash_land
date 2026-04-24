@@ -19,7 +19,7 @@
             padding: 0 20px;
         }
         .hero {
-            padding: 80px 0 40px;
+            padding: 40px 0 40px;
             text-align: center;
         }
         .hero h1 {
@@ -63,7 +63,7 @@
         .feature-gallery-title {
             text-align: center;
             font-size: 36px;
-            margin: 70px 0 14px;
+            margin: 10px 0 14px;
         }
         .feature-gallery-desc {
             text-align: center;
@@ -175,6 +175,7 @@
 
 <section class="section">
     <div class="container">
+        <!--
         <div class="grid">
             <div class="card">
                 <h3>문제 해결 중심</h3>
@@ -189,7 +190,7 @@
                 <p>현재 구조는 랜딩 중심이지만, 로그인, 구독, 분석 기능까지 단계적으로 확장 가능합니다.</p>
             </div>
         </div>
-
+        -->
         <h2 class="feature-gallery-title">랜드코어 주요 화면 소개</h2>
         <p class="feature-gallery-desc">
             실제 사용 흐름을 기준으로 주요 분석 화면을 직관적으로 확인할 수 있도록 정리했습니다.
@@ -261,6 +262,34 @@
                     </p>
                 </div>
             </div>
+
+            <div class="feature-card">
+                <img class="feature-thumb"
+                     src="{{ url_for('static', filename='img/landing/intro-stat.png') }}"
+                     alt="통계분석 화면">
+                <div class="feature-body">
+                    <h3>통계분석</h3>
+                    <p>
+                        지역별 실거래, 경매, 공매 데이터를 기준으로 평균 가격, 평단가, 거래 흐름을
+                        한눈에 비교할 수 있는 분석 화면입니다. 투자 검토 시 주변 시세와 흐름을
+                        빠르게 파악하는 데 유용합니다.
+                    </p>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <img class="feature-thumb"
+                     src="{{ url_for('static', filename='img/landing/intro-sms.png') }}"
+                     alt="문자보내기 및 중개사 대출상담사 관리 화면">
+                <div class="feature-body">
+                    <h3>문자보내기 · 중개사/대출상담사 관리</h3>
+                    <p>
+                        중개사, 대출상담사 목록을 관리하고 필요한 대상에게 문자 발송을 할 수 있는 기능입니다.
+                        목록은 엑셀 다운로드가 가능하여 영업관리, 상담관리, 사후 연락 업무에 활용할 수 있습니다.
+                    </p>
+                </div>
+            </div>
+
         </div>
 
         <div class="story-box">

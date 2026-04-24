@@ -215,6 +215,27 @@
             font-weight: 800;
             cursor: pointer;
         }
+        .form-button-row {
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            gap: 10px;
+        }
+
+        .btn-delete {
+            border: none;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .btn-delete.hidden {
+            display: none;
+        }
+
         .help {
             color: #94a3b8;
             font-size: 13px;
@@ -298,7 +319,17 @@
                 <textarea id="content" placeholder="랜드코어 사용 경험을 자유롭게 적어주세요"></textarea>
             </div>
 
-            <button type="submit" class="btn-submit">저장하기</button>
+            <div class="form-group">
+                <label for="reviewPassword">수정/삭제 비밀번호</label>
+                <input type="password" id="reviewPassword" placeholder="후기 수정/삭제용 비밀번호">
+            </div>
+
+            <div class="form-button-row">
+                <button type="submit" class="btn-submit">저장하기</button>
+                <button type="button" id="formDeleteBtn" class="btn-delete hidden" onclick="deleteSelectedReview()">
+                    삭제
+                </button>
+            </div>
         </form>
 
         <div class="help">
@@ -347,7 +378,7 @@
                     <div class="review-meta">작성자: ${item.writer || ""} · 등록일: ${item.created_at || ""}</div>
                     <div class="review-body">${(item.content || "").replace(/\n/g, "<br>")}</div>
                     <div class="review-actions">
-                        <button class="btn-mini" onclick="event.stopPropagation(); deleteReview(${item.id})">삭제</button>
+                         <span style="color:#94a3b8;font-size:13px;">클릭하면 오른쪽에서 수정/삭제할 수 있습니다.</span>
                     </div>
                 `;
                 listEl.appendChild(div);
@@ -408,6 +439,7 @@
         document.getElementById("rating").value = item.rating || "5";
         document.getElementById("content").value = item.content || "";
         document.getElementById("formTitle").textContent = "후기 수정";
+        document.getElementById("formDeleteBtn").classList.remove("hidden");
         window.scrollTo({top: 0, behavior: "smooth"});
     }
 
@@ -415,22 +447,45 @@
         document.getElementById("reviewForm").reset();
         document.getElementById("reviewId").value = "";
         document.getElementById("formTitle").textContent = "후기 등록";
+        document.getElementById("formDeleteBtn").classList.add("hidden");
         window.scrollTo({top: 0, behavior: "smooth"});
     }
 
-    async function deleteReview(id) {
+    //
+    async function deleteSelectedReview() {
+        const id = document.getElementById("reviewId").value;
+        const password = document.getElementById("reviewPassword").value.trim();
+
+        if (!id) {
+            alert("삭제할 후기를 먼저 선택해주세요.");
+            return;
+        }
+
+        if (!password) {
+            alert("삭제하려면 등록 시 입력한 비밀번호를 입력해주세요.");
+            document.getElementById("reviewPassword").focus();
+            return;
+        }
+
         if (!confirm("정말 삭제하시겠습니까?")) return;
 
-        await fetch("/api/reviews/crud", {
+        const response = await fetch("/api/reviews/crud", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
                 action: "delete",
-                id: id
+                id: Number(id),
+                password: password
             })
         });
 
-        await loadReviews(currentPage);
+        const result = await response.json();
+        alert(result.message || "처리 완료");
+
+        if (result.result === "Success") {
+            resetReviewForm();
+            await loadReviews(currentPage);
+        }
     }
 
     document.getElementById("reviewForm").addEventListener("submit", async function(e) {
@@ -443,8 +498,14 @@
             writer: document.getElementById("writer").value.trim(),
             title: document.getElementById("title").value.trim(),
             rating: Number(document.getElementById("rating").value),
-            content: document.getElementById("content").value.trim()
+            content: document.getElementById("content").value.trim(),
+            password: document.getElementById("reviewPassword").value.trim()
         };
+
+        if (!payload.password) {
+            alert("수정/삭제용 비밀번호를 입력해주세요.");
+            return;
+        }
 
         const response = await fetch("/api/reviews/crud", {
             method: "POST",

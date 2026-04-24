@@ -2912,6 +2912,7 @@
       if (hasReal) return { marker:'marker-real', header:'type-real', label:'실거래', hasReal:true, hasAuction:false };
       return { marker:'marker-auction', header:'type-auction', label:'경매', hasReal:false, hasAuction:true };
     }
+
     function cleanAuctionAddress(addr) {
       if (!addr) return addr;
       let s = String(addr);

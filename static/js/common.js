@@ -1,6 +1,33 @@
 
-    BASE_URL = 'https://admin.landcore.co.kr';
-    //BASE_URL = 'http://127.0.0.1:5000';
+    /*
+     - 2차 카카오로그인 앱->플랫폼키->restApi에 추가해야함
+     - 'http://127.0.0.1:5000';     // local admin(카카오로그인 앱->플랫폼키->restApi에 추가해야함)
+     */
+
+    // 현재 접속 도메인 기준 BASE_URL 자동 설정
+    (function () {
+        const host = window.location.hostname;
+
+        if (host === '127.0.0.1' || host === 'localhost') {
+            // 로컬 환경
+            window.BASE_URL = 'http://127.0.0.1:5000';
+        } else if (
+            host === 'landcore.co.kr' ||
+            host === 'www.landcore.co.kr' ||
+            host === 'new.landcore.co.kr'
+        ) {
+            // 운영 랜딩 → admin 서버로 연결
+            window.BASE_URL = 'https://admin.landcore.co.kr';
+        } else if (host === 'admin.landcore.co.kr') {
+            // 이미 admin이면 자기 자신
+            window.BASE_URL = 'https://admin.landcore.co.kr';
+        } else {
+            // 기타 예외 (안전 fallback)
+            window.BASE_URL = window.location.origin;
+        }
+
+        console.log('[BASE_URL]', window.BASE_URL);
+    })();
 
     // 자동완성 공통필드
     let selectedLawdCd = "";

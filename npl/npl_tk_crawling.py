@@ -791,6 +791,10 @@ def extract_info(row_text, idx, npl_info):
         # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
         geo_service = VWorldGeocoding(MAP_API_KEY)
         latitude, longitude = geo_service.get_lat_lng(lat_lng_address, address_type="road")
+        # 위경도 주소고 다시한번 검증
+        is_valid, message = geo_service.validate_location(lat_lng_address,latitude,longitude)
+        if not is_valid:
+            latitude, longitude = 0.0, 0.0
 
         print(f"주소: {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
 

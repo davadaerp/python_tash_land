@@ -85,6 +85,7 @@
             min-height: 120px;
             resize: vertical;
         }
+
         .btn {
             width: 100%;
             border: none;
@@ -96,12 +97,14 @@
             font-weight: 800;
             cursor: pointer;
         }
+
         .sub-note {
             margin-top: 14px;
             font-size: 13px;
             line-height: 1.7;
             color: #94a3b8;
         }
+
         .consent-box {
             display: flex;
             align-items: flex-start;
@@ -127,18 +130,94 @@
             color: #334155;
             font-weight: 600;
         }
+
+        /* 휴대폰 인증 UI 추가 */
+        .phone-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .phone-row input {
+            flex: 1;
+        }
+
+        .btn-inline {
+            width: auto;
+            min-width: 120px;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 12px;
+            background: #0b68ff;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-inline[disabled] {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .verify-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .verify-row input {
+            flex: 1;
+        }
+
+        .timer {
+            min-width: 52px;
+            text-align: right;
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .verify-status {
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .verify-status.success {
+            color: #15803d;
+        }
+
+        .verify-status.error {
+            color: #dc2626;
+        }
+
         footer {
             text-align: center;
             padding: 36px 20px 46px;
             color: #94a3b8;
             font-size: 14px;
         }
+
         @media (max-width: 960px) {
             .trial-grid {
                 grid-template-columns: 1fr;
             }
             .info-box h1 {
                 font-size: 34px;
+            }
+            .phone-row,
+            .verify-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-inline {
+                width: 100%;
+            }
+            .timer {
+                text-align: left;
             }
         }
     </style>
@@ -182,7 +261,18 @@
 
                 <div class="form-group">
                     <label for="phone">연락처</label>
-                    <input id="phone" type="text" name="phone" placeholder="연락처를 입력하세요" required>
+                    <div class="phone-row">
+                        <input id="phone" type="text" name="phone" placeholder="휴대폰 번호를 입력하세요 (예: 01012345678)" required>
+                        <button type="button" id="sendCodeBtn" class="btn-inline">휴대폰 인증</button>
+                    </div>
+
+                    <div id="verifyWrap" class="verify-row" style="display:none;">
+                        <input id="verifyCodeInput" type="number" placeholder="인증번호 입력">
+                        <button type="button" id="verifyBtn" class="btn-inline">인증 확인</button>
+                        <span id="timerDisplay" class="timer">02:00</span>
+                    </div>
+
+                    <div id="verifyStatus" class="verify-status" style="display:none;"></div>
                 </div>
 
                 <div class="form-group">
@@ -225,26 +315,195 @@
 </footer>
 
 <script>
-    document.getElementById("trialForm").addEventListener("submit", async function (e) {
+    let authCode = null;
+    let timerInterval = null;
+    let timeLeft = 120;
+    let isPhoneVerified = false;
+    let verifiedPhoneNumber = "";
+
+    const phoneInput = document.getElementById("phone");
+    const sendCodeBtn = document.getElementById("sendCodeBtn");
+    const verifyWrap = document.getElementById("verifyWrap");
+    const verifyCodeInput = document.getElementById("verifyCodeInput");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const timerDisplay = document.getElementById("timerDisplay");
+    const verifyStatus = document.getElementById("verifyStatus");
+    const trialForm = document.getElementById("trialForm");
+
+    function formatMMSS(sec) {
+        const m = String(Math.floor(sec / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    function resetPhoneVerification(showMessage = false) {
+        clearInterval(timerInterval);
+        authCode = null;
+        timeLeft = 120;
+        isPhoneVerified = false;
+        verifiedPhoneNumber = "";
+
+        verifyWrap.style.display = "none";
+        verifyCodeInput.value = "";
+        verifyCodeInput.disabled = false;
+        verifyBtn.disabled = false;
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = "휴대폰 인증";
+        timerDisplay.textContent = "02:00";
+
+        if (showMessage) {
+            verifyStatus.style.display = "block";
+            verifyStatus.className = "verify-status error";
+            verifyStatus.textContent = "전화번호가 변경되어 인증을 다시 진행해주세요.";
+        } else {
+            verifyStatus.style.display = "none";
+            verifyStatus.textContent = "";
+            verifyStatus.className = "verify-status";
+        }
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 120;
+        timerDisplay.textContent = formatMMSS(timeLeft);
+
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = formatMMSS(timeLeft);
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                alert("인증시간이 만료되었습니다. 다시 인증해주세요.");
+                resetPhoneVerification();
+            }
+        }, 1000);
+    }
+
+    phoneInput.addEventListener("input", function () {
+        const currentPhone = this.value.trim();
+        if (verifiedPhoneNumber && currentPhone !== verifiedPhoneNumber) {
+            resetPhoneVerification(true);
+        }
+    });
+
+    sendCodeBtn.addEventListener("click", async function () {
+        const phone = phoneInput.value.trim();
+
+        if (!/^01[0-9]{8,9}$/.test(phone)) {
+            alert("유효한 휴대폰 번호를 입력해주세요.");
+            return;
+        }
+
+        authCode = String(Math.floor(100000 + Math.random() * 900000));
+
+        try {
+            const response = await fetch("/api/trial/phone_auth", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    plan: "0",
+                    phoneNumber: phone,
+                    authNumber: authCode
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.result !== "Success") {
+                alert(result.message || "인증번호 발송에 실패했습니다.");
+                return;
+            }
+
+            verifyWrap.style.display = "flex";
+            verifyStatus.style.display = "block";
+            verifyStatus.className = "verify-status";
+            verifyStatus.textContent = "인증번호가 발송되었습니다.";
+            sendCodeBtn.disabled = true;
+            sendCodeBtn.textContent = "인증번호 발송완료";
+
+            startTimer();
+        } catch (error) {
+            console.error(error);
+            alert("인증번호 발송 중 오류가 발생했습니다.");
+        }
+    });
+
+    verifyBtn.addEventListener("click", function () {
+        const enteredCode = verifyCodeInput.value.trim();
+        const phone = phoneInput.value.trim();
+
+        if (!enteredCode) {
+            alert("인증번호를 입력해주세요.");
+            return;
+        }
+
+        if (enteredCode !== authCode) {
+            verifyStatus.style.display = "block";
+            verifyStatus.className = "verify-status error";
+            verifyStatus.textContent = "인증번호가 올바르지 않습니다.";
+            alert("인증번호가 올바르지 않습니다.");
+            return;
+        }
+
+        clearInterval(timerInterval);
+        isPhoneVerified = true;
+        verifiedPhoneNumber = phone;
+
+        verifyCodeInput.disabled = true;
+        verifyBtn.disabled = true;
+        timerDisplay.textContent = "완료";
+        verifyStatus.style.display = "block";
+        verifyStatus.className = "verify-status success";
+        verifyStatus.textContent = "휴대폰 인증이 완료되었습니다.";
+        alert("휴대폰 인증이 완료되었습니다.");
+    });
+
+    trialForm.addEventListener("submit", async function (e) {
         e.preventDefault();
 
         const payload = {
             action: "create",
             name: document.getElementById("name").value.trim(),
             email: document.getElementById("email").value.trim(),
-            phone: document.getElementById("phone").value.trim(),
+            phone: phoneInput.value.trim(),
             category: document.getElementById("category").value,
             memo: document.getElementById("memo").value.trim(),
             privacy_agree: document.getElementById("privacyAgree").checked ? "Y" : "N"
         };
+
+        if (!payload.name) {
+            alert("이름은 필수입니다.");
+            return;
+        }
+
+        if (!payload.email) {
+            alert("이메일은 필수입니다.");
+            return;
+        }
 
         if (!payload.phone) {
             alert("전화번호는 필수입니다.");
             return;
         }
 
+        if (!/^01[0-9]{8,9}$/.test(payload.phone)) {
+            alert("유효한 휴대폰 번호를 입력해주세요.");
+            return;
+        }
+
+        if (!isPhoneVerified || verifiedPhoneNumber !== payload.phone) {
+            alert("무료체험 신청 전에 휴대폰 인증을 먼저 완료해주세요.");
+            return;
+        }
+
         if (payload.privacy_agree !== "Y") {
             alert("개인정보 수집 및 이용에 동의해야 신청할 수 있습니다.");
+            return;
+        }
+
+        if (!confirm("무료체험 요청 하시겠습니까?")) {
             return;
         }
 
@@ -266,6 +525,7 @@
 
             alert("무료체험 요청이 접수되었습니다.");
             document.getElementById("trialForm").reset();
+            resetPhoneVerification();
         } catch (error) {
             console.error(error);
             alert("서버 요청 중 오류가 발생했습니다.");

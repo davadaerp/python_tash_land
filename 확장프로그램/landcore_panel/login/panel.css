@@ -1616,3 +1616,21 @@ body {
 .landcore-link:hover .landcore-main {
   color: #2563eb; /* hover 시 블루 */
 }
+
+
+/* ===============================
+   중개사 링크 스타일 (Top Agencies)
+=============================== */
+.top-agency-name-link {
+    border: none;
+    background: transparent;
+    color: #1565c0;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+}
+
+.top-agency-name-link:hover {
+    color: #0d47a1;
+}

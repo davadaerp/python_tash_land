@@ -333,46 +333,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // 상세 중개사 정보 목록 추출
-    if (message.type === 'GET_AGENCY_MEMO_LIST') {
-        if (!isNaverDomain()) {
-            sendResponse({ success: false, error: '네이버부동산 페이지에서만 중개사 정보 추출이 가능합니다.' });
-            return true;
-        }
+    // [추가] 특정 중개사 상세 조회
+    if (message.type === 'GET_AGENCY_DETAIL_BY_NAME') {
+
+        const targetName = normalizeAgencyNameForCompare(message.agencyName);
 
         (async () => {
             try {
                 const items = findListingItems();
-                const agencyList = [];
-                const seenKeys = new Set();
 
                 for (const item of items) {
-                    try {
-                        const listingData = parseListingItem(item);
-                        if (!listingData) continue;
 
-                        const memoData = await extractMemoDataFromListingItem(item, listingData);
-                        const dedupeKey = [
-                            memoData.agencyName || '',
-                            memoData.agencyPhone || '',
-                            memoData.agencyMobile || '',
-                            memoData.agencyAddress || ''
-                        ].join('|');
+                    const listingData = parseListingItem(item);
+                    if (!listingData || !listingData.agencyName) continue;
 
-                        if (!dedupeKey.replace(/\|/g, '').trim()) continue;
-                        if (seenKeys.has(dedupeKey)) continue;
-                        seenKeys.add(dedupeKey);
+                    const currentName = normalizeAgencyNameForCompare(listingData.agencyName);
 
-                        agencyList.push(memoData);
-                    } catch (e) {
-                        console.warn('중개사 목록 추출 실패:', e);
-                    }
+                    if (currentName !== targetName) continue;
+
+                    // 상세 열기 + 데이터 추출
+                    const memoData = await extractMemoDataFromListingItem(item, listingData);
+
+                    sendResponse({
+                        success: true,
+                        data: memoData
+                    });
+
+                    return;
                 }
 
-                sendResponse({ success: true, data: agencyList });
-            } catch (error) {
-                console.error('❌ 중개사 목록 추출 오류:', error);
-                sendResponse({ success: false, error: error.message || '중개사 목록 추출 실패' });
+                sendResponse({ success: false });
+
+            } catch (e) {
+                sendResponse({ success: false });
             }
         })();
 
@@ -381,6 +374,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return false;
 });
+
+function normalizeAgencyNameForCompare(name) {
+    if (!name) return '';
+
+    return name
+        .replace(/\s+/g, '')
+        .replace(/공인중개사사무소|중개사사무소|중개사무소/g, '')
+        .trim();
+}
 
 /**
  * 현재 열린 매물 상세정보 팝업에서 데이터 추출
@@ -877,6 +879,7 @@ async function extractMemoDataFromListingItem(item, listingData = null) {
 
     await sleep(180);
 
+    // 상세내역 데이타 추출
     const memoData = extractMemoData();
 
     return {
@@ -891,6 +894,7 @@ async function extractMemoDataFromListingItem(item, listingData = null) {
 // =============================
 // 상세패널 관련 유틸 함수 START
 // =============================
+
 // 단순 sleep
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -915,17 +919,38 @@ function getCurrentDetailPanelSignature() {
     return text.slice(0, 200); // 앞부분만 비교 (속도 최적화)
 }
 
-// 리스트 아이템 클릭 → 상세 열기
 function triggerListingItemDetailOpen(item) {
     if (!item) return;
 
-    // 1순위: 내부 클릭 가능한 링크
-    const clickable =
-        item.querySelector('[class*="link"]') ||
-        item.querySelector('a') ||
-        item;
+    let clickable = null;
 
-    // 강제 클릭
+    if (isNewVersion()) {
+        /**
+         * fin.land 신버전
+         * 핵심:
+         * - ArticleCard_button-expand 는 중개사 묶음 펼침 버튼이라 클릭하면 안 됨
+         * - ArticleCard_link 계열만 클릭해서 상세패널만 열기
+         */
+        clickable =
+            item.querySelector('[class*="ArticleCard_link"]') ||
+            item.querySelector('a[href*="article"]') ||
+            item.querySelector('a');
+
+        if (!clickable) {
+            console.warn('[AgencyDetail] 상세 링크를 찾지 못했습니다. 펼침 버튼은 클릭하지 않습니다.', item);
+            return;
+        }
+    } else {
+        /**
+         * new.land 구버전
+         * 기존 방식 유지
+         */
+        clickable =
+            item.querySelector('.item_link') ||
+            item.querySelector('a') ||
+            item;
+    }
+
     clickable.dispatchEvent(new MouseEvent('click', {
         bubbles: true,
         cancelable: true,

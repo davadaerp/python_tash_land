@@ -6,8 +6,8 @@ BASE_PATH = "/Users/wfight/IdeaProjects/PythonProject/Auction"
 
 # 환경변수 SANGA_DB_PATH가 설정되어 있으면 사용하고, 없으면 기본 경로를 사용
 MASTER_DB_PATH = os.environ.get("MASTER_DB_PATH", BASE_PATH + "/master")
-APT_BASE_PATH = os.environ.get("APT_BASE_PATH", BASE_PATH + "/apt")
-SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/sanga")
+APT_BASE_PATH = os.environ.get("APT_BASE_PATH", BASE_PATH + "/crawling/apt")
+SANGA_BASE_PATH = os.environ.get("SANGA_DB_PATH", BASE_PATH + "/crawling/sanga")
 AUCTION_DB_PATH = os.environ.get("AUCTION_DB_PATH", BASE_PATH + "/auction")
 PUBLIC_BASE_PATH = os.environ.get("PUBLIC_BASE_PATH", BASE_PATH + "/pubdata")
 #
