@@ -539,6 +539,8 @@ def apt_items_to_json(items: list, lawd_cd: str) -> list:
 
     return json_records
 
+
+
 # ==============================
 # main — 테스트 실행
 # ==============================

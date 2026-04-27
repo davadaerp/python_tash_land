@@ -333,25 +333,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // [추가] 특정 중개사 상세 조회
+    // [수정] 특정 중개사/가격 매물 상세 조회
     if (message.type === 'GET_AGENCY_DETAIL_BY_NAME') {
-
+        const mode = message.mode || 'agencyName';
         const targetName = normalizeAgencyNameForCompare(message.agencyName);
+        const targetItem = message.listingItem || null;
+
+        console.log('[GET_AGENCY_DETAIL_BY_NAME] 요청:', {
+            mode,
+            agencyName: message.agencyName,
+            targetItem
+        });
 
         (async () => {
             try {
                 const items = findListingItems();
 
                 for (const item of items) {
-
                     const listingData = parseListingItem(item);
-                    if (!listingData || !listingData.agencyName) continue;
+                    if (!listingData) continue;
 
-                    const currentName = normalizeAgencyNameForCompare(listingData.agencyName);
+                    let matched = false;
 
-                    if (currentName !== targetName) continue;
+                    // 월세,매매목록 상세 구분없이 매물정보로 비교하여 매칭 여부 판단
+                    if (mode === 'listingItem') {
+                        matched = isSameListingItemForDetail(listingData, targetItem);
 
-                    // 상세 열기 + 데이터 추출
+                        console.log('[GET_AGENCY_DETAIL_BY_NAME][PRICE_MATCH_CHECK]', {
+                            matched,
+                            parsed: listingData,
+                            target: targetItem
+                        });
+                    } else {
+                        if (!listingData.agencyName) continue;
+
+                        const currentName = normalizeAgencyNameForCompare(listingData.agencyName);
+                        matched = currentName === targetName;
+
+                        console.log('[GET_AGENCY_DETAIL_BY_NAME][AGENCY_MATCH_CHECK]', {
+                            matched,
+                            currentName,
+                            targetName,
+                            parsed: listingData
+                        });
+                    }
+
+                    if (!matched) continue;
+
                     const memoData = await extractMemoDataFromListingItem(item, listingData);
 
                     sendResponse({
@@ -362,10 +390,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
+                console.warn('[GET_AGENCY_DETAIL_BY_NAME] 매칭 매물 없음:', {
+                    mode,
+                    targetName,
+                    targetItem
+                });
+
                 sendResponse({ success: false });
 
             } catch (e) {
-                sendResponse({ success: false });
+                console.error('[GET_AGENCY_DETAIL_BY_NAME] 오류:', e);
+                sendResponse({ success: false, error: e.message || String(e) });
             }
         })();
 
@@ -382,6 +417,41 @@ function normalizeAgencyNameForCompare(name) {
         .replace(/\s+/g, '')
         .replace(/공인중개사사무소|중개사사무소|중개사무소/g, '')
         .trim();
+}
+
+function normalizeListingCompareValue(value) {
+    return String(value ?? '')
+        .replace(/\s+/g, '')
+        .replace(/,/g, '')
+        .trim();
+}
+
+function isNearlySameNumber(a, b, tolerance = 0.15) {
+    const na = Number(a) || 0;
+    const nb = Number(b) || 0;
+
+    if (!na && !nb) return true;
+    if (!na || !nb) return false;
+
+    return Math.abs(na - nb) <= tolerance;
+}
+
+function isSameListingItemForDetail(parsed, target) {
+    if (!parsed || !target) return false;
+
+    const sameType = normalizeListingCompareValue(parsed.type) === normalizeListingCompareValue(target.type);
+    const sameFloor = normalizeListingCompareValue(parsed.floor) === normalizeListingCompareValue(target.floor);
+    const samePrice = normalizeListingCompareValue(parsed.fullPrice) === normalizeListingCompareValue(target.fullPrice);
+    const sameArea = isNearlySameNumber(parsed.area, target.area, 0.2);
+    const samePydanga = isNearlySameNumber(parsed.pricePerPyeong, target.pricePerPyeong, 0.2);
+
+    const parsedAgency = normalizeAgencyNameForCompare(parsed.agencyName || '');
+    const targetAgency = normalizeAgencyNameForCompare(target.agencyName || '');
+    const sameAgency = !targetAgency || parsedAgency === targetAgency;
+
+    // 핵심 비교: 구분 + 층 + 가격 + 평수 + 평당가
+    // 중개사명은 있으면 같이 비교, 없으면 제외
+    return sameType && sameFloor && samePrice && sameArea && samePydanga && sameAgency;
 }
 
 /**

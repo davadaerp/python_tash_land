@@ -188,6 +188,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 displayResults(lastAnalysisData);
             }
         }
+
+        // 가격 링크누르면 네이버부동산에서 해당 매물 위치로 이동
+        const priceLink = e.target.closest('[data-listing-detail-item]');
+        if (priceLink) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            try {
+                const item = JSON.parse(decodeURIComponent(priceLink.getAttribute('data-listing-detail-item') || '{}'));
+                showAgencyDetailByListingItem(item);
+            } catch (err) {
+                console.error('[PANEL_PRICE_LINK] item 파싱 실패:', err);
+                alert('선택 매물 정보를 읽을 수 없습니다.');
+            }
+            return;
+        }
     });
 
     // 층 필터 변경은 click이 아닌 change 이벤트로 처리 (select 요소의 고유 이벤트)
@@ -548,6 +564,50 @@ function syncTopAgenciesToggleIcon() {
     iconEl.textContent = isExpanded ? '▲' : '▼';
 }
 
+// 가격 링크 클릭 시 네이버부동산에서 해당 매물 위치로 이동
+async function showAgencyDetailByListingItem(item) {
+    if (!item) {
+        alert('선택 매물 정보가 없습니다.');
+        return;
+    }
+
+    console.log('[PANEL_PRICE_LINK] 상세요청 item:', item);
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs?.[0];
+
+        if (!activeTab?.id) {
+            alert('현재 활성 탭을 찾을 수 없습니다.');
+            return;
+        }
+
+        chrome.tabs.sendMessage(
+            activeTab.id,
+            {
+                type: 'GET_AGENCY_DETAIL_BY_NAME',
+                mode: 'listingItem',
+                listingItem: item
+            },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('[PANEL_PRICE_LINK] sendMessage 오류:', chrome.runtime.lastError);
+                    alert('네이버부동산 탭에서 매물 상세를 열 수 없습니다.');
+                    return;
+                }
+
+                if (!response?.success) {
+                    console.warn('[PANEL_PRICE_LINK] 매칭 실패:', item, response);
+                    alert('해당 가격 매물의 상세를 찾지 못했습니다.');
+                    return;
+                }
+
+                console.log('[PANEL_PRICE_LINK] 상세 펼침 성공:', response.data);
+            }
+        );
+    });
+}
+
+// 상위목록 중개사 클릭 시 네이버부동산에서 해당 부동산명으로 검색하여 상세 매물 보기
 async function showAgencyDetailByName(agencyName) {
     if (!agencyName) {
         alert('부동산명이 없습니다.');
@@ -1498,14 +1558,34 @@ function getListingTableHTML(listings, selectedType) {
         currentListSort.direction
     );
 
-    const rowsHTML = sorted.map(item => {
+    // getListingTableHTML() 안 rowsHTML 부분 교체
+    const rowsHTML = sorted.map((item, idx) => {
+        const itemPayload = encodeURIComponent(JSON.stringify({
+            type: item.type || selectedType,
+            floor: item.floor || '',
+            direction: item.direction || '',
+            pricePerPyeong: item.pricePerPyeong || 0,
+            area: item.area || 0,
+            fullPrice: item.fullPrice || '',
+            price: item.price || 0,
+            agencyName: item.agencyName || '',
+            verificationDate: item.verificationDate || ''
+        }));
+
         return `
             <tr>
                 <td>${formatFloorDisplay(item.floor)}</td>
                 <td>${item.direction || '-'}</td>
                 <td>${formatPricePerPyeong(item.pricePerPyeong)}</td>
                 <td>${formatAreaDisplay(item.area)}</td>
-                <td class="listing-price-cell" style="min-width: 170px; white-space: nowrap;">${formatListingPrice(item)}</td>
+                <td class="listing-price-cell" style="min-width: 170px; white-space: nowrap;">
+                    <button type="button"
+                            class="listing-price-link"
+                            data-listing-detail-item="${itemPayload}"
+                            title="해당 매물 상세 펼치기">
+                        ${formatListingPrice(item)}
+                    </button>
+                </td>
             </tr>
         `;
     }).join('');

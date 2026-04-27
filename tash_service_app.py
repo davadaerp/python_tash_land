@@ -2072,7 +2072,7 @@ def ext_tool_map_real_auction(user_id):
 def ext_tool_map_panel(user_id):
     menu = request.form.get("menu", "")
     # 자산구분타입(apt, villa, sanga => naver tabGubun에 해당함.
-    tab_gubun = request.form.get("tabGubun", "상가")
+    propertyType = request.form.get("propertyType", "상가")
     address = request.form.get("address", "")
     # 인증토큰
     access_token = request.form.get("tk", "")
@@ -2084,7 +2084,7 @@ def ext_tool_map_panel(user_id):
         "sanga": "상가"
     }
     # 매핑되지 않은 값이 들어올 경우를 대비해 .get() 사용 (기본값 '상가')
-    asset_type = asset_type_map.get(tab_gubun, "상가")
+    asset_type = asset_type_map.get(propertyType, "상가")
 
     # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
     # 최종 리턴 필드 설명
