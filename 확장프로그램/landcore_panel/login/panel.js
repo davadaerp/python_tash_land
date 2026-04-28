@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (lastAnalysisData) {
                 displayResults(lastAnalysisData);
+                displayAreaChart(lastAnalysisData); // 추가: 중복 체크/해제 시 차트도 갱신
             }
             return;
         }
@@ -317,10 +318,19 @@ function renderAreaChart(listings, type = '월세') {
     // 제목 업데이트, 해당 타입(매매/월세)만 필터링
     const floorLabel = currentFloorFilter || '전체';
     const typeFilteredListings = (listings || []).filter(l => l.type === type);
-    const filteredListings = filterListingsByFloor(typeFilteredListings, floorLabel);
-    const selectedCount = filteredListings.length || 0;
+    // 차트도 리스트와 동일하게 적용:
+    // 1) 타입 필터
+    // 2) 층 필터
+    // 3) 중복 체크 시 group by 결과
+    let filteredListings = filterListingsByFloor(typeFilteredListings, floorLabel);
 
-    chartTitle.textContent = `✏️ ${type} 평수 분포(${floorLabel}/${selectedCount}건)`;
+    if (currentDuplicateOnly) {
+        filteredListings = getDuplicateGroupedListings(filteredListings);
+    }
+    const selectedCount = filteredListings.length || 0;
+    const duplicateLabel = currentDuplicateOnly ? '/중복' : '';
+
+    chartTitle.textContent = `✏️ ${type} 평수 분포(${floorLabel}${duplicateLabel}/${selectedCount}건)`;
 
     if (filteredListings.length === 0) {
         chartContainer.innerHTML = `<div class="empty-msg" style="padding:20px; color:#999; text-align:center;">${type} ${floorLabel} 데이터가 없습니다.</div>`;
