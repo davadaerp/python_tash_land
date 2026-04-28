@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, jsonify, url_for
-
+from datetime import timedelta, datetime
+from master.user_db_utils import user_read_db, user_update_exist_record
 from sms.naver_alim_talk import alimtalk_send
 from sms.naver_sms import send_sms
 from .trial_db_utils import (
@@ -180,12 +181,67 @@ def trial_crud():
             "message": "무료체험 요청 저장 중 오류가 발생했습니다."
         }), 500
 
+    # =========================
+    # 무료체험 저장 성공 후 관리자 알림톡/SMS 전송
+    # =========================
+    admin_send_ok, admin_send_message = send_trial_created_admin_alimtalk(item)
+    print("trial_crud() 무료체험요청 관리자 알림톡 결과:", admin_send_ok, admin_send_message)
+
     return jsonify({
         "result": "Success",
         "message": "무료체험 요청이 접수되었습니다.",
         "item": item
     })
 
+# 무료체험 저장 성공 후 관리자 알림톡/SMS 전송
+def send_trial_created_admin_alimtalk(item):
+    """
+    무료체험 요청 저장 성공 시 관리자 알림톡/SMS 발송
+    """
+    if not item:
+        return False, "무료체험 요청 데이터가 없습니다."
+
+    name = str(item.get("name", "")).strip()
+    email = str(item.get("email", "")).strip()
+    phone = str(item.get("phone", "")).strip()
+    category = str(item.get("category", "")).strip()
+
+    to = "01022709085"
+    title = "무료체험"  # 물건 (무료처험) 요청합니다.
+    message = (
+        f"\n{name}님이 무료체험요청을 하였습니다.\n"
+        f"구분: {category or '-'}\n"
+        f"전화번호: {phone}\n"
+        f"이메일: {email}\n"
+        f"관리자페이지에서 확인 바랍니다."
+    )
+
+    data = {
+        "userid": phone or email or "trial",
+        "userpswd": "0000",
+        "phoneNumbers": "관리자:" + to,
+        "title": title,
+        "message": message
+    }
+
+    print("send_trial_created_admin_alimtalk() 무료체험요청 관리자 알림톡 발송:", data)
+
+    try:
+        mms_result = alimtalk_send(data)
+
+        if mms_result.status_code == 202:
+            print("send_trial_created_admin_alimtalk() 관리자 알림톡 성공")
+            return True, message
+
+        print("send_trial_created_admin_alimtalk() 관리자 알림톡 실패:", mms_result.status_code)
+        return False, "관리자 알림톡 발송 실패"
+
+    except Exception as e:
+        print("send_trial_created_admin_alimtalk() 예외 발생:", e)
+        return False, str(e)
+
+
+#=======================================
 @landing_bp.route("/api/reviews/list", methods=["GET"])
 def reviews_list():
     page = request.args.get("page", 1, type=int)
@@ -215,6 +271,10 @@ def reviews_crud():
         rating = int(payload.get("rating", 5) or 5)
         content = str(payload.get("content", "")).strip()
         password = str(payload.get("password", "")).strip()
+        #
+        phone_number = str(payload.get("phone", "")).strip()
+
+        print("reviews_crud() create payload:", payload)
 
         if not writer or not title or not content:
             return jsonify({
@@ -228,14 +288,45 @@ def reviews_crud():
                 "message": "수정/삭제용 비밀번호는 필수입니다."
             }), 400
 
-
-        item = review_insert_single(writer, title, rating, content, password)
-
+        item = review_insert_single(writer, phone_number, title, rating, content, password)
         if not item:
             return jsonify({
                 "result": "Fail",
                 "message": "후기 등록 중 오류가 발생했습니다."
             }), 500
+
+        # 후기 1번에 해당함. 구독(체험)일자 + 30일 추가함. => 리스트로 데이터를 받아옵니다.
+        user_results = user_read_db(phone_number=phone_number)
+        if user_results and len(user_results) > 0:
+            # 3. 리스트의 첫 번째 요소(딕셔너리)를 추출합니다.
+            user_info = user_results[0]
+
+            print("reviews_crud() user_info:", user_info)
+
+            # 4. 이제 user_info는 딕셔너리이므로 안전하게 키로 접근합니다.
+            end_date_raw = user_info.get("subscription_end_date")
+            if end_date_raw:
+                # 날짜 변환 로직
+                if isinstance(end_date_raw, datetime):
+                    dt_obj = end_date_raw
+                else:
+                    dt_obj = datetime.strptime(str(end_date_raw), "%Y-%m-%d %H:%M:%S")
+
+                # 15일 연산(차후 15일 체험연장 적용)
+                new_end_date = dt_obj + timedelta(days=15)
+                formatted_date = new_end_date.strftime("%Y-%m-%d %H:%M:%S")
+
+                # 5. 업데이트 실행 (user_info["key"] 형식 사용)
+                user_update_exist_record({
+                    "user_id": user_info["user_id"],
+                    "phone_number": phone_number,
+                    "subscription_start_date": user_info["subscription_start_date"],
+                    "subscription_end_date": formatted_date,
+                    "subscription_status": "active"
+                })
+                print(f"구독 연장 완료: {formatted_date}")
+        else:
+            print("사용자 정보가 없거나 결과 리스트가 비어있습니다.")
 
         return jsonify({
             "result": "Success",
@@ -302,6 +393,9 @@ def reviews_crud():
         "message": "지원하지 않는 action 입니다."
     }), 400
 
+
+#---------------------------------------------------------------
+# trial admin maanger list
 #---------------------------------------------------------------
 @landing_bp.route("/admin/trials", methods=["GET"])
 def admin_trial_list_page():
@@ -366,7 +460,8 @@ def admin_trial_approve_api():
             "message": "승인 처리 중 오류가 발생했습니다."
         }), 500
 
-    sent_ok, sent_message = send_trial_approved_message_sms(updated_item)
+    #sent_ok, sent_message = send_trial_approved_message_sms(updated_item)
+    sent_ok, sent_message = send_trial_approved_message_alimtalk(updated_item)
 
     return jsonify({
         "result": "Success",
@@ -421,6 +516,7 @@ def send_trial_approved_message_sms(item):
         print("send_trial_approved_message_sms() 예외 발생:", e)
         return False, f"무료체험 승인 SMS 발송 중 오류: {str(e)}"
 
+
 # 알림톡 전송
 def send_trial_approved_message_alimtalk(item):
     """
@@ -438,8 +534,8 @@ def send_trial_approved_message_alimtalk(item):
         return False, "수신자 전화번호가 없습니다."
 
     final_message = approved_message or (
-        f"{name}님 무료체험 승인이 완료되었습니다.\n"
-        f"랜드코어 설치 및 이용 안내는 별도로 전달드리겠습니다."
+        f"\n{name}님 무료체험 승인이 완료되었습니다.\n"
+        f"랜드코어 다운로드 및 설치는 아래 URL을 참조해 주세요.\n"
     )
 
     title = "무료체험 승인"
@@ -471,6 +567,7 @@ def send_trial_approved_message_alimtalk(item):
     except Exception as e:
         print("send_trial_approved_message() 예외 발생:", e)
         return False, f"무료체험 승인 알림톡 발송 중 오류: {str(e)}"
+
 
 @landing_bp.route("/api/admin/trials/delete", methods=["POST"])
 def admin_trial_delete_api():
