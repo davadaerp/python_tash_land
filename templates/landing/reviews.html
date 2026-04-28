@@ -318,6 +318,10 @@
                 <label for="content">내용</label>
                 <textarea id="content" placeholder="랜드코어 사용 경험을 자유롭게 적어주세요"></textarea>
             </div>
+            <div class="form-group">
+                <label for="phone">전화번호</label>
+                <input type="text" id="phone" placeholder="체험 연장위한 전화번호">
+            </div>
 
             <div class="form-group">
                 <label for="reviewPassword">수정/삭제 비밀번호</label>
@@ -488,8 +492,14 @@
         }
     }
 
+    // 후기 등록/수정 처리
     document.getElementById("reviewForm").addEventListener("submit", async function(e) {
         e.preventDefault();
+
+        // 1. 저장 확인 메시지 추가
+        if (!confirm("저장하시겠습니까?")) {
+            return;
+        }
 
         const id = document.getElementById("reviewId").value;
         const payload = {
@@ -499,7 +509,8 @@
             title: document.getElementById("title").value.trim(),
             rating: Number(document.getElementById("rating").value),
             content: document.getElementById("content").value.trim(),
-            password: document.getElementById("reviewPassword").value.trim()
+            password: document.getElementById("reviewPassword").value.trim(),
+            phone: document.getElementById("phone").value.trim()
         };
 
         if (!payload.password) {

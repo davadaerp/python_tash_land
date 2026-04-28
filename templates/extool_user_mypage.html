@@ -183,6 +183,96 @@
       }
     }
 
+    // ===== 결재정보 로드 =====
+    async function loadPayment() {
+      try {
+        if (!token) {
+          alert('로그인 토큰이 없습니다. 다시 로그인 해주세요.');
+          return;
+        }
+
+        const res = await fetch('/api/user/mypage/user_hist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          credentials: 'include'
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const list = await res.json();
+
+        const tbody = document.querySelector('#payment table tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(list) || list.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" style="text-align:center; color:#666;">결재정보가 없습니다.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const kindLabel = (kind) => {
+          const k = (kind || '').toUpperCase();
+          if (k === 'SUBSCRIPTION') return '구독';
+          if (k === 'SMS_CHARGE') return '문자';
+          return kind || '—';
+        };
+
+        const calcRemainDays = (endDate) => {
+          if (!endDate) return '—';
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const end = new Date(endDate);
+          if (Number.isNaN(end.getTime())) return '—';
+
+          end.setHours(0, 0, 0, 0);
+
+          const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+          return diff > 0 ? `${diff}일` : '만료';
+        };
+
+        // 날짜 포맷터 (시간 제거)
+        const formatStartEndDate = (startDate, endDate) => {
+          const format = (d) => {
+            if (!d) return '—';
+            return d.toString().split(' ')[0];   // ✅ 시간 제거
+          };
+
+          return `${format(startDate)} / ${format(endDate)}`;
+        };
+
+        list.forEach((row, idx) => {
+          const startDate = row.start_date || row.subscription_start_date || row.request_date || '';
+          const endDate = row.end_date || row.subscription_end_date || '';
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${idx + 1}</td>
+            <td>${kindLabel(row.kind)}</td>
+            <td>${formatStartEndDate(startDate, endDate)}</td>
+            <td>${calcRemainDays(endDate)}</td>
+            <td>30,000원</td>
+            <td><button onclick="handleReceipt()">영수증</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (e) {
+        console.error(e);
+        alert('결재정보를 불러오지 못했습니다.');
+      }
+    }
+
+
     // ===== 요청이력 로드 =====
     async function loadRequests() {
       try {
@@ -442,8 +532,8 @@
     // ===== 탭 라우팅 =====
     const loaders = {
       member: loadMember,
+      payment: loadPayment,
       requests: loadRequests
-      // payment: loadPayment,
       // etc: loadEtc
     };
 
@@ -484,7 +574,9 @@
   <div class="tabs">
     <div class="tab active" data-tab="member">회원정보</div>
     <div class="tab" data-tab="payment">결재정보</div>
+    <!--
     <div class="tab" data-tab="requests">요청이력</div>
+    -->
     <div class="tab" data-tab="etc">기타</div>
   </div>
 
@@ -506,39 +598,29 @@
     </table>
   </div>
 
+  <!-- 결재정보는 요청이력과 같은 API 호출, 테이블만 별도 구성 -->
   <div id="payment" class="panel" style="display:none;">
     <h3>결재정보</h3>
     <table>
-      <tr>
-        <th>순번</th>
-        <th>구분</th>
-        <th>결재시작/만료일자</th>
-        <th>잔여일</th>
-        <th>결재금액</th>
-        <th>영수증</th>
-      </tr>
-      <tr>
-        <td>1</td><td>구독</td><td>2025-06-01 10:15</td><td>30일</td><td>30,000원</td>
-        <td><button onclick="handleReceipt()">영수증</button></td>
-      </tr>
-
-      <tr>
-        <td>2</td><td>문자</td><td>2025-06-03 14:20</td><td>30일</td><td>5,000원</td>
-        <td><button onclick="handleReceipt()">영수증</button></td>
-      </tr>
-
-      <tr>
-        <td>3</td><td>알림톡</td><td>2025-06-05 09:45</td><td>30일</td><td>8,000원</td>
-        <td><button onclick="handleReceipt()">영수증</button></td>
-      </tr>
-
-      <tr>
-        <td>4</td><td>등기부등본</td><td>2025-06-10 16:30</td><td>30일</td><td>1,000원</td>
-        <td><button onclick="handleReceipt()">영수증</button></td>
-      </tr>
+      <thead>
+        <tr>
+          <th>순번</th>
+          <th>구분</th>
+          <th>결재시작/만료일자</th>
+          <th>잔여일</th>
+          <th>결재금액</th>
+          <th>영수증</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="6" style="text-align:center; color:#666;">불러오는 중...</td>
+        </tr>
+      </tbody>
     </table>
   </div>
 
+  <!-- 요청이력은 결재정보 API와 동일하므로 같은 엔드포인트 호출, 테이블만 별도 구성 -->
   <div id="requests" class="panel" style="display:none;">
     <h3>요청이력</h3>
     <table>

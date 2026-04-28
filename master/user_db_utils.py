@@ -327,7 +327,7 @@ def user_drop_table():
     print(f"테이블 '{TABLE_NAME}' 삭제 완료.")
 
 # 사용자목록 조회
-def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kakao_id: str = ""):
+def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kakao_id: str = "", phone_number: str = ""):
     """
     사용자 데이터 조회.
     - user_id 정확일치
@@ -353,6 +353,9 @@ def user_read_db(user_id: str = "", userName: str = "", nickName: str = "", kaka
     if kakao_id:
         query += " AND kakao_id = ?"
         params.append(kakao_id)
+    if phone_number:
+        query += " AND phone_number = ?"
+        params.append(phone_number)
 
     query += " LIMIT 130"
     cur.execute(query, params)

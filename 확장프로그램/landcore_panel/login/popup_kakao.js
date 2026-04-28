@@ -27,6 +27,7 @@ const btnCharge    = document.getElementById("btn-charge");
 const btnLogin     = document.getElementById("btn-login");
 const btnLogout    = document.getElementById("btn-logout");
 const btnMypage    = document.getElementById("btn-mypage");
+const btnSubscribe = document.getElementById("btn-subscribe");
 let toast        = document.getElementById("toast");
 
 
@@ -95,68 +96,68 @@ function applySubUI({ is_subscribed, plan_name, plan_date, is_recharged }) {
     subStatusEl.style.color = "#d90429";
   }
 
-  setMypageButton(isSubscribed);
+  setActionButtonsBySubscribeState(isSubscribed, isRequesting);
 
-  if (isRequesting) {
-    btnMypage.disabled = true;
-    btnMypage.textContent = "구독요청진행중..";
-    btnMypage.classList.add("btn-disabled", "requesting-blink-btn");
-
-    if (btnCharge) {
-      btnCharge.classList.add("hidden");
-      btnCharge.disabled = true;
-    }
-    return;
-  }
-
-  if (!isSubscribed) {
-    btnMypage.disabled = false;
-    btnMypage.classList.remove("btn-disabled");
-    btnMypage.textContent = "💎 구독하기";
-    btnMypage.dataset.mode = "subscribe";
-
-    if (btnCharge) {
-      btnCharge.classList.add("hidden");
-      btnCharge.disabled = true;
-      btnCharge.textContent = "문자충전";
-      btnCharge.classList.remove("btn-disabled");
-    }
-    return;
-  }
-
-  if (btnCharge) {
-    btnCharge.classList.remove("hidden");
-    btnCharge.disabled = false;
-    btnCharge.textContent = "문자충전";
-    btnCharge.classList.remove("btn-disabled");
-  }
-
-  if (is_recharged === "request") {
+  if (is_recharged === "request" && btnCharge) {
     btnCharge.textContent = "충전중..";
     btnCharge.disabled = true;
     btnCharge.classList.add("btn-disabled");
   }
 }
 
-// 마이페이지 / 구독 버튼 설정
-function setMypageButton(isSubscribed) {
+// 마이페이지 / 문자충전 / 구독하기 버튼 표시 설정
+// 마이페이지 / 문자충전 / 구독하기 버튼 표시 설정
+function setActionButtonsBySubscribeState(isSubscribed, isRequesting) {
+  // 마이페이지는 항상 표시
   btnMypage.disabled = false;
-  btnMypage.classList.remove("btn-disabled", "requesting-blink-btn");
+  btnMypage.textContent = "마이페이지";
+  btnMypage.dataset.mode = "mypage";
+  btnMypage.classList.remove("hidden", "btn-disabled", "requesting-blink-btn");
+
+  console.log("[setActionButtonsBySubscribeState] isSubscribed:", isSubscribed, "isRequesting:", isRequesting);
+
+  // 구독요청중
+  if (isRequesting) {
+
+    // 구독요청중 버튼 설정
+    if (btnSubscribe) {
+        btnSubscribe.textContent = "구독요청중..";
+        btnSubscribe.classList.add("btn-disabled", "requesting-blink-btn");
+        btnSubscribe.disabled = false;
+    }
+    // 문자충전 버튼 숨김
+    if (btnCharge) {
+      btnCharge.classList.add("hidden");
+      btnCharge.disabled = true;
+    }
+    return;
+  }
 
   if (isSubscribed) {
-    btnMypage.textContent = "마이페이지";
-    btnMypage.classList.remove("btn-subscribe");
-    btnMypage.classList.add("btn-secondary");
-    btnMypage.dataset.mode = "mypage";
+    // 구독 상태: 마이페이지 + 문자충전
+    if (btnCharge) {
+      btnCharge.classList.remove("hidden");
+      btnCharge.disabled = false;
+      btnCharge.textContent = "문자충전";
+      btnCharge.classList.remove("btn-disabled");
+    }
 
-    if (btnCharge) btnCharge.classList.remove("hidden");
+    if (btnSubscribe) {
+      btnSubscribe.classList.add("hidden");
+      btnSubscribe.disabled = true;
+    }
   } else {
-    btnMypage.textContent = "💎 구독하기";
-    btnMypage.classList.remove("btn-secondary");
-    btnMypage.classList.add("btn-subscribe");
-    btnMypage.dataset.mode = "subscribe";
+    // 미구독 상태: 마이페이지 + 구독하기
+    if (btnCharge) {
+      btnCharge.classList.add("hidden");
+      btnCharge.disabled = true;
+    }
 
-    if (btnCharge) btnCharge.classList.add("hidden");
+    if (btnSubscribe) {
+      btnSubscribe.classList.remove("hidden");
+      btnSubscribe.disabled = false;
+      btnSubscribe.textContent = "💎 구독하기";
+    }
   }
 }
 
@@ -383,17 +384,20 @@ safeAddListener(btnLogout, "click", async () => {
   showToast("로그아웃 완료");
 });
 
-// 마이페이지 / 구독 버튼 클릭
+// 마이페이지 버튼 클릭
 safeAddListener(btnMypage, "click", async () => {
-  const mode = btnMypage.dataset.mode;
+  openMypageWithToken();
+});
+
+// 구독하기 버튼 클릭
+safeAddListener(btnSubscribe, "click", async () => {
   const token = (await csGet(['access_token']))?.access_token || '';
 
-  if (mode === 'subscribe') {
-    if (!token) { showToast('로그인 후 이용해주세요.'); return; }
-    openSubscribePopup(token);
-  } else {
-    openMypageWithToken();
+  if (!token) {
+    showToast('로그인 후 이용해주세요.');
+    return;
   }
+  openSubscribePopup(token);
 });
 
 // 문자충전 버튼 클릭

@@ -745,12 +745,30 @@
       if (digits.length === 6) return parseInt('20' + digits, 10);
       return parseInt(digits, 10) || -Infinity;
     }
+
+    function formatDateYYYYMMDD(s) {
+      if (!s) return '';
+
+      const digits = String(s).replace(/[^\d]/g, '');
+
+      if (digits.length === 8) {
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+      }
+
+      if (digits.length === 6) {
+        return `20${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4, 6)}`;
+      }
+
+      return String(s);
+    }
+
     function extractIntString(val) {
       const m = String(val ?? '').match(/-?\d+(?:\.\d+)?/);
       if (!m) return '';
       const v = Math.trunc(parseFloat(m[0]));
       return String(v);
     }
+
     function typeMeta(items) {
       const hasReal = items.some(it => it.type === 'real');
       const hasAuction = items.some(it => it.type === 'auction');
@@ -823,7 +841,7 @@
         return it.type === selectedFilter;
       });
       return filtered.map(it => {
-        const date = it.date || '';
+        const date = formatDateYYYYMMDD(it.date);
         const floorText = extractIntString(it.floor);
         const areaText  = extractIntString(it.area);
         const unitPrice = it.unitPrice ?? '';  // 이미 전처리된 값 사용

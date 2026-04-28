@@ -29,8 +29,8 @@ let topAgenciesToggle;
 let topAgenciesSection;
 
 // API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
-const LANDCORE_URL = "https://www.landcore.co.kr";
-//const LANDCORE_URL = 'http://127.0.0.1:5000';
+//const LANDCORE_URL = "https://www.landcore.co.kr";
+const LANDCORE_URL = 'http://127.0.0.1:5000';
 
 // 네이버 부동산 상가 페이지 URL (마지막 위치 기억)
 const NAVER_LAND_URL = 'https://new.land.naver.com/offices?a=SG:SMS&b=A1:B2&e=RETAIL&ad=true';
@@ -1707,7 +1707,8 @@ function setCurrentRegionInfo(data) {
 
 // 현재 탭 구분 반환 (예: 'sanga', 'apt', 'villa')
 function getCurrentTabGubun() {
-    return currentRegionInfo?.tabGubun || 'sanga';
+    console.log('==== getCurrentTabGubun: ', currentRegionInfo);
+    return currentRegionInfo.tabGubun || 'sanga';
 }
 
 function getResetBaseSvg() {
@@ -1816,8 +1817,9 @@ function formatListingPrice(item) {
     if (item?.fullPrice) {
         const fullPriceText = String(item.fullPrice);
 
-        // 월세일 때만 "=> 환산가" 추가
-        if (item?.type === '월세' && fullPriceText.includes('/')) {
+        // 월세 + 상가 탭일 때만 "=> 환산가" 추가
+        const isSangaTab = getCurrentTabGubun() === 'sanga';
+        if (isSangaTab && item?.type === '월세' && fullPriceText.includes('/')) {
             const price = Number(item.price) || 0;
 
             // 🔥 층 정보 파싱

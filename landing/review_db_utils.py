@@ -29,11 +29,13 @@ def review_create_table():
             CREATE TABLE {TABLE_NAME} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 writer TEXT,
+                phone TEXT,
                 title TEXT,
                 rating INTEGER,
                 content TEXT,
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                password TEXT
             )
         """)
         conn.commit()
@@ -46,7 +48,7 @@ def review_now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def review_insert_single(writer, title, rating, content, password):
+def review_insert_single(writer, phone, title, rating, content, password):
     """
     단일 후기 레코드를 삽입합니다.
     """
@@ -57,8 +59,8 @@ def review_insert_single(writer, title, rating, content, password):
 
     insert_query = f"""
         INSERT INTO {TABLE_NAME} (
-            writer, title, rating, content, created_at, updated_at, password
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            writer, phone, title, rating, content, created_at, updated_at, password
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     # 일시적용
@@ -67,6 +69,7 @@ def review_insert_single(writer, title, rating, content, password):
     try:
         cursor.execute(insert_query, (
             writer,
+            phone,
             title,
             max(1, min(5, int(rating))),
             content,

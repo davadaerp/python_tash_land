@@ -505,6 +505,8 @@ def get_user_status_info(user_data: dict):
             end_date_obj = datetime.strptime(sub_end, fmt).date()
             today = date.today()
 
+            print("=== get_user_status_info : ", subscription_status, sub_start, sub_end, today)
+
             if end_date_obj < today:
                 is_subscribed = "cancelled"
                 plan_name = "미구독"
@@ -3287,7 +3289,7 @@ def _start_auto_subscribe_scheduler_threaded():
 
 if __name__ == '__main__':
     # 구독 쓰레드 스케쥴러 시작
-    _start_auto_subscribe_scheduler_threaded()
+    #_start_auto_subscribe_scheduler_threaded()
 
     #app.run(host='0.0.0.0', port=5002)
     # app.run(host='0.0.0.0', port=8081)
