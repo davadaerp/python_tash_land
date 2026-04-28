@@ -1511,9 +1511,9 @@ function extractPriceInfo(text) {
         type = '월세';
         // 월세 패턴: "월세 7,000/310" 또는 "월세 5억 1,200/2,635"
         // 공백이 유지되므로 정규식에서 공백 허용
-        const match = text.match(/월세\s*([\d,억천]+)\s*\/\s*([\d,]+)/);
+        const match = text.match(/월세\s*([\d,억천\s]+)\s*\/\s*([\d,]+)/);
         if (match) {
-            fullPrice = `${match[1]}/${match[2]}`;
+            fullPrice = `${match[1].replace(/\s+/g, '')}/${match[2]}`;
             price = parseInt(match[2].replace(/,/g, '')) || 0;
         }
     }
