@@ -29,8 +29,8 @@ let topAgenciesToggle;
 let topAgenciesSection;
 
 // API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
-//const LANDCORE_URL = "https://www.landcore.co.kr";
-const LANDCORE_URL = 'http://127.0.0.1:5000';
+const LANDCORE_URL = "https://www.landcore.co.kr";
+//const LANDCORE_URL = 'http://127.0.0.1:5000';
 
 // 네이버 부동산 상가 페이지 URL (마지막 위치 기억)
 const NAVER_LAND_URL = 'https://new.land.naver.com/offices?a=SG:SMS&b=A1:B2&e=RETAIL&ad=true';
@@ -51,6 +51,8 @@ let currentListSort = {
 };
 // 현재 층 필터 상태 (예: '전체', '1층', '2층', '상층')
 let currentFloorFilter = '전체';
+// 현재 중복보기 체크 상태
+let currentDuplicateOnly = false;
 
 let currentRegionInfo = {
     region: '',
@@ -147,6 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentChartType = selectedType;
             currentDetailView = 'list';   // 핵심: 타입 버튼 누르면 무조건 목록으로 복귀
             currentFloorFilter = '전체';   // 타입 바뀌면 층 필터도 초기화
+            currentDuplicateOnly = false; // 추가: 월세/매매 변경 시 중복 해제
 
             if (lastAnalysisData) {
                 displayResults(lastAnalysisData);
@@ -214,11 +217,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             currentFloorFilter = floorSelect.value || '전체';
             currentDetailView = 'list';
+            currentDuplicateOnly = false; // 추가: 리스트박스 변경 시 중복 해제
 
             if (lastAnalysisData) {
                 displayResults(lastAnalysisData);
                 displayAreaChart(lastAnalysisData);
             }
+        }
+        // 중복보기 체크박스 이벤트
+        const duplicateCheckbox = e.target.closest('[data-duplicate-checkbox]');
+        if (duplicateCheckbox) {
+            e.stopPropagation();
+
+            currentDuplicateOnly = duplicateCheckbox.checked === true;
+            currentDetailView = 'list';
+
+            if (lastAnalysisData) {
+                displayResults(lastAnalysisData);
+            }
+            return;
         }
     });
 
@@ -1415,8 +1432,9 @@ function getListingDetailSectionHTML(listings, selectedType, detailView) {
             <div class="listing-detail-header">
                 <div class="listing-detail-left">
                     <div class="listing-detail-title-row">
-                        <div class="listing-detail-title">📋 ${typeLabel} 상세</div>
+                        <div class="listing-detail-title">📋 ${typeLabel}</div>
                         ${floorSelectHTML}
+                        ${detailView === 'list' ? getDuplicateFilterCheckboxHTML() : ''}
                     </div>
                 </div>
 
@@ -1453,6 +1471,29 @@ function getFloorFilterSelectHTML(listings) {
                 `).join('')}
             </select>
         </div>
+    `;
+}
+
+// 중복 매물 필터 체크박스 HTML 생성 함수
+function getDuplicateFilterCheckboxHTML() {
+    return `
+        <label class="duplicate-filter-wrap" style="
+            display:inline-flex;
+            align-items:center;
+            gap:4px;
+            margin-left:1px;
+            font-size:12px;
+            font-weight:700;
+            color:#444;
+            cursor:pointer;
+            white-space:nowrap;
+        ">
+            <input type="checkbox"
+                   data-duplicate-checkbox
+                   ${currentDuplicateOnly ? 'checked' : ''}
+                   style="width:13px; height:13px;">
+            중복
+        </label>
     `;
 }
 
@@ -1546,7 +1587,10 @@ function filterListingsByFloor(listings, selectedFilter) {
 
 
 function getListingTableHTML(listings, selectedType) {
-    const floorFiltered = filterListingsByFloor(listings, currentFloorFilter);
+    let floorFiltered = filterListingsByFloor(listings, currentFloorFilter);
+    if (currentDuplicateOnly) {
+        floorFiltered = getDuplicateGroupedListings(floorFiltered);
+    }
 
     if (!floorFiltered || floorFiltered.length === 0) {
         return `<div class="empty-hint">${selectedType} 목록이 없습니다.</div>`;
@@ -1608,6 +1652,58 @@ function getListingTableHTML(listings, selectedType) {
             </table>
         </div>
     `;
+}
+
+// 중복 매물 그룹핑 함수
+function getDuplicateGroupedListings(listings) {
+    const groupMap = new Map();
+
+    (listings || []).forEach(item => {
+        const floorKey = formatFloorDisplay(item.floor);
+        const areaKey = Number(item.area || 0).toFixed(1);
+        const pyeongKey = Math.round(Number(item.pricePerPyeong) || 0);
+        const priceKey = normalizeListingPriceKey(item);
+
+        // 중복 기준: 층 + 면적 + 평단가 + 가격
+        const key = [
+            floorKey,
+            areaKey,
+            pyeongKey,
+            priceKey
+        ].join('|');
+
+        if (!groupMap.has(key)) {
+            groupMap.set(key, {
+                ...item,
+                duplicateCount: 1,
+                duplicateItems: [item]
+            });
+        } else {
+            const group = groupMap.get(key);
+            group.duplicateCount += 1;
+            group.duplicateItems.push(item);
+        }
+    });
+
+    // 중복 2건 이상만 표시
+    return Array.from(groupMap.values())
+        .filter(item => item.duplicateCount >= 2);
+}
+
+function normalizeListingPriceKey(item) {
+    if (!item) return '';
+
+    if (item.fullPrice) {
+        return String(item.fullPrice).replace(/\s/g, '').replace(/,/g, '');
+    }
+
+    if (item.type === '월세') {
+        const deposit = Number(item.deposit) || 0;
+        const monthlyRent = Number(item.monthlyRent) || 0;
+        return `${deposit}/${monthlyRent}`;
+    }
+
+    return String(Number(item.price) || Number(item.salePrice) || 0);
 }
 
 function sortListingsForDetailTable(listings, field, direction) {
