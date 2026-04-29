@@ -586,17 +586,20 @@
 
     .measure-result-close {
       position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 22px;
-      height: 22px;
+      top: 6px;
+      right: 6px;
+      width: 30px;
+      height: 30px;
       border: none;
       border-radius: 50%;
       background: rgba(255,255,255,0.14);
       color: #fff;
-      font-size: 14px;
+      font-size: 18px;
       font-weight: 800;
-      cursor: pointer;
+      /* 추가된 속성 */
+      cursor: pointer !important;
+      pointer-events: auto !important;
+      z-index: 9999 !important;
     }
 
     .measure-result-close:hover {
@@ -5621,17 +5624,14 @@
 
       if (active) {
         const pencilCursor = `url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>\
-  <g transform='rotate(-20 16 16)'>\
-    <rect x='11' y='4' width='10' height='17' rx='2' fill='%23f59e0b'/>\
-    <rect x='11' y='19' width='10' height='4' fill='%23fbbf24'/>\
-    <polygon points='11,23 21,23 16,29' fill='%23374151'/>\
-    <rect x='11' y='2' width='10' height='3' rx='1' fill='%23ef4444'/>\
-    <rect x='12.5' y='6' width='1.4' height='13' fill='%23fde68a' opacity='0.9'/>\
-    <rect x='15.3' y='6' width='1.4' height='13' fill='%23fde68a' opacity='0.9'/>\
-    <rect x='18.1' y='6' width='1.4' height='13' fill='%23fde68a' opacity='0.9'/>\
-  </g>\
-</svg>") 6 26, crosshair`;
+        <svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>\
+          <defs>\
+            <filter id='shadow' x='-30%25' y='-30%25' width='160%25' height='160%25'>\
+              <feDropShadow dx='1' dy='1' stdDeviation='1.2' flood-color='%23000' flood-opacity='0.45'/>\
+            </filter>\
+          </defs>\
+          <polygon points='2,2 2,22 7,17 11,26 14,25 10,16 17,16' fill='%23ef4444' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round' filter='url(%23shadow)'/>\
+        </svg>") 2 2, crosshair`;
 
         if (!styleEl) {
           styleEl = document.createElement('style');
@@ -5642,6 +5642,11 @@
         styleEl.textContent = `
           #map, #map * {
             cursor: ${pencilCursor} !important;
+          }
+          #map .measure-result-close,
+          #map .measure-result-close * {
+            cursor: pointer !important;
+            pointer-events: auto !important;
           }
         `;
 
@@ -5701,7 +5706,7 @@
         icon: {
           content: `
             <div class="measure-result-card" style="pointer-events:auto;">
-              <button type="button" class="measure-result-close" title="닫기" onclick="closeMeasureResultOverlay(event)">×</button>
+              <button type="button" class="measure-result-close" title="닫기">×</button>
               <div class="title">거리재기 결과</div>
               <div class="total">${formatMeasureDistance(totalDist)}</div>
               <div class="meta">
@@ -5714,6 +5719,26 @@
           anchor: new naver.maps.Point(20, 78)
         }
       });
+
+      // ✅ 신규 추가 (라인 5725~5737)
+      // X 버튼 직접 바인딩 (인라인 onclick 대신 — 네이버 오버레이 내부에서 더 안정적)
+      naver.maps.Event.addListener(measureTotalOverlay, 'domready', function() {
+
+        // ① measureTotalOverlay.getElement() 로 마커 DOM 루트를 가져옴
+        //    getElement()가 없는 버전 대비 fallback으로 document.querySelector도 병기
+        const closeBtn = measureTotalOverlay.getElement
+          ? measureTotalOverlay.getElement()?.querySelector('.measure-result-close')
+          : document.querySelector('.measure-result-close');
+
+        if (closeBtn) {
+          closeBtn.addEventListener('click', function(e) {
+            e.preventDefault();    // ② 기본 동작(지도 클릭 등) 차단
+            e.stopPropagation();   // ③ 이벤트 버블링 차단 → 지도로 전파 안 됨
+            closeMeasureResultOverlay(e);  // ④ 실제 닫기 함수 호출
+          });
+        }
+      });
+
     }
 
     function closeMeasureResultOverlay(event) {
