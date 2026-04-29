@@ -2107,6 +2107,7 @@ def ext_tool_map_panel(user_id):
 
     # 데이터 수집
     params_data = {
+        "menu": menu,
         "assetType": asset_type,
         "lawdCd": lawd_cd,
         "lawdName": lawd_name,
@@ -2120,7 +2121,7 @@ def ext_tool_map_panel(user_id):
         return render_template("extool_wishlist_map_popup.html", **params_data)
     elif menu == 'commerical':
         # 업종분류별 상권정보 팝업
-        return render_template("extool_commerical_map_popup.html", **params_data)
+        return render_template("extool_wishlist_map_popup.html", **params_data)
     elif menu == 'npl':
         # NPL 경매데이타 지도 팝업
         return render_template("extool_npl_map_popup.html", **params_data)

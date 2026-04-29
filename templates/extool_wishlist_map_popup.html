@@ -2828,6 +2828,11 @@
     let currentCommercialAreaDetailSearch = "";
 
     // =========================
+    // [추가] 상권목록 팝업 최하위 상권 검색 상태
+    // =========================
+    let currentCommercialAreaPopupSearch = "";
+
+    // =========================
     // [추가] 상권 업종 POI 표시용 전역변수
     // =========================
     let commercialPoiMarkers = [];
@@ -2839,6 +2844,19 @@
     // =========================
     let initialMapMode = "";
     let initialCommercialPoiGroup = "";
+
+    // =========================
+    // [추가] 서버 menu 파라미터 모드
+    // - wishlist: 기존 관심물건/실거래/경매 구조 유지
+    // - commerical: 상권 초기 업종마커 표시 + 좌측패널 비활성화
+    // =========================
+    const CURRENT_POPUP_MENU = ("{{ menu }}" || "wishlist").trim();
+    const IS_COMMERCIAL_MENU = CURRENT_POPUP_MENU === "commerical";
+
+    if (IS_COMMERCIAL_MENU) {
+      initialMapMode = "commercial";
+      initialCommercialPoiGroup = initialCommercialPoiGroup || "교육";
+    }
 
     // =========================
     // [추가] 거리재기 전역 상태
@@ -4067,9 +4085,42 @@
       selectedAssetType = normalizeAssetTypeForControl(assetType || "상가");
 
       // 6) 초기 데이터 로드
-      await loadInitialDealAuctionMapData();
+      // - 상권모드인 경우 실거래/경매 데이터는 초기 로드 안하고, 교육 업종 POI만 우선 로드해서 표시
+      if (IS_COMMERCIAL_MENU) {
+        console.log("[상권모드] 초기에는 실거래/경매 데이터 로드 안함 + 교육 업종 표시", {
+          selectedLawdCd,
+          selectedFullNm,
+          selectedUmdNm,
+          initialCommercialPoiGroup
+        });
+
+        try {
+            await ensureCommercialAreaItemsLoaded(true);
+
+            buildCommercialNearbyList();              // 주변 업종 목록 빌드
+            updateCommercialSelectedGroupBadge("");   // 초기 배지 업데이트
+
+            // initialCommercialPoiGroup(기본값: "교육") 업종을 지도에 마커+배지로 표시
+            if (initialCommercialPoiGroup && commercialAreaItems && commercialAreaItems.length > 0) {
+              currentCommercialPoiGroup = initialCommercialPoiGroup;
+              renderCommercialPoiByGroup(initialCommercialPoiGroup);       // ← 마커 렌더링
+              updateCommercialSelectedGroupBadge(initialCommercialPoiGroup); // ← 업종명 배지 표시
+            }
+
+        } catch (err) {
+          console.error("[상권모드] 초기 교육 업종 표시 실패", err);
+          forceApplyCommercialPoiGroup("");
+          clearCommercialPoiMarkers();
+        } finally {
+          setInitialMapLoading(false);
+        }
+
+      } else {
+        await loadInitialDealAuctionMapData();
+      }
 
       console.log(`[${source || 'init'}] NPL 초기 위치로 마커 표시`, { latitude, longitude, address });
+
       // 7) 경.공매 address 값이 있으면 해당 주소 위치로 단건 마커 표시
       if (latitude && longitude) {
         markInitialNplLatLng(
@@ -4542,6 +4593,29 @@
       const selectedLcls = currentCommercialAreaSelectedLcls;
       const selectedMcls = currentCommercialAreaSelectedMcls || "";
 
+      const popupSearchKeyword = String(currentCommercialAreaPopupSearch || "").trim().toLowerCase();
+
+      let searchMatchGroups = [];
+
+      if (popupSearchKeyword) {
+        lclsGroups.forEach(lclsGroup => {
+          (lclsGroup.mclsGroups || []).forEach(mclsGroup => {
+            const matchedItems = (mclsGroup.items || []).filter(item => {
+              const sclsName = String(item.indsSclsNm || "").trim().toLowerCase();
+              return sclsName.includes(popupSearchKeyword);
+            });
+
+            if (matchedItems.length) {
+              searchMatchGroups.push({
+                lclsName: lclsGroup.groupName,
+                mclsName: mclsGroup.groupName,
+                items: matchedItems
+              });
+            }
+          });
+        });
+      }
+
       let lclsListHtml = `
         <div class="commercial-lcls-item ${selectedLcls === "전체" ? "active" : ""}"
              data-lcls-name="전체"
@@ -4695,6 +4769,68 @@
         `;
       }
 
+      let searchLclsListHtml = "";
+      let searchDetailRowsHtml = "";
+      let searchTotalCount = 0;
+
+      if (popupSearchKeyword) {
+        const lclsSummaryMap = {};
+
+        searchMatchGroups.forEach(group => {
+          if (!lclsSummaryMap[group.lclsName]) {
+            lclsSummaryMap[group.lclsName] = 0;
+          }
+          lclsSummaryMap[group.lclsName] += group.items.length;
+          searchTotalCount += group.items.length;
+        });
+
+        searchLclsListHtml = Object.entries(lclsSummaryMap).map(([lclsName, count]) => `
+          <div style="
+            padding:9px 10px;
+            border-bottom:1px solid #bfdbfe;
+            background:#eff6ff;
+            color:#1d4ed8;
+            font-weight:900;
+          ">
+            ${lclsName}(${count})
+          </div>
+        `).join("");
+
+        searchDetailRowsHtml = searchMatchGroups.flatMap(group => {
+          return group.items.map(item => {
+            const name = item.bizesNm || "-";
+            const branch = item.brchNm ? ` (${item.brchNm})` : "";
+            const scls = item.indsSclsNm || "-";
+
+            return `
+              <tr>
+                <td style="border:1px solid #ddd; padding:7px; font-weight:800;">
+                  ${name}${branch}
+                </td>
+                <td style="border:1px solid #ddd; padding:7px; text-align:center; color:#1d4ed8; font-weight:800;">
+                  ${group.lclsName}
+                </td>
+                <td style="border:1px solid #ddd; padding:7px;">
+                  <span style="font-weight:800;">${group.mclsName}</span>
+                  /
+                  <span style="color:#7c3aed; font-weight:900;">${scls}</span>
+                </td>
+              </tr>
+            `;
+          });
+        }).join("");
+
+        if (!searchDetailRowsHtml) {
+          searchDetailRowsHtml = `
+            <tr>
+              <td colspan="3" style="border:1px solid #ddd; padding:18px; text-align:center; color:#777;">
+                '${currentCommercialAreaPopupSearch}' 검색 결과가 없습니다.
+              </td>
+            </tr>
+          `;
+        }
+      }
+
       const detailModalHtml = selectedMcls
         ? (() => {
             const selectedGroup = lclsGroups.find(g => g.groupName === selectedLcls);
@@ -4733,25 +4869,48 @@
                   padding:6px 8px;
                   border-radius:12px;
               ">
-              <h3 style="
-                  margin:0;
-                  font-size:20px;
-                  font-weight:800;
-                  color:#1e3a8a;
-              ">${popupTitle}</h3>
+                 <div style="
+                  display:flex;
+                  align-items:center;
+                  gap:12px;
+                  flex:1;
+                  min-width:0;
+                ">
+                  <h3 style="
+                      margin:0;
+                      font-size:20px;
+                      font-weight:800;
+                      color:#1e3a8a;
+                      white-space:nowrap;
+                  ">${popupTitle}</h3>
 
-              <button id="commercialAreaPopupClose" style="
-                  width:34px;
-                  height:34px;
-                  border:none;
-                  border-radius:50%;
-                  background:#eff6ff;
-                  color:#1d4ed8;
-                  font-size:18px;
-                  font-weight:900;
-                  cursor:pointer;
-                  box-shadow:0 2px 8px rgba(37,99,235,0.12);
-              ">×</button>
+                  <input id="commercialAreaPopupSearchInput"
+                         type="text"
+                         value="${currentCommercialAreaPopupSearch || ""}"
+                         placeholder="최하위 상권 검색 (예: 미용실)"
+                         style="
+                           width:230px;
+                           height:32px;
+                           padding:0 11px;
+                           border:1px solid #93c5fd;
+                           border-radius:10px;
+                           outline:none;
+                           font-size:13px;
+                           background:#fff;
+                         " />
+                </div>
+                <button id="commercialAreaPopupClose" style="
+                    width:34px;
+                    height:34px;
+                    border:none;
+                    border-radius:50%;
+                    background:#eff6ff;
+                    color:#1d4ed8;
+                    font-size:18px;
+                    font-weight:900;
+                    cursor:pointer;
+                    box-shadow:0 2px 8px rgba(37,99,235,0.12);
+                ">×</button>
           </div>
 
           <div style="display:flex; gap:14px; min-height:520px;">
@@ -4768,34 +4927,62 @@
                 border-bottom:1px solid #ddd;
                 background:#f2f2f2;
               ">
-                대분류 목록
+                ${popupSearchKeyword ? `검색 대분류(${searchTotalCount})` : `대분류 목록`}
               </div>
-              ${lclsListHtml}
+              ${popupSearchKeyword ? searchLclsListHtml : lclsListHtml}
             </div>
 
-            <div style="flex:1; overflow-y:auto;">
-              <div style="
-                margin-bottom:10px;
-                font-weight:bold;
-                color:#333;
-              ">
-                ${detailTitle}
-              </div>
+             <div style="
+              flex:1;
+              min-height:0;
+              max-height:520px;
+              overflow-y:auto;
+            ">
+              ${
+                popupSearchKeyword
+                ? `
+                  <div style="margin-bottom:10px; font-weight:bold; color:#333;">
+                    '${currentCommercialAreaPopupSearch}' 최하위 상권 검색결과 (${searchTotalCount}건)
+                  </div>
 
-              <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                  <tr style="background:#f2f2f2;">
-                    <th style="border:1px solid #ddd; padding:6px;">업종</th>
-                    <th style="border:1px solid #ddd; padding:6px;">그래프</th>
-                    <th style="border:1px solid #ddd; padding:6px;">건수</th>
-                    <th style="border:1px solid #ddd; padding:6px;">상세</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${detailRowsHtml}
-                  ${totalRowHtml}
-                </tbody>
-              </table>
+                  <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                      <tr style="background:#f2f2f2;">
+                        <th style="border:1px solid #ddd; padding:6px;">상호명</th>
+                        <th style="border:1px solid #ddd; padding:6px;">대분류</th>
+                        <th style="border:1px solid #ddd; padding:6px;">중분류 / 소분류</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${searchDetailRowsHtml}
+                    </tbody>
+                  </table>
+                `
+                : `
+                  <div style="
+                    margin-bottom:10px;
+                    font-weight:bold;
+                    color:#333;
+                  ">
+                    ${detailTitle}
+                  </div>
+
+                  <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                      <tr style="background:#f2f2f2;">
+                        <th style="border:1px solid #ddd; padding:6px;">업종</th>
+                        <th style="border:1px solid #ddd; padding:6px;">그래프</th>
+                        <th style="border:1px solid #ddd; padding:6px;">건수</th>
+                        <th style="border:1px solid #ddd; padding:6px;">상세</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${detailRowsHtml}
+                      ${totalRowHtml}
+                    </tbody>
+                  </table>
+                `
+              }
             </div>
           </div>
 
@@ -4815,9 +5002,52 @@
 
       document.body.insertAdjacentHTML("beforeend", popupHtml);
 
+
+      const popupSearchInput = document.getElementById("commercialAreaPopupSearchInput");
+      if (popupSearchInput) {
+        popupSearchInput.onmousedown = function(e) {
+          e.stopPropagation();
+        };
+
+        popupSearchInput.onclick = function(e) {
+          e.stopPropagation();
+          this.focus();
+        };
+
+        popupSearchInput.onkeydown = function(e) {
+          e.stopPropagation();
+
+          if (e.key !== "Enter") return;
+
+          currentCommercialAreaPopupSearch = this.value || "";
+          currentCommercialAreaSelectedMcls = "";
+          commericalAreaPopupView();
+
+          setTimeout(() => {
+            const nextInput = document.getElementById("commercialAreaPopupSearchInput");
+            if (nextInput) {
+              nextInput.focus();
+              nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+            }
+          }, 0);
+        };
+
+        popupSearchInput.oninput = function(e) {
+          e.stopPropagation();
+
+          if (String(this.value || "").trim() === "" && currentCommercialAreaPopupSearch) {
+            currentCommercialAreaPopupSearch = "";
+            currentCommercialAreaSelectedMcls = "";
+            commericalAreaPopupView();
+          }
+        };
+      }
+
       const closeBtn = document.getElementById("commercialAreaPopupClose");
       if (closeBtn) {
         closeBtn.onclick = function() {
+          currentCommercialAreaPopupSearch = "";
+
           const pop = document.getElementById("commercialAreaPopup");
           if (pop) pop.remove();
           const modal = document.getElementById("commercialAreaDetailModal");
@@ -4874,6 +5104,21 @@
 
       // 팝업 드래그 기능 활성화
       bindCommercialAreaPopupDrag();
+
+      // =========================
+      // [추가] 팝업 최초/초기화 시 input 자동 포커스
+      // =========================
+      setTimeout(() => {
+        const input = document.getElementById("commercialAreaPopupSearchInput");
+        if (!input) return;
+
+        // 검색어 없을 때만 자동 포커스 (초기/클리어 상태)
+        if (!currentCommercialAreaPopupSearch) {
+          input.focus();
+          input.setSelectionRange(0, 0);
+        }
+      }, 0);
+      //
     }
 
     // =========================
@@ -6084,6 +6329,34 @@
     }
 
     // =========================
+    // [추가] 상권모드 좌측 검색패널 비활성화
+    // =========================
+    function disableNplLeftPanelForCommercialMode() {
+      if (!IS_COMMERCIAL_MENU) return;
+
+      const layoutEl = document.getElementById("npl-layout");
+      const leftPanel = document.getElementById("npl-left-panel");
+      const toggleBtn = document.getElementById("npl-left-toggle-btn");
+
+      if (layoutEl) {
+        layoutEl.classList.add("left-panel-collapsed");
+      }
+
+      if (leftPanel) {
+        leftPanel.style.pointerEvents = "none";
+        leftPanel.style.opacity = "0.55";
+      }
+
+      if (toggleBtn) {
+        toggleBtn.disabled = true;
+        toggleBtn.style.cursor = "not-allowed";
+        toggleBtn.title = "상권분석 모드에서는 검색패널을 사용하지 않습니다.";
+      }
+
+      console.log("[상권모드] 좌측 검색패널 비활성화 완료");
+    }
+
+    // =========================
     // [추가] 거리재기 툴 바인딩
     // - 클릭으로 측정점 추가, 실시간 선과 구간거리 표시, 우클릭으로 측정 종료 및 최종 결과 표시
     function bindMeasureTool() {
@@ -6169,6 +6442,7 @@
     bindMeasureTool();
     bindMapSiteShortcutMenu();
     bindNplLeftPanelToggle();
+    disableNplLeftPanelForCommercialMode();
     bindMapAssetTypeSelect();
 
     // =========================
@@ -9414,6 +9688,7 @@
       currentCommercialAreaSelectedLcls = "전체";
       currentCommercialAreaSelectedMcls = "";
       currentCommercialAreaDetailSearch = "";
+      currentCommercialAreaPopupSearch = "";
       clearCommercialPoiMarkers();
       updateCommercialSelectedGroupBadge("");
     }
@@ -9425,8 +9700,12 @@
       if (!popup || !handle) return;
 
       handle.onmousedown = function(e) {
-        // 닫기 버튼 클릭은 drag 제외
-        if (e.target && e.target.id === "commercialAreaPopupClose") return;
+        // 닫기 버튼 / input / button / select / textarea 클릭은 drag 제외
+        const ignoreDragEl = e.target?.closest(
+          "#commercialAreaPopupClose, input, button, select, textarea"
+        );
+
+        if (ignoreDragEl) return;
 
         e.preventDefault();
 
