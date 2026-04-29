@@ -4772,16 +4772,20 @@
       let searchLclsListHtml = "";
       let searchDetailRowsHtml = "";
       let searchTotalCount = 0;
+      let searchResultItemsForMap = [];
 
       if (popupSearchKeyword) {
         const lclsSummaryMap = {};
 
         searchMatchGroups.forEach(group => {
-          if (!lclsSummaryMap[group.lclsName]) {
-            lclsSummaryMap[group.lclsName] = 0;
-          }
-          lclsSummaryMap[group.lclsName] += group.items.length;
-          searchTotalCount += group.items.length;
+            if (!lclsSummaryMap[group.lclsName]) {
+              lclsSummaryMap[group.lclsName] = 0;
+            }
+            lclsSummaryMap[group.lclsName] += group.items.length;
+            searchTotalCount += group.items.length;
+
+            // [추가] 지도보기용 검색결과 원본 items 저장
+            searchResultItemsForMap = searchResultItemsForMap.concat(group.items || []);
         });
 
         searchLclsListHtml = Object.entries(lclsSummaryMap).map(([lclsName, count]) => `
@@ -4941,8 +4945,40 @@
               ${
                 popupSearchKeyword
                 ? `
-                  <div style="margin-bottom:10px; font-weight:bold; color:#333;">
-                    '${currentCommercialAreaPopupSearch}' 최하위 상권 검색결과 (${searchTotalCount}건)
+                  <div style="
+                    margin-bottom:10px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:space-between;
+                    gap:10px;
+                  ">
+                    <div style="font-weight:bold; color:#333;">
+                      '${currentCommercialAreaPopupSearch}' 최하위 상권 검색결과 (${searchTotalCount}건)
+                    </div>
+
+                    ${
+                      searchTotalCount > 0
+                      ? `
+                        <button id="commercial-search-result-map-btn"
+                                type="button"
+                                style="
+                                  height:32px;
+                                  padding:0 13px;
+                                  border:none;
+                                  border-radius:11px;
+                                  background:#f59e0b;
+                                  color:#fff;
+                                  font-size:12px;
+                                  font-weight:900;
+                                  cursor:pointer;
+                                  box-shadow:0 3px 10px rgba(245,158,11,0.22);
+                                  white-space:nowrap;
+                                ">
+                          지도보기
+                        </button>
+                      `
+                      : ``
+                    }
                   </div>
 
                   <table style="width:100%; border-collapse:collapse;">
@@ -5002,7 +5038,28 @@
 
       document.body.insertAdjacentHTML("beforeend", popupHtml);
 
+      // =========================
+      // [추가] 상권 검색결과 지도보기 버튼 이벤트
+      // =========================
+      const commercialSearchResultMapBtn = document.getElementById("commercial-search-result-map-btn");
+      if (commercialSearchResultMapBtn) {
+        commercialSearchResultMapBtn.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
 
+          console.log("[상권 검색결과 지도보기 클릭]", {
+            keyword: currentCommercialAreaPopupSearch,
+            count: searchResultItemsForMap.length
+          });
+
+          renderCommercialSearchResultItemsOnMap(
+            searchResultItemsForMap,
+            currentCommercialAreaPopupSearch
+          );
+        };
+      }
+
+      // 팝업 내 검색 input 이벤트 바인딩
       const popupSearchInput = document.getElementById("commercialAreaPopupSearchInput");
       if (popupSearchInput) {
         popupSearchInput.onmousedown = function(e) {
@@ -5342,6 +5399,211 @@
         }
         commercialPoiTooltipOverlay = null;
       }
+    }
+
+    // =========================
+    // [추가] 상권 검색결과 지도보기 전 전체 지도 마커 클리어
+    // =========================
+    function clearAllMapMarkersBeforeCommercialSearchView() {
+      clearDealAuctionMarkers();
+
+      if (typeof clearNplSampleMarkers === "function") {
+        clearNplSampleMarkers();
+      }
+
+      if (typeof closeNplSampleInfoWindow === "function") {
+        closeNplSampleInfoWindow();
+      }
+
+      if (typeof removeNplDealAuctionPopup === "function") {
+        removeNplDealAuctionPopup();
+      }
+
+      clearCommercialPoiMarkers();
+
+      if (currentOverlay && typeof currentOverlay.setMap === "function") {
+        currentOverlay.setMap(null);
+        currentOverlay = null;
+      }
+
+      console.log("[상권 검색결과 지도보기] 기존 지도 마커 전체 클리어 완료");
+    }
+
+    // =========================
+    // [추가] 상권목록 팝업 검색결과 items를 지도 마커로 표시
+    // =========================
+    function renderCommercialSearchResultItemsOnMap(items, searchKeyword = "") {
+      const safeItems = Array.isArray(items) ? items : [];
+
+      if (!safeItems.length) {
+        alert("지도에 표시할 상권 검색결과가 없습니다.");
+        return;
+      }
+
+      clearAllMapMarkersBeforeCommercialSearchView();
+
+      const groupedLocations = groupCommercialItemsByCoordinate(safeItems);
+
+      if (!groupedLocations.length) {
+        alert("표시 가능한 좌표 데이터가 없습니다.");
+        return;
+      }
+
+      const poiBounds = new naver.maps.LatLngBounds();
+
+      groupedLocations.forEach(group => {
+        const lat = group.lat;
+        const lng = group.lng;
+        const itemsAtLocation = group.items || [];
+
+        if (!lat || !lng || !itemsAtLocation.length) return;
+
+        const primaryItem = itemsAtLocation[0];
+        const groupName = primaryItem.indsLclsNm || "상권";
+        const color = getCommercialGroupColor(groupName);
+        const iconText = getCommercialGroupIcon(groupName);
+
+        const pos = new naver.maps.LatLng(lat, lng);
+
+        const title = itemsAtLocation.length === 1
+          ? (primaryItem.bizesNm || primaryItem.brchNm || primaryItem.indsSclsNm || searchKeyword || "상권")
+          : `${primaryItem.bizesNm || primaryItem.indsSclsNm || searchKeyword || "상권"} 외 ${itemsAtLocation.length - 1}건`;
+
+        const marker = new naver.maps.Marker({
+          position: pos,
+          map: map,
+          zIndex: 250,
+          icon: {
+            content: `
+              <div style="
+                position:relative;
+                width:28px;
+                height:28px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                user-select:none;
+                cursor:pointer;
+              " title="${title}">
+                <div style="
+                  width:28px;
+                  height:28px;
+                  border-radius:50%;
+                  display:flex;
+                  align-items:center;
+                  justify-content:center;
+                  color:#fff;
+                  font-size:13px;
+                  font-weight:900;
+                  background:${color};
+                  box-shadow:0 2px 8px rgba(0,0,0,0.35);
+                  border:2px solid rgba(255,255,255,0.95);
+                ">
+                  ${iconText}
+                </div>
+                <span style="
+                  position:absolute;
+                  top:-7px;
+                  right:-7px;
+                  min-width:18px;
+                  height:18px;
+                  padding:0 5px;
+                  border-radius:999px;
+                  background:#111827;
+                  color:#fff;
+                  font-size:10px;
+                  font-weight:900;
+                  display:flex;
+                  align-items:center;
+                  justify-content:center;
+                  box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                ">
+                  ${itemsAtLocation.length}
+                </span>
+              </div>
+            `,
+            anchor: new naver.maps.Point(14, 14)
+          }
+        });
+
+        commercialPoiMarkers.push(marker);
+        poiBounds.extend(pos);
+
+        naver.maps.Event.addListener(marker, "click", function() {
+          if (currentOverlay && typeof currentOverlay.setMap === "function") {
+            currentOverlay.setMap(null);
+            currentOverlay = null;
+          }
+
+          const listHtml = itemsAtLocation.map((item, idx) => {
+            const name = item.bizesNm || "-";
+            const branch = item.brchNm ? ` (${item.brchNm})` : "";
+            const lcls = item.indsLclsNm || "";
+            const mcls = item.indsMclsNm || "";
+            const scls = item.indsSclsNm || "";
+            const addr = item.rdnmAdr || item.lnoAdr || "";
+
+            return `
+              <div style="
+                padding:8px 10px;
+                border-bottom:${idx === itemsAtLocation.length - 1 ? "none" : "1px solid #e5e7eb"};
+              ">
+                <div style="font-weight:800; color:#111827; margin-bottom:2px;">
+                  ${name}${branch}
+                </div>
+                <div style="font-size:12px; color:#2563eb; margin-bottom:2px;">
+                  ${lcls}${mcls ? " / " + mcls : ""}${scls ? " / " + scls : ""}
+                </div>
+                <div style="font-size:12px; color:#6b7280;">
+                  ${addr}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          const popupHtml = `
+            <div style="
+              min-width:260px;
+              max-width:340px;
+              max-height:280px;
+              overflow-y:auto;
+              background:#fff;
+              border:1px solid #dbeafe;
+              border-radius:14px;
+              box-shadow:0 8px 22px rgba(15,23,42,0.18);
+            ">
+              <div style="
+                padding:10px 12px;
+                border-bottom:1px solid #e5e7eb;
+                background:linear-gradient(180deg,#eff6ff 0%,#ffffff 100%);
+                font-weight:900;
+                color:#1e3a8a;
+              ">
+                '${searchKeyword}' 검색결과 (${itemsAtLocation.length}건)
+              </div>
+              ${listHtml}
+            </div>
+          `;
+
+          currentOverlay = new naver.maps.InfoWindow({
+            content: popupHtml,
+            borderWidth: 0,
+            backgroundColor: "transparent",
+            disableAnchor: false,
+            pixelOffset: new naver.maps.Point(0, -8)
+          });
+
+          currentOverlay.open(map, marker);
+        });
+      });
+
+      fitCommercialPoiBounds(poiBounds, groupedLocations);
+
+      console.log("[상권 검색결과 지도보기] 마커 표시 완료", {
+        searchKeyword,
+        itemCount: safeItems.length,
+        markerCount: commercialPoiMarkers.length
+      });
     }
 
     // =========================

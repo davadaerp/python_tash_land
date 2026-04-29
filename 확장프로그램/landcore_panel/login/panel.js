@@ -1695,9 +1695,10 @@ function getDuplicateGroupedListings(listings) {
         }
     });
 
-    // 중복 2건 이상만 표시
-    return Array.from(groupMap.values())
-        .filter(item => item.duplicateCount >= 2);
+    // 수정 핵심:
+    // 기존에는 중복 2건 이상만 표시했으나,
+    // 이제는 중복 그룹은 1개로 표시하고 단독 매물도 그대로 표시
+    return Array.from(groupMap.values());
 }
 
 function normalizeListingPriceKey(item) {
