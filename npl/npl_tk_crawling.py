@@ -364,6 +364,7 @@ def record_parsing_list(driver, current_page):
         #deposit_value, min_price, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
 
         # 상세정보 처리
+        print(f"📌 상세정보 처리 시작: TID {tid}")
         extract_info(row_text, idx, npl_info)
 
         # 1000건마다 저장 처리
@@ -777,13 +778,24 @@ def extract_info(row_text, idx, npl_info):
         #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
 
         # 법정코드(시군구) 및 읍면동 가져오기
-        # sido_code = lawd_cd 5자리,  sido_name: 경기도,
+        # lawd_cd=8자리, sido_code = 2자리,  sido_name/lawd_name: 경기도,
         #lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
         #
         # 테이블에서 가져오는 방식으로 처리함
-        lawd_cd, region, sigungu_code, sigungu_name, umd_name = extract_region_code(address1)
+        # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+        # ---------------------------------------------------------
+        # 리턴 데이터 조립 및 필드 설명
+        # ---------------------------------------------------------
+        # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+        # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+        # 3. region/sido_name: 광역 지자체 이름 (예: 경기도, 경상북도)
+        # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+        # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+        # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+        # ---------------------------------------------------------
+        lawd_cd, lawd_name, region, sigungu_code, sigungu_name, umd_name = extract_region_code(address1)
+        print(f"📌 주소에서 추출된 지역 정보: {lawd_cd}, {lawd_name}, {region}, {sigungu_code}, {sigungu_name}, {umd_name}")
         #
-
         # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등) - 괄호제거
         lat_lng_address = address2.replace('(', '').replace(')', '')
         #latitude, longitude = get_lat_lng(lat_lng_address, "road")
@@ -796,7 +808,7 @@ def extract_info(row_text, idx, npl_info):
         if not is_valid:
             latitude, longitude = 0.0, 0.0
 
-        print(f"주소: {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
+        print(f"주소: {is_valid}, {message}, {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
 
         # 임의경매신청자가 개인인경우(default N)
         # 한글 3자이며 '신협', '금고', '은행' 포함하지 않을 경우 'Y', 아니면 'N'
@@ -956,6 +968,7 @@ def extract_region_code(address):
     # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
     # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
     # ---------------------------------------------------------
+    print(f"📌 주소로부터 지역 정보 추출 시도: {address}")
     row = get_lawd_by_name(address)
 
     lawd_cd = row.get("lawd_cd", "")
@@ -965,14 +978,7 @@ def extract_region_code(address):
     sigungu_name = row.get("sigungu_name", "")
     umd_name = row.get("umd_name", "")
 
-    return {
-        "lawd_cd": lawd_cd,
-        "lawd_name": lawd_name,
-        "region": region,
-        "sigungu_code": sigungu_code,
-        "sigungu_name": sigungu_name,
-        "umd_name": umd_name
-    }
+    return lawd_cd, lawd_name, region, sigungu_code, sigungu_name, umd_name
 
 
 # 1) 드라이버 초기화 함수

@@ -3,7 +3,8 @@ from datetime import datetime
 import sqlite3
 import pandas as pd
 #
-from config import NPL_DB_PATH
+from config import NPL_DB_PATH, MAP_API_KEY
+from common.vworld_utils import VWorldGeocoding
 
 # 공통 변수 설정
 DB_FILENAME = os.path.join(NPL_DB_PATH, "npl_data.db")
@@ -456,3 +457,232 @@ def query_npl_region_hierarchy(category, sel_code, parent_sel_code):
     else:
         print("❌ category는 'region' 또는 'sigungu'이어야 합니다.")
         return None
+
+# =========================================================
+# 위/경도 0 데이터 추출 → VWorld 좌표 조회 → DB 업데이트 테스트
+# =========================================================
+def npl_select_zero_lat_lng(limit="10"):
+    """
+    latitude 또는 longitude 값이 없거나 0 / 0.0 인 NPL 데이터를 추출합니다.
+
+    limit:
+        "1", "10", "100", "all"
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    query = f"""
+         SELECT *
+         FROM {TABLE_NAME}
+         WHERE
+             latitude IS NULL
+             OR longitude IS NULL
+             OR TRIM(COALESCE(latitude, '')) = ''
+             OR TRIM(COALESCE(longitude, '')) = ''
+             OR CAST(latitude AS REAL) = 0
+             OR CAST(longitude AS REAL) = 0
+         ORDER BY sales_date DESC, case_number
+     """
+
+    if str(limit).lower() != "all":
+        query += " LIMIT ?"
+        cursor.execute(query, (int(limit),))
+    else:
+        cursor.execute(query)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+def npl_update_lat_lng(case_number, latitude, longitude):
+    """
+    case_number 기준으로 latitude / longitude만 업데이트합니다.
+    기존 npl_update_single()은 전체 필드 업데이트용이라 여기서는 사용하지 않습니다.
+    """
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(f"""
+             UPDATE {TABLE_NAME}
+             SET latitude = ?, longitude = ?
+             WHERE case_number = ?
+         """, (
+            str(latitude),
+            str(longitude),
+            case_number
+        ))
+
+        conn.commit()
+        return cursor.rowcount
+
+    except Exception as e:
+        print(f"❌ 위경도 업데이트 오류: case_number={case_number}, error={e}")
+        return 0
+
+    finally:
+        conn.close()
+
+
+# 테스트 함수: 위/경도 0 데이터 추출 → VWorld 좌표 조회 → DB 업데이트
+def npl_test_update_zero_lat_lng(limit="10"):
+    """
+    위/경도가 0인 NPL 데이터를 limit 개수만큼 추출해서
+    VWorld로 위경도 조회 후 DB에 업데이트합니다.
+    """
+    if str(limit).lower() not in ["1", "10", "100", "all"]:
+        print("❌ limit 값은 1, 10, 100, all 중 하나만 가능합니다.")
+        return
+
+    target_rows = npl_select_zero_lat_lng(limit)
+
+    print("========================================")
+    print(f"📌 위/경도 0 데이터 추출 개수: {len(target_rows)}")
+    print(f"📌 limit 설정값: {limit}")
+    print("========================================")
+
+    if not target_rows:
+        print("✅ 처리할 데이터가 없습니다.")
+        return
+
+    geo_service = VWorldGeocoding(MAP_API_KEY)
+
+    success_count = 0
+    fail_count = 0
+    skip_count = 0
+
+    # 🔥 추가
+    fail_list = []
+
+    for idx, row in enumerate(target_rows, start=1):
+        case_number = row.get("case_number")
+        address1 = row.get("address1") or ""
+        address2 = row.get("address2") or ""
+
+        # 기본 주소는 address1 사용, 보조주소가 있으면 붙여서 시도
+        parcel_address = f"{address1}".strip()
+        road_address = f"{address2}".strip()
+
+        # 기본적으로 지번주소를 전체 주소로 사용
+        full_address = parcel_address
+
+        print("\n----------------------------------------")
+        print(f"[{idx}/{len(target_rows)}] case_number={case_number}")
+        print(f"주소: {parcel_address}")
+
+        if not full_address:
+            print("⚠️ 주소가 없어 스킵")
+            skip_count += 1
+
+            fail_list.append({
+                "case_number": case_number,
+                "reason": "주소없음",
+                "address": full_address
+            })
+
+            continue
+
+        # 1차: 지번주소 parcel
+        latitude, longitude = geo_service.get_lat_lng(full_address, address_type="parcel")
+
+        # 2차: 1차 실패 시 '도로명주소가 존재할 때만' 재시도
+        if latitude == 0.0 or longitude == 0.0:
+            if road_address and road_address.strip():
+                print(f"⚠️ parcel 조회 실패 → road 재시도 시작")
+                full_address = road_address.strip("()")
+                latitude, longitude = geo_service.get_lat_lng(full_address, address_type="road")
+            else:
+                print("⚠️ parcel 조회 실패 및 road_address 없음 → 추가 시도 중단")
+
+        if latitude == 0.0 or longitude == 0.0:
+            print("❌ VWorld 위경도 조회 실패")
+            fail_count += 1
+
+            fail_list.append({
+                "case_number": case_number,
+                "reason": "주소없음",
+                "address": full_address
+            })
+
+            continue
+
+        print(f"✅ VWorld 조회 성공: latitude={latitude}, longitude={longitude}")
+
+        # 좌표 검증
+        is_valid, message = geo_service.validate_location(
+            full_address,
+            latitude,
+            longitude
+        )
+
+        print(f"검증 결과: {is_valid}, 메시지: {message}")
+
+        if not is_valid:
+            print("⚠️ 주소/좌표 검증 실패 → DB 업데이트 안함")
+            fail_count += 1
+
+            fail_list.append({
+                "case_number": case_number,
+                "reason": "주소없음",
+                "address": full_address
+            })
+
+            continue
+
+        updated = npl_update_lat_lng(case_number, latitude, longitude)
+
+        if updated > 0:
+            print("✅ DB 위경도 업데이트 완료")
+            success_count += 1
+        else:
+            print("❌ DB 업데이트 실패")
+            fail_count += 1
+
+            fail_list.append({
+                "case_number": case_number,
+                "reason": "주소없음",
+                "address": full_address
+            })
+
+    print("\n========================================")
+    print("📌 위경도 보정 테스트 완료")
+    print(f"성공: {success_count}")
+    print(f"실패: {fail_count}")
+    print(f"스킵: {skip_count}")
+    print("========================================")
+
+    # 🔥 실패 목록 출력
+    if fail_list:
+        print("\n🚨 실패 주소 목록 (재처리 대상)")
+        print("========================================")
+
+        for i, item in enumerate(fail_list, 1):
+            print(f"[{i}] case_number={item['case_number']}")
+            print(f"사유: {item['reason']}")
+            print(f"주소: {item['address']}")
+            print("----------------------------------------")
+
+        print(f"총 실패 건수: {len(fail_list)}")
+
+        pd.DataFrame(fail_list).to_csv("fail_addresses.csv", index=False, encoding="utf-8-sig")
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="NPL DB에서 위/경도 0 데이터를 추출하여 VWorld 좌표로 업데이트합니다."
+    )
+
+    parser.add_argument(
+        "--limit",
+        default="all",
+        choices=["1", "10", "100", "all"],
+        help="처리할 데이터 개수: 1, 10, 100, all"
+    )
+
+    args = parser.parse_args()
+
+    npl_test_update_zero_lat_lng(limit=args.limit)

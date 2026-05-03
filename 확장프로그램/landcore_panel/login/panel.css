@@ -95,7 +95,7 @@ body {
 .link-buttons {
   display: flex;
   justify-content: center; /* 링크 버튼 중앙 정렬 */
-  gap: 10px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 

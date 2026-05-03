@@ -65,9 +65,9 @@
     <!-- 플랜 선택 -->
     <div class="options">
       <label class="opt"><input type="radio" name="plan" value="0" checked> 1주간(체험용)</label>
-      <label class="opt"><input type="radio" name="plan" value="1"> 1개월 (월 10만원)</label>
-      <label class="opt"><input type="radio" name="plan" value="6"> 6개월 (월 7만원)</label>
-      <label class="opt"><input type="radio" name="plan" value="12"> 1년 (월 5만원)</label>
+      <label class="opt"><input type="radio" name="plan" value="1"> 1개월 (무료)</label>
+      <label class="opt"><input type="radio" name="plan" value="6"> 6개월 (미정)</label>
+      <label class="opt"><input type="radio" name="plan" value="12"> 1년 (미정)</label>
     </div>
 
     <!-- ===== (추가) 본인확인 인증 섹션: 플랜 선택 위에 배치 ===== -->
@@ -108,11 +108,18 @@
     const token = (urlParams.get("tk") || urlParams.get("access_token") || "").trim();
 
     // 선택 텍스트 매핑 (기존 코드) => 구독 신청 시 사용(월기준)
+    // const planTextMap = {
+    //   "0": "1주간(체험용)",
+    //   "1": "1개월(1만원)",
+    //   "6": "6개월(7만원)",
+    //   "12": "1년(5만원)"
+    // };
+
     const planTextMap = {
       "0": "1주간(체험용)",
-      "1": "1개월(10만원)",
-      "6": "6개월(7만원)",
-      "12": "1년(5만원)"
+      "1": "1개월(무료)",
+      "6": "6개월(미정)",
+      "12": "1년(미정)"
     };
 
     // 계좌 복사 (기존 코드)
