@@ -28,12 +28,13 @@ function isSupportedAnalysisPage() {
 // 탱크옥션 리스트 및 상세페이지
 function isTankAuctionListPage() {
     return location.href.startsWith('https://www.tankauction.com/ca/caList.php') ||
-           location.href.startsWith('https://www.tankauction.com/pa/paList.php');
+           location.href.startsWith('https://www.tankauction.com/pa/paList.php') ||
+           location.href.startsWith('https://www.tankauction.com/member/intrList.php');
 }
 
 function isTankAuctionDetailPage() {
-    return location.href.startsWith('https://www.tankauction.com/ca/caView.php') ||
-           location.href.startsWith('https://www.tankauction.com/pa/paView.php');
+    return location.href.startsWith('https://www.tankauction.com/ca/inc/component/popup/caView.php') ||
+           location.href.startsWith('https://www.tankauction.com/pa/inc/component/popup/paView.php');
 }
 
 // [추가] 옥션원 상세 페이지 판별 (사용자 요청 URL 대응)
@@ -1174,7 +1175,8 @@ function buildAnalysisResponseData() {
  * 매물 아이템 요소 찾기
  * ⚠️ 읽기만 수행
  */
-function findListingItems() {
+function findListingItems_old() {
+    console.log('== findListingItems start..');
     // 신 버전 (fin.land.naver.com)
     if (isNewVersion()) {
         // ArticleCard 링크 + 그룹 카드(중개사 다중 등록) 모두 포함
@@ -1205,7 +1207,10 @@ function findListingItems() {
                     items.push(child);
                 }
             }
-            if (items.length > 0) return items;
+            if (items.length > 0) {
+                console.log('== findListingItems items:', items);
+                return items;
+            }
         }
 
         return [];
@@ -1236,10 +1241,117 @@ function findListingItems() {
 }
 
 /**
+ * 매물 리스트(아이템)를 찾아 반환하는 함수
+ * ⚠️ 읽기만 수행
+ */
+function findListingItems() {
+    console.log('== findListingItems start..');
+
+    // 1. 신 버전 (fin.land.naver.com) 대응: #article_list > ul > li 구조 확인
+    if (isNewVersion()) {
+        const listContainer = document.querySelector('#article_list');
+        if (listContainer) {
+            // #article_list 하위의 ul 태그 내 모든 li를 찾습니다.
+            const listItems = listContainer.querySelectorAll('ul > li');
+            const items = [];
+
+            listItems.forEach(li => {
+                // 매물 카드임을 판별할 수 있는 최소한의 조건 체크 (innerText 기준)
+                if (li.innerText && li.innerText.includes('매') && li.innerText.length > 20) {
+                    items.push(li);
+                }
+            });
+
+            if (items.length > 0) {
+                console.log(`== [신 버전] ${items.length}개의 매물 리스트 발견:`, items);
+                // 화면에 목록 출력
+                items.forEach((item, index) => {
+                    console.log(`[Item ${index}]`, item.innerText.substring(0, 50) + '...');
+                });
+                return items;
+            }
+        }
+        return [];
+    }
+
+    // 2. 구 버전 (new.land.naver.com) 대응
+    const selectors = ['.item_inner', '.item', '.c-item', '.article_item', '.list_item'];
+    for (const selector of selectors) {
+        const found = document.querySelectorAll(selector);
+        if (found.length > 0) {
+            console.log(`== [구 버전] ${found.length}개의 매물 리스트 발견`);
+            return Array.from(found).filter(item =>
+                !item.classList.contains('item--child') && !item.closest('.item--child')
+            );
+        }
+    }
+
+    return [];
+}
+
+/**
+ * 매물 리스트를 찾고, 커스텀 ScrollBox를 통해 스크롤한 뒤 리스트를 추출하는 함수
+ */
+async function findListingItems_scrollBox_작동안함() {
+    console.log('== findListingItems start (with Custom ScrollBox support)..');
+
+    // 1. 신 버전 (fin.land.naver.com) 대응
+    if (isNewVersion()) {
+        const listContainer = document.querySelector('#article_list');
+        if (!listContainer) return [];
+
+        // 네이버 신 버전의 커스텀 스크롤 컨테이너 탐색 (ScrollBox 관련 클래스를 포함하는 요소)
+        const scrollContainer = listContainer.querySelector('[class*="ScrollBox"]') || listContainer;
+
+        // #article_list 하위의 모든 ul > li 찾기
+        const listItems = listContainer.querySelectorAll('ul > li');
+
+        if (listItems.length > 0) {
+            // 커스텀 스크롤 컨테이너가 존재할 경우, 해당 컨테이너의 스크롤 위치 제어
+            if (scrollContainer && scrollContainer !== listContainer) {
+                // 부드럽게 상단 위치로 스크롤 이동 (원하시는 경우 scrollTop 조절 가능)
+                scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                console.log('== [Auto-Scroll] Custom ScrollBox 스크롤 이동 완료');
+            } else {
+                // 폴백: 일반 scrollIntoView 사용
+                listItems[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('== [Auto-Scroll] 기본 scrollIntoView 이동 완료');
+            }
+
+            // 스크롤 애니메이션 및 가상 렌더링(Lazy Loading) 안정화를 위해 600ms 대기
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // 스크롤 및 렌더링 완료 후 최신 리스트 재추출
+            const currentList = Array.from(listContainer.querySelectorAll('ul > li')).filter(li => {
+                return li.innerText && li.innerText.includes('매') && li.innerText.length > 20;
+            });
+
+            console.log(`== [신 버전] 스크롤 후 총 ${currentList.length}개의 매물 리스트 추출 완료`);
+            return currentList;
+        }
+        return [];
+    }
+
+    // 2. 구 버전 (new.land.naver.com) 대응 (기존 로직 유지)
+    const selectors = ['.item_inner', '.item', '.c-item', '.article_item', '.list_item'];
+    for (const selector of selectors) {
+        const found = document.querySelectorAll(selector);
+        if (found.length > 0) {
+            found[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return Array.from(found).filter(item =>
+                !item.classList.contains('item--child') && !item.closest('.item--child')
+            );
+        }
+    }
+    return [];
+}
+
+/**
  * 개별 매물 아이템 파싱
  * ⚠️ 읽기만 수행 - DOM 수정 없음
  */
 function parseListingItem(item) {
+    console.log('== parseListingItem start item:', item);
     // 기존 배지가 있으면 텍스트에서 제외 (중복 분석 시 배지 텍스트 포함 방지)
     const clone = item.cloneNode(true);
     const badges = clone.querySelectorAll('.naverbu-badge');
@@ -2287,6 +2399,7 @@ function getFinPropertyTypeTabGubunCounts() {
     items.forEach(item => {
         try {
             const listingData = parseListingItem(item);
+            console.log('== getFinPropertyTypeTabGubunCounts parseListingItem listingData:', listingData);
             if (!listingData || !listingData.propertyType) return;
 
             const detected = detectTabGubunFromText(listingData.propertyType);
@@ -2452,7 +2565,7 @@ function shouldShowWolseConvertedPrice(tabGubun) {
     return tabGubun === 'sanga';
 }
 
-// 탱크옥션 페이지 내 매물 정보 변경 감지하여 자동 분석 트리거 (300ms 디바운스)
+// 탱크옥션 페이지 내 매물 정보 변경 감지하여 자동 분석 트리거 (300ms 디바운스) => 현재사용안함
 function observeMutationsTank() {
     const targetNode = document.body;
     if (!targetNode) return;
@@ -2484,24 +2597,27 @@ function extractPropertyInfoTank() {
     if (!propertyItems.length) return;
 
     propertyItems.forEach((item) => {
-        let areaPy = 0;
+        let totalPy = 0; // areaPy 대신 합산 변수 사용
 
-        const areaElements = item.querySelectorAll('.blue, .blue.f12');
+        const areaElements = item.querySelectorAll('.blue.f12'); // 더 구체적인 클래스 선택
         areaElements.forEach(el => {
             const areaText = el.textContent.trim();
 
-            const buildingMatch = areaText.match(/건물[^㎡]*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
-            if (buildingMatch && !areaPy) {
-                areaPy = parseFloat(buildingMatch[1]);
+            // 건물 평수 추출
+            const buildingMatch = areaText.match(/건물\s*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
+            if (buildingMatch) {
+                totalPy += parseFloat(buildingMatch[1]);
             }
 
-            const landMatch = areaText.match(/토지[^㎡]*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
-            if (landMatch && !areaPy) {
-                areaPy = parseFloat(landMatch[1]);
+            // 토지 평수 추출
+            const landMatch = areaText.match(/토지\s*\d+\.?\d*㎡\((\d+\.?\d*)평\)/);
+            if (landMatch) {
+                totalPy += parseFloat(landMatch[1]);
             }
         });
 
-        if (!areaPy) return;
+        // 면적이 추출되지 않았으면 패스
+        if (totalPy <= 0) return;
 
         const price1Element = item.querySelector('[id^="apslAmt_"]');
         const price2Element = item.querySelector('[id^="minbAmt"]');
@@ -2509,38 +2625,33 @@ function extractPropertyInfoTank() {
         if (!price1Element || !price2Element) return;
         if (price1Element.dataset.highlighted) return;
 
+        console.log("[TankAuction] 매물 면적 합산 평수:", totalPy);
+
         const price1Text = price1Element.textContent.trim().replace(/,/g, '');
         const price2Text = price2Element.textContent.trim().replace(/,/g, '');
+
+        console.log("[TankAuction] 감정가 텍스트:", price1Text, "최저가 텍스트:", price2Text);
 
         const price1num = parseInt(price1Text, 10);
         const price2num = parseInt(price2Text, 10);
 
-        if (!price1num || !price2num) return;
+        console.log("[TankAuction] 감정가:", price1num, "최저가:", price2num);
 
-        const pydanga1 = parseInt(price1num / (areaPy * 10000), 10);
-        const pydanga2 = parseInt(price2num / (areaPy * 10000), 10);
+        if (isNaN(price1num) || isNaN(price2num)) return;
 
-        const lineBreakSpan = document.createElement('span');
-        lineBreakSpan.innerHTML = '<br>';
+        // 평당가 계산 (합산 면적 기준)
+        const pydanga1 = Math.round(price1num / totalPy / 10000);
+        const pydanga2 = Math.round(price2num / totalPy / 10000);
 
-        const lineBreakSpan2 = document.createElement('span');
-        lineBreakSpan2.innerHTML = '<br>';
+        // 표시 로직
+        const createSpan = (text, color) => {
+            const span = document.createElement('span');
+            span.innerHTML = `<br><span style="opacity:0.5; color:${color}; font-size:12px;">@${text}만원</span>`;
+            return span;
+        };
 
-        const pydanga1Span = document.createElement('span');
-        pydanga1Span.textContent = `@${pydanga1}만원`;
-        pydanga1Span.style.opacity = '0.5';
-        pydanga1Span.style.color = 'red';
-
-        const pydanga2Span = document.createElement('span');
-        pydanga2Span.textContent = `@${pydanga2}만원`;
-        pydanga2Span.style.opacity = '0.5';
-        pydanga2Span.style.color = 'green';
-
-        price1Element.appendChild(lineBreakSpan);
-        price1Element.appendChild(pydanga1Span);
-
-        price2Element.appendChild(lineBreakSpan2);
-        price2Element.appendChild(pydanga2Span);
+        price1Element.appendChild(createSpan(pydanga1, 'red'));
+        price2Element.appendChild(createSpan(pydanga2, 'green'));
 
         price1Element.dataset.highlighted = 'true';
     });
@@ -2642,34 +2753,42 @@ function extractPropertyInfoDetailTank() {
     let newAddr = "";
 
     // =========================
-    // 4-1. 경매 주소 처리
+    // 4-1. 경매 주소 처리 (수정됨)
     // =========================
     if (isAuction) {
-        addrDiv = document.querySelector('div[style*="padding:5px 0 10px"]');
+        const lyCntNum = document.querySelector('#lyCnt_num');
+        console.log('[TankAuction] auction lyCntNum:', lyCntNum);
+
+        if (!lyCntNum) return;
+
+        // 공매 방식처럼 .ca-address-block 클래스를 직접 찾아 접근
+        addrDiv = lyCntNum.querySelector('.ca-address-block');
         console.log('[TankAuction] auction addrDiv:', addrDiv);
 
         if (!addrDiv) return;
 
+        // 지번 주소: .ca-address-block 내 첫 번째 bold span
         addrSpan = addrDiv.querySelector('span.bold');
-        console.log('[TankAuction] auction addrSpan:', addrSpan);
-
         if (!addrSpan) return;
 
         fullAddr = addrSpan.textContent.trim();
         searchAddr = fullAddr.split(',')[0].trim();
 
+        // 도로명 주소: [도로명주소:...] 형태의 span 내부 텍스트 추출
         const roadAddrSpan = Array.from(addrDiv.querySelectorAll('span')).find(span =>
             span.textContent.includes('도로명주소:')
         );
 
         if (roadAddrSpan) {
+            // 정규식으로 '도로명주소:' 뒤의 텍스트를 추출
             const match = roadAddrSpan.textContent.match(/도로명주소:\s*([^)]+)/);
             if (match) {
                 newAddr = match[1].trim();
             }
         }
 
-        existingBtn = addrDiv.querySelector('.button');
+        // 버튼을 삽입할 대상 (기존 버튼들이 포함된 addrDiv를 활용)
+        existingBtn = addrSpan;
     }
 
     // =========================
@@ -3565,3 +3684,57 @@ function extractPriceOnly(text) {
 
     return "";
 }
+
+/**
+ * 통합 DOM 관찰자 시스템
+ * @param {string} targetSelector - 감시할 컨테이너 셀렉터
+ * @param {function} callback - 변화 발생 시 실행할 함수
+ */
+function observeAuctionList(targetSelector, callback) {
+    const targetNode = document.querySelector(targetSelector);
+    if (!targetNode) {
+        console.warn(`[Observer] 타겟을 찾을 수 없음: ${targetSelector}`);
+        return;
+    }
+
+    const observer = new MutationObserver((mutations) => {
+        // 리스트가 실질적으로 변경되었는지 확인 (자식 노드 추가/변경)
+        const hasAddedNodes = mutations.some(m => m.addedNodes.length > 0);
+        if (hasAddedNodes) {
+            callback();
+        }
+    });
+
+    observer.observe(targetNode, {
+        childList: true,
+        subtree: true
+    });
+
+    // 초기 로딩 시 즉시 1회 실행
+    callback();
+    console.log(`[Observer] ${targetSelector} 감시 시작`);
+}
+
+// 페이지 로드 시 도메인별 타겟 지정
+window.addEventListener('DOMContentLoaded', () => {
+
+    // 1. 탱크옥션 리스트
+    if (isTankAuctionListPage()) {
+        observeAuctionList('#lsTbody', extractPropertyInfoTank);
+    }
+
+    // 2. 두인경매 리스트 (예시)
+    // if (isDooinAuctionListPage()) {
+    //     observeAuctionList('.list_container_id', extractPropertyInfoDooin);
+    // }
+
+    // 3. 옥션원 리스트 (예시)
+    // if (isAuctionOneListPage()) {
+    //     observeAuctionList('#list_tbody', extractPropertyInfoAuction1);
+    // }
+
+    // 4. 지지옥션 리스트 (예시)
+    // if (isGGAuctionListPage()) {
+    //     observeAuctionList('#grid_list', extractPropertyInfoGG);
+    // }
+});

@@ -5,6 +5,10 @@ import requests
 
 from config import MAP_API_KEY
 
+# 국토교통부 디지털트윈국토 사이트에서 인증키를 발급받아야 함
+# https://www.vworld.kr/dev/v4dv_geocoderguide2_s001.do
+# 간편인증, 개발키 받음.
+# 요청URL을 전송하면 지오코딩 서비스를 사용하실 수 있으며 일일 지오코딩 요청건수는 최대 40,000건 입니다.
 
 class VWorldGeocoding:
     """
@@ -378,7 +382,8 @@ if __name__ == "__main__":
     #
     geo_service = VWorldGeocoding(MAP_API_KEY)
 
-    test_address = "경기 용인시 처인구 양지면 남곡리 340-1"
+    #test_address = "경기도 김포시 운양동 반도유보라6차 903동 403호"
+    test_address = "경기 용인시 처인구 양지면 남곡리 107-3"
 
     print("--- 주소 좌표 변환 테스트 시작 ---")
     print(f"입력 주소: {test_address}")

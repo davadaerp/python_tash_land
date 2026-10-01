@@ -27,8 +27,7 @@
       border-radius:14px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.12);
       overflow:hidden;
-      min-width: 320px;
-      max-width: 480px;
+      width: 620px;   /* 기존 480px */
       z-index: 1000;
       animation: popIn 120ms ease-out;
     }
@@ -411,6 +410,46 @@
       box-shadow:
         0 0 0 2px #fff,
         0 6px 14px rgba(124,58,237,0.35);
+    }
+
+    /* =========================
+    [추가] 상권 검색결과 지도보기 3등 업소 표시
+    ========================= */
+    .commercial-poi-marker-rank3 {
+      transform-origin: center center;
+      animation: commercialPoiPulseRank3 1.65s ease-in-out infinite;
+    }
+
+    .commercial-poi-marker-rank3 .commercial-poi-core {
+      box-shadow:
+        0 0 0 4px rgba(255,255,255,0.95),
+        0 0 0 10px rgba(245, 158, 11, 0.22),
+        0 0 18px rgba(245, 158, 11, 0.28),
+        0 10px 24px rgba(15,23,42,0.26);
+      border: 3px solid #ffffff !important;
+      filter: saturate(1.08) contrast(1.04);
+    }
+
+    .commercial-poi-marker-rank3 .commercial-poi-badge {
+      background: #f59e0b !important;
+      color: #fff !important;
+      box-shadow:
+        0 0 0 2px #fff,
+        0 6px 14px rgba(245,158,11,0.32);
+    }
+
+    .commercial-poi-rank-label.rank3 {
+      background: #92400e;
+    }
+
+    .commercial-poi-rank-label.rank3::after {
+      background: #92400e;
+    }
+
+    @keyframes commercialPoiPulseRank3 {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.08); }
+      100% { transform: scale(1); }
     }
 
     .commercial-poi-rank-label {
@@ -2992,6 +3031,18 @@
       bounds.extend(pos);
     }
 
+    /* [추가] 클립보드 복사 유틸 함수 (사건번호 등 텍스트 복사용) */
+    function copyTextToClipboard(text) {
+      if (!text) return Promise.resolve(false);
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text)
+          .then(() => true)
+          .catch(() => fallbackCopyText(text));
+      }
+      return Promise.resolve(fallbackCopyText(text));
+    }
+
     /* 행 HTML 생성 (선택 필터에 맞게) */
     function buildRowsHTML(itemsSorted, selectedFilter, selectedFloor = 'all', selectedArea = 'all') {
       const filtered = itemsSorted.filter(it => {
@@ -3016,10 +3067,27 @@
         const pillClass = isReal ? 'pill-real' : 'pill-auction';
         const pillText = isReal ? '실거래' : '경매';
 
+        // [수정] 실거래는 건축년도, 경매는 사건번호 표시
+        const buildYearOrCaseNumber = isReal
+          ? (it.buildYear || it.year || it.raw?.buildYear || '-')
+          : (it.caseNumber || it.raw?.case_number || '-');
+
+        // [추가] '상가' 자산유형 + 경매(사건번호) 항목만 클릭-복사 셀로 렌더링
+        const isShopAssetType = String(getMapAssetTypeSelectValue() || '').trim() === '상가';
+        const yearCaseCellHTML = (!isReal && isShopAssetType && buildYearOrCaseNumber !== '-')
+          ? `<span class="case-copy-cell"
+                   data-case-number="${String(buildYearOrCaseNumber).replace(/"/g, '&quot;')}"
+                   title="클릭하면 사건번호가 복사됩니다"
+                   style="color:#1d4ed8; font-weight:800; text-decoration:underline; cursor:pointer;">
+               ${buildYearOrCaseNumber}
+             </span>`
+          : buildYearOrCaseNumber;
+
         return `
           <tr>
             <td style="font-weight:800;"><span class="pill ${pillClass}">${pillText}</span></td>
             <td>${date}</td>
+            <td>${yearCaseCellHTML}</td>
             <td>${floorText}</td>
             <td>${areaText}</td>
             <td class="price-per">${unitPrice}</td>
@@ -3081,6 +3149,16 @@
         return `<option value="${v}">${label}</option>`;
       }).join('');
       return head + body;
+    }
+
+    /* [추가] 선택된 필터(all/real/auction)에 따라
+       테이블 3번째 컬럼(건축년도/사건번호) 헤더 텍스트를 반환 */
+    function getYearCaseHeaderText(selectedFilter) {
+      return selectedFilter === 'all'
+        ? '건축년도/사건번호'
+        : selectedFilter === 'real'
+          ? '건축년도'
+          : '사건번호';
     }
 
     function getPopupFilteredItems(itemsSorted, selectedFilter, selectedFloor = 'all', selectedArea = 'all') {
@@ -3189,6 +3267,10 @@
       // 초기 테이블 rows
       const initialRows = buildRowsHTML(itemsSorted, defaultFilter, 'all', 'all');
 
+      // 현재 선택된 데이터 종류에 따라 테이블 제목 설정
+      // 건축년도/사건번호 컬럼 헤더 텍스트를 반환하는 헬퍼 함수 사용
+      const initialYearCaseHeader = getYearCaseHeaderText(defaultFilter);
+
       return {
         html: `
           <div class="custom-popup ${meta.header}">
@@ -3208,6 +3290,7 @@
                     <tr>
                       <th>구분</th>
                       <th>거래일자</th>
+                      <th data-year-case-header>${initialYearCaseHeader}</th>
                       <th>층</th>
                       <th class="area-col">평수(계약)</th>
                       <th class="price-per">평당가</th>
@@ -3269,6 +3352,8 @@
         const filterTools = this._container.querySelector('[data-filter-tools]');
         const floorSelect = this._container.querySelector('[data-floor-select]');
         const areaSelect = this._container.querySelector('[data-area-select]');
+        // [추가] 건축년도/사건번호 헤더 엘리먼트 참조
+        const yearCaseHeaderEl = this._container.querySelector('[data-year-case-header]');
 
         // 추가: 자동 스크롤 헬퍼
         const tableWrap = this._container.querySelector('.table-wrap');
@@ -3306,6 +3391,11 @@
             filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             this._currentFilter = f;
+
+            // [추가] 필터 변경 시 건축년도/사건번호 헤더 텍스트 갱신
+            if (yearCaseHeaderEl) {
+              yearCaseHeaderEl.textContent = getYearCaseHeaderText(this._currentFilter);
+            }
 
             this._currentFloor = 'all';
             this._currentArea = 'all';
@@ -3351,6 +3441,28 @@
             this._pricePerSortDir = null;
 
             applyAutoScroll(); // ▼▼▼ 추가: 필터로 행 수 변동 시 적용
+          });
+        }
+
+        // [추가] 사건번호(상가+경매 케이스만 렌더링됨) 클릭 시 클립보드 복사
+        if (tbody) {
+          tbody.addEventListener('click', async (e) => {
+            const cell = e.target.closest('.case-copy-cell');
+            if (!cell) return;
+
+            const caseNumber = cell.getAttribute('data-case-number') || '';
+            if (!caseNumber) return;
+
+            const copied = await copyTextToClipboard(caseNumber);
+
+            const originalText = cell.textContent;
+            cell.textContent = copied ? '복사됨!' : '복사 실패';
+            cell.style.color = copied ? '#16a34a' : '#dc2626';
+
+            setTimeout(() => {
+              cell.textContent = originalText;
+              cell.style.color = '#1d4ed8';
+            }, 1000);
           });
         }
 
@@ -5449,6 +5561,21 @@
         return;
       }
 
+      /* =========================
+         [추가] 상권 검색결과 지도보기 순위 계산
+         - 같은 좌표에 묶인 업소 수 기준
+         - 1등업소 / 2등업소 / 3등업소까지만 표시
+      ========================= */
+      const locationCounts = groupedLocations
+        .map(group => Array.isArray(group.items) ? group.items.length : 0)
+        .filter(count => count > 0);
+
+      const uniqueSortedCounts = [...new Set(locationCounts)].sort((a, b) => b - a);
+
+      const firstRankCount = uniqueSortedCounts[0] || 0;
+      const secondRankCount = uniqueSortedCounts[1] || 0;
+      const thirdRankCount = uniqueSortedCounts[2] || 0;
+
       const poiBounds = new naver.maps.LatLngBounds();
 
       groupedLocations.forEach(group => {
@@ -5469,25 +5596,53 @@
           ? (primaryItem.bizesNm || primaryItem.brchNm || primaryItem.indsSclsNm || searchKeyword || "상권")
           : `${primaryItem.bizesNm || primaryItem.indsSclsNm || searchKeyword || "상권"} 외 ${itemsAtLocation.length - 1}건`;
 
-        const marker = new naver.maps.Marker({
+
+        /* =========================
+           [추가] 현재 위치의 순위 판정
+        ========================= */
+        const itemCount = itemsAtLocation.length;
+
+        const isRank1 = itemCount === firstRankCount && firstRankCount > 0;
+        const isRank2 = itemCount === secondRankCount && secondRankCount > 0;
+        const isRank3 = itemCount === thirdRankCount && thirdRankCount > 0;
+
+        const rankClass = isRank1
+          ? "commercial-poi-marker-rank1"
+          : (isRank2
+              ? "commercial-poi-marker-rank2"
+              : (isRank3 ? "commercial-poi-marker-rank3" : ""));
+
+        const rankLabelHtml = isRank1
+          ? `<span class="commercial-poi-rank-label rank1">1등 업소</span>`
+          : (isRank2
+              ? `<span class="commercial-poi-rank-label rank2">2등 업소</span>`
+              : (isRank3 ? `<span class="commercial-poi-rank-label rank3">3등 업소</span>` : ""));
+
+        const currentMarkerSize = isRank1 ? 32 : (isRank2 ? 29 : (isRank3 ? 27 : 28));
+        const currentMarkerAnchor = currentMarkerSize / 2;
+
+       const marker = new naver.maps.Marker({
           position: pos,
           map: map,
-          zIndex: 250,
+          zIndex: isRank1 ? 230 : (isRank2 ? 220 : (isRank3 ? 210 : 250)),
           icon: {
             content: `
-              <div style="
+              <div class="${rankClass}" style="
                 position:relative;
-                width:28px;
-                height:28px;
+                width:${currentMarkerSize}px;
+                height:${currentMarkerSize}px;
                 display:flex;
                 align-items:center;
                 justify-content:center;
                 user-select:none;
                 cursor:pointer;
               " title="${title}">
-                <div style="
-                  width:28px;
-                  height:28px;
+
+                ${rankLabelHtml}
+
+                <div class="commercial-poi-core" style="
+                  width:${currentMarkerSize}px;
+                  height:${currentMarkerSize}px;
                   border-radius:50%;
                   display:flex;
                   align-items:center;
@@ -5501,7 +5656,8 @@
                 ">
                   ${iconText}
                 </div>
-                <span style="
+
+                <span class="commercial-poi-badge" style="
                   position:absolute;
                   top:-7px;
                   right:-7px;
@@ -5522,7 +5678,7 @@
                 </span>
               </div>
             `,
-            anchor: new naver.maps.Point(14, 14)
+            anchor: new naver.maps.Point(currentMarkerAnchor, currentMarkerAnchor)
           }
         });
 
@@ -5811,6 +5967,7 @@
 
       const firstRankCount = uniqueSortedCounts[0] || 0;
       const secondRankCount = uniqueSortedCounts[1] || 0;
+      const thirdRankCount = uniqueSortedCounts[2] || 0;
 
       if (!groupedLocations.length) {
         alert("표시 가능한 좌표 데이터가 없습니다.");
@@ -5844,22 +6001,27 @@
         const itemCount = itemsAtLocation.length;
         const isRank1 = itemCount === firstRankCount && firstRankCount > 0;
         const isRank2 = itemCount === secondRankCount && secondRankCount > 0;
+        const isRank3 = itemCount === thirdRankCount && thirdRankCount > 0;
 
         const rankClass = isRank1
           ? 'commercial-poi-marker-rank1'
-          : (isRank2 ? 'commercial-poi-marker-rank2' : '');
+          : (isRank2
+              ? 'commercial-poi-marker-rank2'
+              : (isRank3 ? 'commercial-poi-marker-rank3' : ''));
 
         const rankLabelHtml = isRank1
           ? `<span class="commercial-poi-rank-label rank1">1등 업소</span>`
-          : (isRank2 ? `<span class="commercial-poi-rank-label rank2">2등 업소</span>` : '');
+          : (isRank2
+              ? `<span class="commercial-poi-rank-label rank2">2등 업소</span>`
+              : (isRank3 ? `<span class="commercial-poi-rank-label rank3">3등 업소</span>` : ''));
 
-        const currentMarkerSize = isRank1 ? 32 : (isRank2 ? 29 : markerSize);
-        const currentMarkerAnchor = isRank1 ? 16 : (isRank2 ? 14.5 : markerAnchor);
+        const currentMarkerSize = isRank1 ? 32 : (isRank2 ? 29 : (isRank3 ? 27 : markerSize));
+        const currentMarkerAnchor = isRank1 ? 16 : (isRank2 ? 14.5 : (isRank3 ? 13.5 : markerAnchor));
 
         const marker = new naver.maps.Marker({
           position: pos,
           map: map,
-          zIndex: isRank1 ? 220 : (isRank2 ? 210 : 100),
+          zIndex: isRank1 ? 230 : (isRank2 ? 220 : (isRank3 ? 210 : 100)),
           icon: {
             content: `
               <div class="${rankClass}" style="
@@ -5884,7 +6046,7 @@
                   align-items:center;
                   justify-content:center;
                   color:#fff;
-                  font-size:${isRank1 ? 14 : (isRank2 ? 13 : 12)}px;
+                  font-size:${isRank1 ? 14 : (isRank2 ? 13 : (isRank3 ? 12.5 : 12))}px;
                   font-weight:800;
                   background:${color};
                   box-shadow:0 2px 8px rgba(0,0,0,0.35);
@@ -5899,13 +6061,13 @@
                   position:absolute;
                   top:-6px;
                   right:-6px;
-                  min-width:${isRank1 ? 20 : (isRank2 ? 18 : 16)}px;
-                  height:${isRank1 ? 20 : (isRank2 ? 18 : 16)}px;
+                  min-width:${isRank1 ? 20 : (isRank2 ? 18 : (isRank3 ? 17 : 16))}px;
+                  height:${isRank1 ? 20 : (isRank2 ? 18 : (isRank3 ? 17 : 16))}px;
                   padding:0 5px;
                   border-radius:10px;
                   background:#111827;
                   color:#fff;
-                  font-size:${isRank1 ? 11 : (isRank2 ? 10.5 : 10)}px;
+                  font-size:${isRank1 ? 11 : (isRank2 ? 10.5 : (isRank3 ? 10.2 : 10))}px;
                   font-weight:800;
                   display:flex;
                   align-items:center;
@@ -9770,9 +9932,13 @@
 
           return {
             type: itemType,
+            caseNumber: item.caseNumber || raw.case_number || "",
             address: addressText,
             buildingName: item.buildingName || item.useText || "",
             date: item.date || "",
+            // [추가] 마크업 팝업 리스트 건축년도 표시용
+            // 실거래 상단 팝업에서 쓰는 buildYear 값을 그대로 전달
+            buildYear: item.buildYear || raw.buildYear || "",
             year: "",
             floor: floorText,
             area: item.area ? `${item.area}평` : "",

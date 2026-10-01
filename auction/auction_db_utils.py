@@ -420,6 +420,162 @@ def auction_read_no_latlng_by_eub_myeon_dong(eub_myeon_dong: str):
     finally:
         conn.close()
 
+# ============================================================
+# 위/경도 미처리 데이터 조회
+# ============================================================
+def auction_read_no_latlng(case_number=""):
+    """
+    latitude 또는 longitude가
+    NULL / 공백 / 0 인 데이터를 조회합니다.
+
+    추가 제외 조건:
+    1. case_number에 한글이 포함된 데이터 제외
+    2. address1에 '*'가 포함된 데이터 제외
+    3. address2에 '*'가 포함된 데이터 제외
+
+    case_number == ""
+        -> 위경도 미처리 전체 조회
+
+    case_number != ""
+        -> 해당 사건번호 중 위경도 미처리 데이터만 조회
+    """
+
+    conn = sqlite3.connect(DB_FILENAME)
+    conn.row_factory = sqlite3.Row
+
+    # --------------------------------------------------------
+    # SQLite REGEXP 함수 등록
+    #
+    # SQLite는 REGEXP를 기본 구현하지 않으므로
+    # Python re.search()를 연결해서 사용
+    # --------------------------------------------------------
+    import re
+
+    def regexp(pattern, value):
+        if value is None:
+            return False
+
+        try:
+            return re.search(
+                pattern,
+                str(value)
+            ) is not None
+
+        except Exception:
+            return False
+
+    conn.create_function(
+        "REGEXP",
+        2,
+        regexp
+    )
+
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT *
+        FROM {TABLE_NAME}
+        WHERE (
+               latitude IS NULL
+            OR TRIM(CAST(latitude AS TEXT)) = ''
+            OR CAST(latitude AS REAL) = 0.0
+            OR longitude IS NULL
+            OR TRIM(CAST(longitude AS TEXT)) = ''
+            OR CAST(longitude AS REAL) = 0.0
+        )
+
+        -- ================================================
+        -- case_number에 한글이 포함되어 있으면 제외
+        --
+        -- 예:
+        --   2024-12345       -> 포함
+        --   2024타경12345    -> 제외
+        --   테스트123        -> 제외
+        -- ================================================
+        AND (
+            case_number IS NULL
+            OR case_number NOT REGEXP '[가-힣]'
+        )
+
+        -- ================================================
+        -- address1에 '*'가 들어있으면 제외
+        --
+        -- *, **, *** 등 모두 제외
+        -- ================================================
+        AND (
+            address1 IS NULL
+            OR INSTR(address1, '*') = 0
+        )
+
+        -- ================================================
+        -- address2에 '*'가 들어있으면 제외
+        --
+        -- *, **, *** 등 모두 제외
+        -- ================================================
+        AND (
+            address2 IS NULL
+            OR INSTR(address2, '*') = 0
+        )
+    """
+
+    params = []
+
+    # --------------------------------------------------------
+    # 특정 사건번호 테스트
+    # --------------------------------------------------------
+    if case_number:
+        query += " AND case_number = ?"
+        params.append(case_number)
+
+    # --------------------------------------------------------
+    # 최근 매각일자 순
+    # --------------------------------------------------------
+    query += " ORDER BY sales_date DESC"
+
+    try:
+
+        cur.execute(
+            query,
+            params
+        )
+
+        rows = cur.fetchall()
+
+        result = [
+            dict(row)
+            for row in rows
+        ]
+
+        if case_number:
+
+            print(
+                f"[조회완료] "
+                f"case_number={case_number} / "
+                f"위경도 미처리={len(result)}건"
+            )
+
+        else:
+
+            print(
+                f"[조회완료] "
+                f"위경도 미처리 전체={len(result)}건 "
+                f"(한글 사건번호 및 '*' 주소 제외)"
+            )
+
+        return result
+
+    except Exception as e:
+
+        print(
+            f"[조회오류] "
+            f"위경도 미처리 데이터 조회 실패: {e}"
+        )
+
+        return []
+
+    finally:
+
+        conn.close()
 
 # case_number 기준으로 latitude, longitude 만 업데이트하는 함수
 def auction_update_latlng_by_case_number(case_number: str, latitude: float, longitude: float):
@@ -536,13 +692,18 @@ def auction_get_last_crawling_final_date():
         """)
         row = cur.fetchone()
 
-        if row and row[0]:
-            return row[0]
+        # 조회된 데이터가 있으면 해당 날짜 반환
+        if row is not None and row[0]:
+            return str(row[0]).strip()
 
+        # 테이블은 있지만 데이터가 없는 경우
+        print(f"저장된 크롤링 날짜가 없어 오늘 날짜를 사용합니다: {today_str}")
         return today_str
 
     except Exception as e:
         print("최종 크롤링일자 조회 오류:", e)
+        print(f"최종 크롤링일자 조회 오류: {e}")
+        print(f"오늘 날짜를 사용합니다: {today_str}")
         return today_str
     finally:
         conn.close()

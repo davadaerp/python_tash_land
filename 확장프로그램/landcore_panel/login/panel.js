@@ -3,6 +3,10 @@
  * 1. 실시간 분석 업데이트 수신 및 처리
  * 2. 분석도구 제공으로 실거래, 업종분석, 통계분석, 매물검색 팝업 열기
  */
+// API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
+const LANDCORE_URL = "https://www.landcore.co.kr";
+//const LANDCORE_URL = 'http://127.0.0.1:5000';
+
 // DOM Elements (초기에는 null 상태)
 let analyzeBtn;
 let resetBtn;
@@ -27,10 +31,6 @@ let siteShortcutMenu;
 // 상위목록 중개사 섹션
 let topAgenciesToggle;
 let topAgenciesSection;
-
-// API Base URL => landcore.js에 이미 정의되어 있으므로 주석 처리 (중복 정의 방지) 차후 landcore
-const LANDCORE_URL = "https://www.landcore.co.kr";
-//const LANDCORE_URL = 'http://127.0.0.1:5000';
 
 // 네이버 부동산 상가 페이지 URL (마지막 위치 기억)
 const NAVER_LAND_URL = 'https://new.land.naver.com/offices?a=SG:SMS&b=A1:B2&e=RETAIL&ad=true';
@@ -870,6 +870,9 @@ async function openPropertySearchPopupFromPanel() {
  * 배후분석 열기
  */
 async function openBaehu() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
     const popupWidth = 550;  // 원하는 팝업 너비
     const popupHeight= 950;  // 원하는 팝업 높이
     const left = (screen.width - popupWidth) / 2;

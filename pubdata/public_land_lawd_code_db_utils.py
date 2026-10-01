@@ -123,10 +123,11 @@ def get_lawd_by_code(lawd_cd: str, db_path: str = DB_PATH) -> Optional[Dict[str,
     finally:
         conn.close()
 
+
 # ==========================
 # 3) lawd_name로 단건 조회
 # ==========================
-def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
+def get_lawd_by_name_old(address: str, db_path: str = DB_PATH) -> Optional[Dict[str, str]]:
     """
     주소를 입력받아 뒤쪽 토큰부터 순차적으로 DB를 조회합니다.
     1. 뒤에서부터 토큰을 하나씩 확인하며 최초로 검색 결과가 존재하는 토큰을 찾습니다. (SELECT)
@@ -301,6 +302,858 @@ def get_lawd_by_name(address: str, db_path: str = DB_PATH) -> Optional[Dict[str,
 
     finally:
         conn.close()
+
+# ==========================
+# 시/도 약칭 → DB 명칭 변환
+# ==========================
+def normalize_sido_name(name: str) -> str:
+    sido_map = {
+        "서울": "서울특별시",
+        "서울시": "서울특별시",
+        "부산": "부산광역시",
+        "부산시": "부산광역시",
+        "대구": "대구광역시",
+        "대구시": "대구광역시",
+        "인천": "인천광역시",
+        "인천시": "인천광역시",
+        "광주": "광주광역시",
+        "광주시": "광주광역시",
+        "대전": "대전광역시",
+        "대전시": "대전광역시",
+        "울산": "울산광역시",
+        "울산시": "울산광역시",
+        "세종": "세종특별자치시",
+        "세종시": "세종특별자치시",
+        "경기": "경기도",
+        "강원": "강원특별자치도",
+        "충북": "충청북도",
+        "충남": "충청남도",
+        "전북": "전북특별자치도",
+        "전남": "전라남도",
+        "전남광주통합특별시": "광주광역시",
+        "경북": "경상북도",
+        "경남": "경상남도",
+        "제주": "제주특별자치도",
+    }
+
+    return sido_map.get(name, name)
+
+# ==========================
+# lawd_name로 단건 조회
+# ==========================
+def get_lawd_by_name(
+        address: str,
+        db_path: str = DB_PATH
+) -> Optional[Dict[str, str]]:
+
+    if not address:
+        return None
+
+    # ---------------------------------------------------------
+    # 0. 주소 전처리
+    # ---------------------------------------------------------
+    address = normalize_address_for_lawd(address)
+
+    if not address:
+        return None
+
+    tokens = [
+        t.strip()
+        for t in address.split()
+        if t.strip()
+    ]
+
+    if not tokens:
+        return None
+
+    # =========================================================
+    # 1. 시/도명 정규화
+    #
+    # 기존 normalize_sido_name() 구조는 그대로 사용
+    # =========================================================
+    original_sido = tokens[0]
+    sido_name = normalize_sido_name(original_sido)
+
+    # =========================================================
+    # ★ 추가
+    #
+    # 과거 주소 / 현재 주소가 섞여 있는 경우를 위해
+    # 동일 시/도의 과거명/현재명을 검색 후보로 만든다.
+    #
+    # 예:
+    #
+    # 전라북도 군산시 ...
+    #     ↓
+    # 전북특별자치도 군산시 ...
+    #
+    # 강원도 원주시 ...
+    #     ↓
+    # 강원특별자치도 원주시 ...
+    #
+    # 제주도 제주시 ...
+    #     ↓
+    # 제주특별자치도 제주시 ...
+    # =========================================================
+    sido_alias_map = {
+
+        # 서울
+        "서울": [
+            "서울특별시"
+        ],
+        "서울시": [
+            "서울특별시"
+        ],
+        "서울특별시": [
+            "서울특별시"
+        ],
+
+        # 부산
+        "부산": [
+            "부산광역시"
+        ],
+        "부산시": [
+            "부산광역시"
+        ],
+        "부산광역시": [
+            "부산광역시"
+        ],
+
+        # 대구
+        "대구": [
+            "대구광역시"
+        ],
+        "대구시": [
+            "대구광역시"
+        ],
+        "대구광역시": [
+            "대구광역시"
+        ],
+
+        # 인천
+        "인천": [
+            "인천광역시"
+        ],
+        "인천시": [
+            "인천광역시"
+        ],
+        "인천광역시": [
+            "인천광역시"
+        ],
+
+        # 광주
+        "광주": [
+            "광주광역시"
+        ],
+        "광주시": [
+            "광주광역시"
+        ],
+        "광주광역시": [
+            "광주광역시"
+        ],
+
+        # 대전
+        "대전": [
+            "대전광역시"
+        ],
+        "대전시": [
+            "대전광역시"
+        ],
+        "대전광역시": [
+            "대전광역시"
+        ],
+
+        # 울산
+        "울산": [
+            "울산광역시"
+        ],
+        "울산시": [
+            "울산광역시"
+        ],
+        "울산광역시": [
+            "울산광역시"
+        ],
+
+        # 세종
+        "세종": [
+            "세종특별자치시"
+        ],
+        "세종시": [
+            "세종특별자치시"
+        ],
+        "세종특별자치시": [
+            "세종특별자치시"
+        ],
+
+        # 경기
+        "경기": [
+            "경기도"
+        ],
+        "경기도": [
+            "경기도"
+        ],
+
+        # -----------------------------------------------------
+        # ★ 강원도
+        #
+        # 과거 : 강원도
+        # 현재 : 강원특별자치도
+        # -----------------------------------------------------
+        "강원": [
+            "강원특별자치도",
+            "강원도"
+        ],
+        "강원도": [
+            "강원특별자치도",
+            "강원도"
+        ],
+        "강원특별자치도": [
+            "강원특별자치도",
+            "강원도"
+        ],
+
+        # 충북
+        "충북": [
+            "충청북도"
+        ],
+        "충청북도": [
+            "충청북도"
+        ],
+
+        # 충남
+        "충남": [
+            "충청남도"
+        ],
+        "충청남도": [
+            "충청남도"
+        ],
+
+        # -----------------------------------------------------
+        # ★ 전라북도
+        #
+        # 과거 : 전라북도
+        # 현재 : 전북특별자치도
+        # -----------------------------------------------------
+        "전북": [
+            "전북특별자치도",
+            "전라북도"
+        ],
+        "전라북도": [
+            "전북특별자치도",
+            "전라북도"
+        ],
+        "전북특별자치도": [
+            "전북특별자치도",
+            "전라북도"
+        ],
+
+        # 전남
+        "전남": [
+            "전라남도"
+        ],
+        "전라남도": [
+            "전라남도"
+        ],
+
+        # 경북
+        "경북": [
+            "경상북도"
+        ],
+        "경상북도": [
+            "경상북도"
+        ],
+
+        # 경남
+        "경남": [
+            "경상남도"
+        ],
+        "경상남도": [
+            "경상남도"
+        ],
+
+        # -----------------------------------------------------
+        # ★ 제주
+        #
+        # 과거 : 제주도
+        # 현재 : 제주특별자치도
+        # -----------------------------------------------------
+        "제주": [
+            "제주특별자치도",
+            "제주도"
+        ],
+        "제주도": [
+            "제주특별자치도",
+            "제주도"
+        ],
+        "제주특별자치도": [
+            "제주특별자치도",
+            "제주도"
+        ]
+    }
+
+    # ---------------------------------------------------------
+    # 시/도 검색 후보
+    #
+    # normalize_sido_name() 결과를 가장 먼저 사용하고
+    # alias 후보를 추가한다.
+    # ---------------------------------------------------------
+    sido_candidates = []
+
+    if sido_name:
+        sido_candidates.append(sido_name)
+
+    for candidate in sido_alias_map.get(
+            original_sido,
+            []
+    ):
+        if candidate not in sido_candidates:
+            sido_candidates.append(candidate)
+
+    # 혹시 alias map에 없는 지역이라도 기존 방식 유지
+    if not sido_candidates:
+        sido_candidates.append(original_sido)
+
+    conn = get_conn(db_path)
+
+    try:
+
+        candidate_rows = []
+        last_searched_idx = -1
+        matched_sido = ""
+
+        # =====================================================
+        # Step 1
+        #
+        # 기존 방식 유지:
+        # 뒤에서부터 동/읍/면/리/구/시/군 검색
+        #
+        # ★ 변경:
+        # 하나의 sido_name만 조회하지 않고
+        # sido_candidates를 순차 조회
+        # =====================================================
+        for i in range(
+                len(tokens) - 1,
+                0,
+                -1
+        ):
+
+            token = tokens[i]
+
+            # -------------------------------------------------
+            # 번지, 숫자, 층/호 등은 검색대상에서 제외
+            # -------------------------------------------------
+            if not (
+                token.endswith("동")
+                or token.endswith("읍")
+                or token.endswith("면")
+                or token.endswith("리")
+                or token.endswith("구")
+                or token.endswith("시")
+                or token.endswith("군")
+            ):
+                continue
+
+            # -------------------------------------------------
+            # 동일 시/도의 현재명 / 과거명 순차검색
+            # -------------------------------------------------
+            for search_sido in sido_candidates:
+
+                sql = f"""
+                    SELECT lawd_cd, lawd_name
+                    FROM {TABLE_NAME}
+                    WHERE lawd_name LIKE ?
+                      AND lawd_name LIKE ?
+                """
+
+                cur = conn.execute(
+                    sql,
+                    (
+                        f"{search_sido}%",
+                        f"% {token}%"
+                    )
+                )
+
+                rows = cur.fetchall()
+
+                if rows:
+                    candidate_rows = rows
+                    last_searched_idx = i
+                    matched_sido = search_sido
+                    break
+
+            if candidate_rows:
+                break
+
+        # =====================================================
+        # 해당 시/도에서 검색 결과 없음
+        # =====================================================
+        if not candidate_rows:
+
+            print(
+                f"[법정동 검색 실패] "
+                f"address={address}, "
+                f"sido={original_sido}, "
+                f"search={sido_candidates}"
+            )
+
+            return None
+
+        # =====================================================
+        # Step 2
+        #
+        # 기존 구조 유지
+        # 앞쪽 주소 토큰으로 후보를 계속 좁힌다.
+        #
+        # 중요한 점:
+        #
+        # 과거 행정구역명이 현재 DB와 다른 경우
+        # 해당 토큰이 없다고 candidate를 버리지는 않는다.
+        #
+        # 예:
+        #
+        # 용인시 처인구 양지면 남곡리
+        #
+        # DB:
+        # 용인시 처인구 양지읍 남곡리
+        #
+        # "양지면"이 일치하지 않아도
+        # 남곡리 후보 자체는 유지한다.
+        # =====================================================
+        if len(candidate_rows) > 1:
+
+            remaining_tokens = (
+                tokens[1:last_searched_idx][::-1]
+            )
+
+            for token in remaining_tokens:
+
+                filtered_rows = [
+                    row
+                    for row in candidate_rows
+                    if token in row[1].split()
+                ]
+
+                # ---------------------------------------------
+                # 기존 로직의 중요한 장점 유지
+                #
+                # 일치하는 것이 있을 때만 후보를 좁힌다.
+                # 일치하지 않으면 기존 후보 유지
+                # ---------------------------------------------
+                if filtered_rows:
+                    candidate_rows = filtered_rows
+
+                if len(candidate_rows) == 1:
+                    break
+
+        # =====================================================
+        # Step 3
+        #
+        # 시 / 군 / 구 일치도 검사
+        #
+        # 기존 구조 유지
+        # =====================================================
+        if len(candidate_rows) > 1:
+
+            admin_tokens = [
+                token
+                for token in tokens[1:last_searched_idx]
+                if (
+                    token.endswith("시")
+                    or token.endswith("군")
+                    or token.endswith("구")
+                )
+            ]
+
+            for admin_token in admin_tokens:
+
+                filtered_rows = [
+                    row
+                    for row in candidate_rows
+                    if admin_token in row[1].split()
+                ]
+
+                # ---------------------------------------------
+                # 현재 DB에서 구 명칭이 변경된 경우
+                # 일치하지 않는다고 후보를 없애지 않는다.
+                # ---------------------------------------------
+                if filtered_rows:
+                    candidate_rows = filtered_rows
+
+                if len(candidate_rows) == 1:
+                    break
+
+        # =====================================================
+        # Step 4
+        #
+        # ★ 추가 보강
+        #
+        # 아직 여러 건이면 주소 앞부분과 DB 주소의
+        # 공통 토큰 개수를 계산해서 가장 일치하는 것을 선택
+        #
+        # 예:
+        #
+        # 경기도 용인시 처인구 양지면 남곡리
+        #
+        # DB 후보:
+        # 경기도 용인시 처인구 양지읍 남곡리
+        #
+        # 공통:
+        # 경기도 / 용인시 / 처인구 / 남곡리
+        #
+        # 따라서 이 후보의 점수가 높아짐
+        # =====================================================
+        if len(candidate_rows) > 1:
+
+            input_admin_tokens = set(
+                token
+                for token in tokens
+                if (
+                    token.endswith("시")
+                    or token.endswith("군")
+                    or token.endswith("구")
+                    or token.endswith("읍")
+                    or token.endswith("면")
+                    or token.endswith("동")
+                    or token.endswith("리")
+                )
+            )
+
+            def candidate_score(row):
+
+                row_tokens = set(
+                    row[1].split()
+                )
+
+                score = 0
+
+                for token in input_admin_tokens:
+
+                    if token in row_tokens:
+
+                        # -------------------------------------
+                        # 리 / 동 / 읍 / 면 일치에 높은 점수
+                        # -------------------------------------
+                        if (
+                            token.endswith("리")
+                            or token.endswith("동")
+                            or token.endswith("읍")
+                            or token.endswith("면")
+                        ):
+                            score += 10
+
+                        # -------------------------------------
+                        # 시 / 군 / 구
+                        # -------------------------------------
+                        elif (
+                            token.endswith("시")
+                            or token.endswith("군")
+                            or token.endswith("구")
+                        ):
+                            score += 5
+
+                return score
+
+            candidate_rows = sorted(
+                candidate_rows,
+                key=candidate_score,
+                reverse=True
+            )
+
+        # =====================================================
+        # 그래도 여러 건이면 DEBUG 출력
+        # =====================================================
+        if len(candidate_rows) > 1:
+
+            print(
+                f"[법정동 다중 후보] "
+                f"address={address}, "
+                f"matched_sido={matched_sido}"
+            )
+
+            for row in candidate_rows[:10]:
+
+                print(
+                    f"    후보: "
+                    f"{row[0]} / {row[1]}"
+                )
+
+        # =====================================================
+        # 최종 후보
+        # =====================================================
+        final_row = candidate_rows[0]
+
+        res_lawd_cd = str(
+            final_row[0]
+        ).strip()
+
+        res_lawd_name = str(
+            final_row[1]
+        ).strip()
+
+        name_parts = [
+            p
+            for p in res_lawd_name.split()
+            if p
+        ]
+
+        # =====================================================
+        # region
+        #
+        # DB에서 실제 조회된 최신 지역명을 사용
+        # =====================================================
+        region = (
+            name_parts[0]
+            if len(name_parts) > 0
+            else ""
+        )
+
+        # =====================================================
+        # sigungu_code
+        #
+        # 기존 구조 유지
+        # 전체 법정동 코드 앞 5자리
+        # =====================================================
+        sigungu_code = (
+            res_lawd_cd[:5]
+            if res_lawd_cd
+            else ""
+        )
+
+        # =====================================================
+        # umd_name / lawd_name / sigungu_name
+        # =====================================================
+        umd_name = ""
+        lawd_name = ""
+        sigungu_name = ""
+
+        # =====================================================
+        # 세종특별자치시
+        #
+        # 예:
+        #
+        # 세종특별자치시 고운동
+        #   umd_name = 고운동
+        #
+        # 세종특별자치시 조치원읍 번암리
+        #   umd_name = 조치원읍
+        #
+        # 세종특별자치시 연기면 연기리
+        #   umd_name = 연기면
+        # =====================================================
+        if region == "세종특별자치시":
+
+            lawd_name = res_lawd_name
+
+            if len(name_parts) >= 2:
+
+                last_part = name_parts[-1]
+
+                # ---------------------------------------------
+                # 세종특별자치시 ○○읍/면 ○○리
+                # ---------------------------------------------
+                if (
+                    last_part.endswith("리")
+                    and len(name_parts) >= 3
+                ):
+
+                    parent_part = name_parts[-2]
+
+                    if (
+                        parent_part.endswith("읍")
+                        or parent_part.endswith("면")
+                    ):
+
+                        umd_name = parent_part
+                        lawd_name = " ".join(
+                            name_parts[:-1]
+                        )
+
+                    else:
+
+                        umd_name = last_part
+
+                # ---------------------------------------------
+                # 세종특별자치시 고운동
+                # 세종특별자치시 도담동
+                # ---------------------------------------------
+                else:
+
+                    umd_name = last_part
+
+            # ---------------------------------------------
+            # 세종은 일반 시군구명이 없음
+            # ---------------------------------------------
+            sigungu_name = ""
+
+        # =====================================================
+        # 세종 이외 일반 지역
+        # =====================================================
+        else:
+
+            if len(name_parts) == 1:
+
+                lawd_name = res_lawd_name
+                umd_name = ""
+
+            elif len(name_parts) == 2:
+
+                lawd_name = res_lawd_name
+
+                last_part = name_parts[-1]
+
+                if (
+                    last_part.endswith("동")
+                    or last_part.endswith("읍")
+                    or last_part.endswith("면")
+                ):
+                    umd_name = last_part
+                else:
+                    umd_name = ""
+
+            else:
+
+                last_part = name_parts[-1]
+
+                # =============================================
+                # ○○읍/면 ○○리
+                #
+                # 예:
+                # 전북특별자치도 군산시 대야면 접산리
+                #
+                # 결과:
+                # umd_name = 대야면
+                # =============================================
+                if (
+                    last_part.endswith("리")
+                    and len(name_parts) >= 3
+                ):
+
+                    parent_part = name_parts[-2]
+
+                    if (
+                        parent_part.endswith("읍")
+                        or parent_part.endswith("면")
+                    ):
+
+                        umd_name = parent_part
+
+                        lawd_name = " ".join(
+                            name_parts[:-1]
+                        )
+
+                    else:
+
+                        # -------------------------------------
+                        # 예외적으로 리 앞에 읍/면이 없는 경우
+                        # -------------------------------------
+                        umd_name = last_part
+                        lawd_name = res_lawd_name
+
+                else:
+
+                    # =========================================
+                    # 일반 동 / 읍 / 면
+                    # =========================================
+                    if (
+                        last_part.endswith("동")
+                        or last_part.endswith("읍")
+                        or last_part.endswith("면")
+                    ):
+
+                        umd_name = last_part
+
+                    lawd_name = res_lawd_name
+
+            # =================================================
+            # sigungu_name 계산
+            #
+            # 기존 코드보다 명확하게
+            # region과 읍면동 사이를 시군구명으로 사용
+            #
+            # 예:
+            #
+            # 경기도 수원시 권선구 호매실동
+            #       ↓
+            # 수원시 권선구
+            #
+            # 경기도 파주시 파주읍
+            #       ↓
+            # 파주시
+            #
+            # 경기도 화성시 만세구 향남읍
+            #       ↓
+            # 화성시 만세구
+            #
+            # 전북특별자치도 군산시 대야면
+            #       ↓
+            # 군산시
+            # =================================================
+            lawd_name_parts = lawd_name.split()
+
+            if len(lawd_name_parts) <= 1:
+
+                sigungu_name = ""
+
+            elif umd_name:
+
+                if (
+                    lawd_name_parts[-1]
+                    == umd_name
+                ):
+
+                    sigungu_name = " ".join(
+                        lawd_name_parts[1:-1]
+                    )
+
+                else:
+
+                    sigungu_name = " ".join(
+                        lawd_name_parts[1:]
+                    )
+
+            else:
+
+                sigungu_name = " ".join(
+                    lawd_name_parts[1:]
+                )
+
+        # =====================================================
+        # 최종 결과
+        # =====================================================
+        result = {
+            "lawd_cd": res_lawd_cd,
+            "lawd_name": lawd_name,
+            "region": region,
+            "sigungu_code": sigungu_code,
+            "sigungu_name": sigungu_name,
+            "umd_name": umd_name
+        }
+
+        # -----------------------------------------------------
+        # 필요할 때만 DEBUG 활성화
+        # -----------------------------------------------------
+        # print(
+        #     f"[법정동 검색 성공] "
+        #     f"{address}"
+        #     f" -> "
+        #     f"{result}"
+        # )
+
+        return result
+
+    except Exception as e:
+
+        print(
+            f"[법정동 검색 오류] "
+            f"address={address} / "
+            f"error={e}"
+        )
+
+        return None
+
+    finally:
+
+        conn.close()
+
 
 # ==========================
 # 3-2) lawd_code 테이블 전체 조회
@@ -613,8 +1466,11 @@ if __name__ == "__main__":
     case6 = get_lawd_by_name("인천광역시 남동구 만수동 841-27, 대명빌라 5동 지층 1호 ")
     print(f"결과 5 (테스트): {case6}")
 
-    case6 = get_lawd_by_name("경기도 파주시 파주읍 파주리 841-27, 대명빌라 5동 지층 1호 ")
-    print(f"결과 5 (테스트): {case6}")
+    case7 = get_lawd_by_name("경기도 파주시 파주읍 파주리 841-27, 대명빌라 5동 지층 1호 ")
+    print(f"결과 7 (테스트): {case7}")
 
-    case6 = get_lawd_by_name("대구광역시 달성군 가창면 용계리 841-27, 대명빌라 5동 지층 1호 ")
-    print(f"결과 5 (테스트): {case6}")
+    case8 = get_lawd_by_name("경기 의정부시 장암동 841-27")
+    print(f"결과 8 (테스트): {case8}")
+
+    case6 = get_lawd_by_name("세종특별자치시 조치원읍 번암리 61-6, 1동 1층102호 ")
+    print(f"결과 9 (테스트): {case6}")

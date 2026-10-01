@@ -1,7 +1,6 @@
 // ====== 공통 ======
-//const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
+const SERVER = "https://www.landcore.co.kr";          // 175.106.99.143
 //const SERVER = 'http://127.0.0.1:5000';
-const SERVER = (typeof LANDCORE_URL !== 'undefined' && LANDCORE_URL) ? LANDCORE_URL : "https://www.landcore.co.kr";
 const OAUTH_LOGIN_URL = `${SERVER}/api/kakao/login`;
 const OAUTH_LOGOUT_URL = `${SERVER}/api/kakao/logout`;
 const API_ME_URL = `${SERVER}/api/kakao/me`;

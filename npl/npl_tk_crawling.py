@@ -14,6 +14,7 @@ import requests
 
 from webdriver_manager.chrome import ChromeDriverManager
 
+from auction.auction_geocode_utils import is_valid_latlng, retry_geocode_failed_address
 from common.vworld_utils import VWorldGeocoding
 from jumpo.jumpo_crawling import detail_driver
 #
@@ -40,6 +41,7 @@ def save_last_sale_date(date_str):
         f.write(date_str)
 # ------------------------------
 
+
 # 스크립트 시작 시 현재 날짜 기준으로 sale_edate를 설정하고,
 # 이전에 저장된 마지막 날짜가 있으면 sale_sdate에 할당, 없으면 현재 날짜로 처리
 today = datetime.today().strftime("%Y-%m-%d")
@@ -61,7 +63,11 @@ BATCH_SIZE = 10     # 레코드 1000건마다 저장
 page_list = "100"
 data_list = []
 saved_count = 0    # 누적 저장 건수
-map_api_key = "AIzaSyBzacpsf9Cw3CRRqWXUHbHkRDNbYlaXGCI"    # 구글맴 api_key
+
+# 테스트용: "Y"이면 첫 페이지(page_list=100)만 처리 후 종료
+#           "N"이면 전체 페이지 계속 처리
+PAGE_TEST_YN = "Y"
+
 # —————————————————————————————————————————————————————————
 # 1) 전역 detail_driver 선언
 detail_driver = None
@@ -99,86 +105,52 @@ def close_popups(driver):
     except Exception:
         print("기타 팝업 없음.")
 
+
 # 로그인처리
-def login_old(driver):
-    try:
-        login_button = WebDriverWait(driver, 3).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[@onclick='floating_div(400);']"))
-        )
-        login_button.click()
-
-        # 로그인 팝업이 표시될 때까지 대기 (팝업의 id는 "FLOATING_CONTENT")
-        login_popup = WebDriverWait(driver, 3).until(
-            EC.visibility_of_element_located((By.ID, "FLOATING_CONTENT"))
-        )
-
-        # 디버깅을 위한 로그인 팝업 HTML 출력
-        login_html = login_popup.get_attribute("outerHTML")
-        print("로그인 팝업의 HTML:" + login_html)
-
-        username_field = login_popup.find_element(By.NAME, "client_id")
-        password_field = login_popup.find_element(By.NAME, "passwd")
-        username_field.send_keys("wfight69")
-        password_field.send_keys("ahdtpddlta_0")
-
-        submit_button = login_popup.find_element(By.XPATH, ".//a[contains(@onclick, 'login();')]")
-        submit_button.click()
-
-        print("로그인 시도 완료.")
-    except Exception as e:
-        print("로그인 오류:", e)
-
-# 로그인처리 (개선버전)
 def login(driver):
-    try:
-        # 로그인 버튼 대기
-        login_button = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[@onclick='floating_div(400);']"))
+  try:
+    # 1. 상단 '로그인' 버튼 클릭 (data-action="loginDivBtn" 속성을 가진 요소)
+    login_button = WebDriverWait(driver, 3).until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//*[@data-action='loginDivBtn']")
         )
+    )
+    login_button.click()
 
-        # 화면 안으로 스크롤
-        driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-        time.sleep(0.5)
+    # 2. 로그인 팝업이 표시될 때까지 대기
+    login_popup = WebDriverWait(driver, 3).until(
+        EC.visibility_of_element_located((By.ID, "FLOATING_CONTENT"))
+    )
 
-        # 먼저 일반 클릭 시도
-        try:
-            login_button.click()
-        except WebDriverException:
-            # element click intercepted 등 나오면 JS로 강제 클릭
-            driver.execute_script("arguments[0].click();", login_button)
+    # 디버깅을 위한 로그인 팝업 HTML 출력
+    login_html = login_popup.get_attribute("outerHTML")
+    print("로그인 팝업의 HTML 성공..")
 
-        # 로그인 팝업이 표시될 때까지 대기
-        login_popup = WebDriverWait(driver, 5).until(
-            EC.visibility_of_element_located((By.ID, "FLOATING_CONTENT"))
-        )
+    # 3. 아이디 및 비밀번호 입력
+    username_field = login_popup.find_element(By.NAME, "client_id")
+    password_field = login_popup.find_element(By.NAME, "passwd")
+    username_field.send_keys("wfight69")
+    password_field.send_keys("ahdtpddlta_0")
 
-        username_field = login_popup.find_element(By.NAME, "client_id")
-        password_field = login_popup.find_element(By.NAME, "passwd")
-        username_field.clear()
-        password_field.clear()
-        username_field.send_keys("wfight69")
-        password_field.send_keys("ahdtpddlta_0")
+    # 4. 로그인 제출 버튼 클릭 (id="loginBtn")
+    submit_button = WebDriverWait(login_popup, 3).until(
+        EC.element_to_be_clickable((By.ID, "loginBtn"))
+    )
+    submit_button.click()
 
-        submit_button = login_popup.find_element(
-            By.XPATH, ".//a[contains(@onclick, 'login();')]"
-        )
-        submit_button.click()
-
-        print("로그인 시도 완료.")
-        # 필요하면 로그인 성공 여부 체크 로직을 추가해도 됨 (예: 로그아웃 버튼 존재 여부)
-    except Exception as e:
-        print("로그인 오류:", e)
-
+    print("로그인 시도 완료.")
+  except Exception as e:
+    print("로그인 오류:", e)
 
 # 메뉴처리
 def menu_search(driver):
     try:
         # ======================================================================
         # "경매검색" 메뉴 클릭 (<a href="/ca/caList.php" ... >경매검색</a> 요소 선택)
-        npl_search = WebDriverWait(driver, 5).until(
+        auction_search = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//a[@href='/ca/caList.php' and contains(text(), '경매검색')]"))
         )
-        npl_search.click()
+        auction_search.click()
         print("경매검색 메뉴 클릭 완료.")
 
     except Exception as e:
@@ -186,62 +158,53 @@ def menu_search(driver):
 
 # 카테고리 선택
 def select_categories(driver):
-
+    print("카테고리 선택 창 열기 시작.")
     # ======================================================================
-    # [추가] "showCtgrMulti(this)" 버튼 클릭하여 카테고리 선택 창 열기
-    category_button = WebDriverWait(driver, 3).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@onclick='showCtgrMulti(this)']"))
-    )
-    category_button.click()
-    print("카테고리 선택 창 열기 완료.")
+    # 1. "복수선택" 버튼(id="btn_power")을 클릭하여 카테고리 선택 창 열기 (안전성 강화)
+    try:
+        category_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "btn_power"))
+        )
+        # 일반 클릭이 안 될 경우를 대비해 자바스크립트 강제 클릭 병행
+        try:
+            category_button.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", category_button)
+
+        print("카테고리 선택 창 열기 완료.")
+    except Exception as e:
+        print("카테고리 선택 창 열기 중 오류 발생:", e)
+        return  # 창을 못 열면 이후 진행이 의미 없으므로 중단
 
     # 잠시 대기 (모달/드롭다운이 로드될 시간 확보)
     time.sleep(2)
 
     # ======================================================================
-    # [추가] 시/도 옵션 선택(특정지역 테스트용)
-    # try:
-    #     stat_select = WebDriverWait(driver, 10).until(
-    #         EC.presence_of_element_located((By.ID, "siCd"))
-    #     )
-    #     select_obj = Select(stat_select)
-    #     select_obj.select_by_value("28")    # 인천(28)
-    #     print("인천광역시(28) 옵션 선택됨.")
-    #     time.sleep(2)
-    # except Exception as e:
-    #     print("시/도 옵션 선택 중 오류 발생:", e)
-
-    # [추가] 매각전부 옵션 선택
+    # 2. 진행물건 옵션 선택 (DOM 속성을 직접 제어하여 disabled 해제 및 value 부여)
     try:
         stat_select = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "stat"))
         )
+        # JavaScript를 사용하여 '매각전부' 옵션 수정 (비활성화 해제 및 value 설정)
+        driver.execute_script("""
+            let option = [...document.querySelectorAll("#stat option")].find(opt => opt.textContent.includes("진행물건"));
+            if (option) {
+                option.removeAttribute("disabled");
+                option.classList.remove("bg_gray");
+                option.setAttribute("value", "11");
+            }
+        """)
+        # Select 객체를 사용하여 수정된 옵션 선택
         select_obj = Select(stat_select)
-        select_obj.select_by_value("11")    # 진행물건(11), 매각전부(12)
-        print("진행물건(11) 옵션 선택됨.")
+        select_obj.select_by_value("11")         # 진행물건(11), 매각전부(12)
+
+        print("진행전부 옵션 선택됨.")
         time.sleep(2)
     except Exception as e:
-        print("매각전부 옵션 선택 중 오류 발생:", e)
+        print("진행전부 옵션 선택 중 오류 발생:", e)
 
-    # [추가] 매각일자 설정
-    # try:
-    #     bgnDt = WebDriverWait(driver, 5).until(
-    #         EC.presence_of_element_located((By.ID, "bgnDt"))
-    #     )
-    #     endDt = WebDriverWait(driver, 5).until(
-    #         EC.presence_of_element_located((By.ID, "endDt"))
-    #     )
-    #     bgnDt.clear()
-    #     bgnDt.send_keys(sale_sdate)
-    #     endDt.clear()
-    #     endDt.send_keys(sale_edate)
-    #     print(f"매각일자 설정 완료: 시작일자 {sale_sdate}, 종료일자 {sale_edate}")
-    #     time.sleep(1)
-    # except Exception as e:
-    #     print("매각일자 설정 중 오류 발생:", e)
-    #
     # ======================================================================
-    # 주거용 카테고리 선택
+    # 3-1. 주거용 카테고리 체크박스 선택
     try:
         categories = ["아파트", "연립주택", "다세대주택", "오피스텔(주거)", "단독주택", "다가구주택", "도시형생활주택", "상가주택"]
         for category in categories:
@@ -253,71 +216,59 @@ def select_categories(driver):
                 checkbox.click()
                 print(f"'{category}' 체크박스 선택됨.")
     except Exception as e:
-        print("카테고리 선택 오류:", e)
+        print("주거용 카테고리 선택 오류:", e)
 
-    #-----------------------------------------------------------------------
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
-    # try:
-    #     categories = ["숙박시설"]
-    #     for category in categories:
-    #         checkbox = WebDriverWait(driver, 5).until(
-    #             EC.element_to_be_clickable((By.XPATH,
-    #                                         f"//*[@id='ulGrpCtgr_20']//span[contains(text(), '{category}')]/preceding-sibling::input[@type='checkbox']"))
-    #         )
-    #         if not checkbox.is_selected():
-    #             checkbox.click()
-    #             print(f"'{category}' 체크박스 선택됨.")
-    # except Exception as e:
-    #     print("카테고리 선택 오류:", e)
 
-    # 상업및 산업용 체크박스 선택처리(관심 ** 테스트용)
+    # 3-2. 상업 및 산업용 등 기타 카테고리 체크박스 선택
     try:
-        # '상업용' 체크박스를 트리거할 label 클릭
-        label = WebDriverWait(driver, 30).until(
-            EC.element_to_be_clickable((By.XPATH, "//label[@for='chkGrpCtgr_20']"))
+        commercial_checkbox = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable(
+                (By.ID, "chkGrpCtgr_20")
+            )
         )
-        label.click()
-        print("✅ '상업용' 카테고리 클릭 완료 (chkCtgrMulti(20,1) 호출됨)")
+
+        if not commercial_checkbox.is_selected():
+            driver.execute_script("arguments[0].click();", commercial_checkbox)
+
+        print("상업 및 산업용 전체 선택 완료")
+
     except Exception as e:
-        print("❌ 카테고리 클릭 실패:", e)
-
-    # 토지
-    # try:
-    #     # '토지' 체크박스를 트리거할 label 클릭
-    #     label = WebDriverWait(driver, 30).until(
-    #         EC.element_to_be_clickable((By.XPATH, "//label[@for='chkGrpCtgr_30']"))
-    #     )
-    #     label.click()
-    #     print("✅ '토지' 카테고리 클릭 완료 (chkCtgrMulti(30,1) 호출됨)")
-    # except Exception as e:
-    #     print("❌ 카테고리 클릭 실패:", e)
+        print("상업 및 산업용 선택 실패:", e)
 
     # ======================================================================
-    # 첫번째 검색으로 페이지에 총건수를 가져오기 위함.
-    driver.execute_script("srchClick();")
-    print("srchClick() 검색함수 실행 완료.")
+    # 4. 첫 번째 검색 실행 (총 건수 확인을 위함)
+    try:
+        search_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "btnSrch"))
+        )
+        try:
+            search_button.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", search_button)
+        print("btnSrch 검색 실행 완료.")
 
-    # 결과가 로드될 때까지 대기 (#lsTbody 요소가 로드되길 기다림)
-    tbody = WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "#lsTbody"))
-    )
-    # 형식적경매 결과는 출력하지 않고 잠시 대기만 함
-    time.sleep(2)
+        # 결과가 로드될 때까지 대기 (#lsTbody 요소가 로드되길 기다림)
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#lsTbody"))
+        )
+        time.sleep(3)
+    except Exception as e:
+        print("검색 실행 중 오류 발생:", e)
+        return
 
     # ======================================================================
-    # [추가] 목록수를 100으로 설정 (select 태그 처리)
+    # 5. 검색 목록수를 설정값(page_list)으로 변경
     try:
         data_size_select = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "dataSize_s"))
+            EC.presence_of_element_located((By.ID, "dataSize"))
         )
-       #driver.execute_script("document.getElementById('dataSize_s').onchange = null;")  # onchange 이벤트 비활성화
         select_obj = Select(data_size_select)
         select_obj.select_by_value(page_list)
         print(f"목록수가 {page_list}으로 설정되었습니다.")
-        # onchange 이벤트 실행 시간 고려하여 잠시 대기
         time.sleep(1)
     except Exception as e:
         print("목록수 설정 중 오류 발생:", e)
+
 
 # ======================================================================
 # 총건수 가져오기 함수
@@ -340,6 +291,7 @@ def get_total_count(driver):
 def record_parsing_list(driver, current_page):
     global saved_count, data_list
     #
+    print("📌 record_parsing_list() 호출됨, 현재 페이지:", current_page)
     # 결과가 로드될 때까지 대기 (#lsTbody 요소가 로드되길 기다림)
     tbody = WebDriverWait(driver, 8).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "#lsTbody"))
@@ -352,8 +304,7 @@ def record_parsing_list(driver, current_page):
         #----------------------------
         # npl파악위한 근저당 채권최고액(말소기준권리), 임의(강제)경매 청구금액, 임의(강제)경매 청구자
         # tr 안의 hidden input 중 name 또는 id가 Tid_로 시작하는 것을 찾기
-        tid_input = row.find_element(By.XPATH, './/input[starts-with(@id, "Tid_")]')
-        tid = tid_input.get_attribute("value")
+        tid = row.get_attribute("data-tid")
 
         # print(f"{idx}: tid = {tid}")
         npl_info = npl_extract_info(driver, row_text, tid)
@@ -364,8 +315,8 @@ def record_parsing_list(driver, current_page):
         #deposit_value, min_price, bond_max_amount, bond_claim_amount, start_decision_date, auction_method, auction_applicant, notice_text = npl_info
 
         # 상세정보 처리
-        print(f"📌 상세정보 처리 시작: TID {tid}")
-        extract_info(row_text, idx, npl_info)
+        print(f"📌 상세정보(좌표구하기등) 처리 시작: TID {tid}")
+        extract_info(row_text, npl_info)
 
         # 1000건마다 저장 처리
         if len(data_list) >= BATCH_SIZE:
@@ -377,6 +328,7 @@ def record_parsing_list(driver, current_page):
 
     total_parsed = (current_page - 1) * int(page_list) + idx
     print(f"📄 현재 페이지: {current_page}, 현재목록 수: {idx}, 현재까지 읽은 목록 수: {total_parsed}")
+
 
 # ======================================================================
 # 페이징 이동 및 데이터 처리
@@ -394,12 +346,39 @@ def navigate_pages(driver, total_records):
                 continue
             visited_pages.add(str(page_no))
 
-            # JavaScript로 페이지 이동 실행
-            safe_execute_script(driver, f"srchList({page_no}); chkEachlist();")
+            # 1페이지는 기본적으로 로드되어 있으므로 2페이지부터 클릭 혹은 이동 처리
+            if page_no > 1:
+                try:
+                    # data-page 속성을 가진 페이지 버튼 찾기 (예: id="loadPage_2", data-page="2")
+                    page_button = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, f"div[data-page='{page_no}']"))
+                    )
+                    # 일반 클릭 시도 후 실패 시 자바스크립트 클릭 수행
+                    try:
+                        page_button.click()
+                    except Exception:
+                        driver.execute_script("arguments[0].click();", page_button)
+
+                except Exception as e:
+                    print(f"❌ {page_no} 페이지 버튼을 찾는 중 오류 발생 (마지막 페이지 도달 가능성):", e)
+                    break
+
             time.sleep(5)  # 페이지 로딩 대기
 
             # 레코드 파싱 및 데이터 저장
             record_parsing_list(driver, page_no)
+
+            # ============================================================
+            # 테스트 모드
+            # Y : 첫 페이지(page_list 개수) 처리 후 종료
+            # N : 기존처럼 전체 페이지 계속 처리
+            # ============================================================
+            if PAGE_TEST_YN.upper() == "Y":
+                print(
+                    f"🧪 테스트 모드 종료: "
+                    f"첫 페이지 {page_list}개 목록 처리 후 페이징을 종료합니다."
+                )
+                break
 
         except WebDriverException as e:
             print("WebDriver error, retrying page:", e)
@@ -408,48 +387,6 @@ def navigate_pages(driver, total_records):
         # except Exception as e:
         #     print("❌ 페이지 이동 중 오류 발생 또는 마지막 페이지 도달:", e)
         #     break
-
-# 위.경도 가져오기..
-# 발급받은 API Key
-def get_lat_lng(address: str, addresss_type: str = 'road') -> tuple[float, float]:
-    """
-    vWorld 지오코딩 API를 호출해 도로명 주소의 위도/경도 좌표를 반환합니다.
-    :param address: 조회할 도로명 주소 문자열
-    :return: (latitude, longitude)
-    :raises Exception: API 오류 또는 좌표 미발견 시
-    """
-    #url = "https://api.vworld.kr/req/address"
-    url = VWORLD_URL
-    params = {
-        "service": "address",
-        "request": "getcoord",  # 좌표 변환 요청
-        "format": "json",  # JSON 응답
-        "crs": "epsg:4326",  # WGS84 좌표계
-        "type": addresss_type,  # road: 도로명, parcel: 지번
-        "address": address,
-        "key": MAP_API_KEY
-    }
-
-    resp = requests.get(url, params=params, timeout=5)
-    resp.raise_for_status()
-
-    data = resp.json()
-    # 응답 구조: data["response"]["status"] == "OK" 인지 확인
-    if data.get("response", {}).get("status") != "OK":
-        # raise Exception(f"API error: {data.get('response', {}).get('error', 'Unknown error')}")
-        return 0.0, 0.0
-
-    # 좌표는 data["response"]["result"]["point"]["y"], ["x"]
-    result = data["response"]["result"]
-    point = result.get("point")
-    if not point or "x" not in point or "y" not in point:
-        # raise Exception("좌표를 찾을 수 없습니다.")
-        return 0.0, 0.0
-
-    lat = float(point["y"])
-    lng = float(point["x"])
-    return lat, lng
-
 
 # 동,층정보 가져오기
 def extract_building_floor(address):
@@ -478,20 +415,102 @@ def extract_building_floor(address):
 # tid번호를 이용한 npl여부츨 체크함
 def npl_extract_info(driver, row_text, tid):
     try:
+        #print("📌 npl_extract_info() 호출됨, TID:", tid)
         lines = row_text.split('\n')
 
         #print('== row_text: ' + row_text)
 
-        # 금액 정보 추출
-        idx_price_start = next(
-            i for i, line in enumerate(lines) if ("토지" in line or "건물" in line) and "매각" in line and "매각제외" not in line) + 1
-        appraisal_price = lines[idx_price_start]  # 감정금액
-        min_price = lines[idx_price_start + 1]  # 최저금액
-        bid_count = lines[idx_price_start + 2].replace(',', '')  # 유찰회수
-        bid_text = lines[idx_price_start + 3].replace(',', '')  # 낙찰가율
-        bid_rate = bid_text.replace("(", "").replace(")", "")
-        sale_decision_date_text = lines[idx_price_start + 5].replace(',', '')  # 매각기일
-        sale_decision_date = convert_to_iso(sale_decision_date_text)  # 매각기일
+        # ============================================================
+        # 감정가 / 최저가 / 유찰횟수 / 낙찰비율 / 매각기일 추출
+        # 목록 중간에 공매정보, 평당금액 등이 추가되어도
+        # 고정 줄번호를 사용하지 않고 실제 데이터 형식으로 추출
+        # ============================================================
+        appraisal_price = '0'
+        min_price = '0'
+        bid_count = '0'
+        bid_rate = '0'
+        sale_decision_date_text = ''
+        sale_decision_date = ''
+
+        # ------------------------------------------------------------
+        # 1. 독립된 금액 라인 추출
+        #
+        # 예:
+        # 437,751,620
+        # 214,498,000
+        #
+        # "(토지) 평당 154만"
+        # "공매 ... (감정: 120,000,000 / 최저: ...)"
+        # 등의 금액은 제외
+        # ------------------------------------------------------------
+        price_list = []
+
+        for line in lines:
+            line = line.strip()
+
+            # 한 줄 전체가 금액인 경우만 인정
+            if re.fullmatch(r'\d{1,3}(?:,\d{3})+', line):
+                price_list.append(line)
+
+        # 첫 번째 금액 = 감정평가금액
+        if len(price_list) >= 1:
+            appraisal_price = price_list[0]
+
+        # 두 번째 금액 = 최저낙찰가
+        if len(price_list) >= 2:
+            min_price = price_list[1]
+
+        # ------------------------------------------------------------
+        # 2. 유찰횟수 추출
+        #
+        # 예:
+        # 유찰 3회
+        # → 3
+        # ------------------------------------------------------------
+        for line in lines:
+            line = line.strip()
+
+            bid_count_match = re.search(r'유찰\s*(\d+)\s*회', line)
+
+            if bid_count_match:
+                bid_count = bid_count_match.group(1)
+                break
+
+        # ------------------------------------------------------------
+        # 3. 낙찰비율 추출
+        #
+        # 예:
+        # (34%)
+        # → 34%
+        # ------------------------------------------------------------
+        for line in lines:
+            line = line.strip()
+
+            bid_rate_match = re.fullmatch(r'\(\s*(\d+)%\s*\)', line)
+
+            if bid_rate_match:
+                bid_rate = bid_rate_match.group(1) + '%'
+                break
+
+        # ------------------------------------------------------------
+        # 4. 매각기일 추출
+        #
+        # 예:
+        # 26.10.01
+        # → 2026-10-01
+        # ------------------------------------------------------------
+        for line in lines:
+            line = line.strip()
+
+            if re.fullmatch(r'\d{2}\.\d{2}\.\d{2}', line):
+                sale_decision_date_text = line
+                break
+
+        if sale_decision_date_text:
+            sale_decision_date = convert_to_iso(
+                sale_decision_date_text
+            )
+
         print('-')
         print('== TID: ' + tid )
         print('== 감정평가금액: ' + appraisal_price)
@@ -567,7 +586,7 @@ def npl_extract_info(driver, row_text, tid):
         except (StaleElementReferenceException, TimeoutException):
             bond_total_amount = 0
 
-        print("📌 채권합계금액:", bond_total_amount)
+        # print("📌 채권합계금액:", bond_total_amount)
 
         # 결과 저장용 리스트
         result_data = []
@@ -631,6 +650,14 @@ def npl_extract_info(driver, row_text, tid):
         driver.close()
         driver.switch_to.window(main_window)
 
+        print('-')
+        print('== TID: ' + tid )
+        print('== 감정평가금액: ' + appraisal_price)
+        print('== 최저낙찰가:  ' + min_price)
+        print('== 최저유찰회수: ' + bid_count)
+        print('== 낙찰비율: ' + bid_rate)
+        print('== 매각일자: ' + sale_decision_date)
+        print("📌 채권합계금액:", bond_total_amount)
         print('--')
         print("📌 보증금 추출 목록:", deposit_text)
         print("== 임차보증금금액:", deposit_value)
@@ -662,71 +689,11 @@ def npl_extract_info(driver, row_text, tid):
             print("데이터 처리 오류:", e)
             return None
 
-# 임차권등기 대향력여부
-def determine_opposability_status(notice_text):
-    """
-    notice_text 문자열 안에 '임차권등기' 또는 '대항력있는임차인'이 포함되어 있으면
-    opposability_status를 'Y'로, 그렇지 않으면 'N'으로 반환합니다.
-    """
-    keywords = ["임차권등기", "대항력있는임차인"]
-    for kw in keywords:
-        if kw in notice_text:
-            return 'Y'
-    return 'N'
-
-# 날짜형식을 변환처리한다.
-def convert_to_iso(date_str):
-    """
-    "YY.MM.DD" 형식의 문자열을 받아 "YYYY-MM-DD" 형식으로 반환합니다.
-    예: "25.03.01" → "2025-03-01"
-    """
-    # "YY.MM.DD" 형식이 맞는지 간단히 확인
-    parts = date_str.split('.')
-    if len(parts) != 3:
-        raise ValueError(f"잘못된 형식: {date_str}")
-
-    yy, mm, dd = parts
-    # 두 자리 연도를 네 자리로 변환 (2000년대 기준)
-    yyyy = f"20{yy}"
-    # 검증을 위해 datetime으로 파싱했다가 다시 포맷팅
-    try:
-        dt = datetime.strptime(f"{yyyy}-{mm}-{dd}", "%Y-%m-%d")
-        return dt.strftime("%Y-%m-%d")
-    except ValueError as e:
-        raise ValueError(f"날짜 변환 오류: {e}")
-
-
-# 금액만 추출 후 정수로 변환하고, 천 단위 콤마 포맷 적용
-def extract_and_format(text):
-    m = re.search(r'(\d[\d,]*)', text)
-    if not m:
-        return "0"
-    # 쉼표 제거 후 정수로 변환
-    value = int(m.group(1).replace(',', ''))
-    # 천 단위 콤마 추가
-    return f"{value:,}"
-
-
-# npl여부를 체크: 최저낙찰가, 채권채고액, 채권청구액
-def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
-    # Remove commas and convert to integers
-    lowest_price = int(lowest_price_str.replace(',', '').strip())
-    max_claim = int(max_claim_str.replace(',', '').strip())
-    claim_amount = int(claim_amount_str.replace(',', '').strip())
-
-    # If max_claim is zero, use claim_amount
-    if max_claim == 0:
-        max_claim = claim_amount
-
-    # Compare values
-    is_npl = max_claim > lowest_price
-
-    return is_npl
-
 
 # 주소로 시군구 데이타 파싱및 분석
-def extract_info(row_text, idx, npl_info):
+def extract_info(row_text, npl_info):
     try:
+        print("📌 상세정보 처리 시작: TID", npl_info[-1])
         # info 언패킹
         deposit_value, bond_total_amount, appraisal_price, min_price, bid_count, bid_rate, bond_max_amount, bond_claim_amount, start_decision_date, sale_decision_date, auction_method, auction_applicant, notice_text, opposability_status, tid = npl_info
 
@@ -742,73 +709,242 @@ def extract_info(row_text, idx, npl_info):
         # 주소 세부 정보 추출 (지역, 시군구, 법정동)
         address_parts = address1.split()
 
-        # 지역코드 = 시도이름
-        # region = address_parts[0] if len(address_parts) > 0 else ''
-        # city_district = address_parts[1] if len(address_parts) > 1 else ''
-        # legal_dong = address_parts[2] if len(address_parts) > 2 else ''
-
+        # ============================================================
         # 면적 정보 추출
-        area_match = re.search(r'건물\s([\d\.]+)㎡\(([\d\.]+)평\),\s대지권\s([\d\.]+)㎡\(([\d\.]+)평\)', row_text)
+        #
+        # 기존 1번 방식 + 2번 방식 보완
+        #
+        # 처리 가능한 예:
+        #
+        # 건물 84.8895㎡(25.679평), 대지권 46.6082㎡(14.099평)
+        # 건물 161.79㎡(48.941평), 토지 434.754㎡(131.513평)
+        #
+        # 건물 84.8895㎡ (25.679평)
+        # 대지권 46.6082㎡ (14.099평)
+        #
+        # 건물 991㎡(299.778평)
+        # 토지 5371㎡(1624.728평)
+        #
+        # 건물 44.27㎡(13.392평), 토지 매각제외
+        # ============================================================
+
+        building_m2 = ''
+        building_py = ''
+        land_m2 = ''
+        land_py = ''
+        area_py = 0
+
+        # ------------------------------------------------------------
+        # 1. 우선 기존 1번 방식으로
+        #    "건물 + 대지권"이 한 세트로 존재하는 경우 추출
+        #
+        # 기존:
+        # 건물 84.8895㎡(25.679평),
+        # 대지권 46.6082㎡(14.099평)
+        # ------------------------------------------------------------
+        area_match = re.search(
+            r'건물\s*'
+            r'([\d,.]+)\s*㎡\s*'
+            r'\(\s*([\d,.]+)\s*평\s*\)'
+            r'\s*,?\s*'
+            r'대지권\s*'
+            r'([\d,.]+)\s*㎡\s*'
+            r'\(\s*([\d,.]+)\s*평\s*\)',
+            row_text
+        )
+
         if area_match:
-            building_m2, building_py, land_m2, land_py = area_match.groups()
-            area_py = float(building_py)
+            building_m2 = area_match.group(1).replace(',', '')
+            building_py = area_match.group(2).replace(',', '')
+
+            land_m2 = area_match.group(3).replace(',', '')
+            land_py = area_match.group(4).replace(',', '')
+
+        # ------------------------------------------------------------
+        # 2. 위의 기존 방식으로 추출되지 않은 경우
+        #    건물 면적을 독립적으로 다시 검색
+        #
+        # 이렇게 하면 대지권이 없는 데이터도 처리 가능
+        #
+        # 예:
+        # 건물 991㎡(299.778평), 토지 5371㎡(1624.728평)
+        #
+        # 건물 44.27㎡(13.392평), 토지 매각제외
+        # ------------------------------------------------------------
+        if not building_m2:
+
+            building_match = re.search(
+                r'건물\s*'
+                r'([\d,.]+)\s*㎡\s*'
+                r'\(\s*([\d,.]+)\s*평\s*\)',
+                row_text
+            )
+
+            if building_match:
+                building_m2 = (
+                    building_match
+                    .group(1)
+                    .replace(',', '')
+                )
+
+                building_py = (
+                    building_match
+                    .group(2)
+                    .replace(',', '')
+                )
+
+        # ------------------------------------------------------------
+        # 3. 대지권이 추출되지 않은 경우
+        #    "대지권"을 독립적으로 다시 검색
+        # ------------------------------------------------------------
+        if not land_m2:
+
+            land_match = re.search(
+                r'대지권\s*'
+                r'([\d,.]+)\s*㎡\s*'
+                r'\(\s*([\d,.]+)\s*평\s*\)',
+                row_text
+            )
+
+            if land_match:
+                land_m2 = (
+                    land_match
+                    .group(1)
+                    .replace(',', '')
+                )
+
+                land_py = (
+                    land_match
+                    .group(2)
+                    .replace(',', '')
+                )
+
+        # ------------------------------------------------------------
+        # 4. "대지권"이 없는 경우
+        #    일반 "토지" 면적 검색
+        #
+        # 예:
+        # 건물 161.79㎡(48.941평),
+        # 토지 434.754㎡(131.513평)
+        #
+        # 중요:
+        # "토지·건물 일괄매각"
+        # "토지 매각제외"
+        # 같은 문장은 숫자+㎡가 없으므로 매칭되지 않음
+        # ------------------------------------------------------------
+        if not land_m2:
+
+            land_match = re.search(
+                r'토지\s*'
+                r'([\d,.]+)\s*㎡\s*'
+                r'\(\s*([\d,.]+)\s*평\s*\)',
+                row_text
+            )
+
+            if land_match:
+                land_m2 = (
+                    land_match
+                    .group(1)
+                    .replace(',', '')
+                )
+
+                land_py = (
+                    land_match
+                    .group(2)
+                    .replace(',', '')
+                )
+
+        # ------------------------------------------------------------
+        # 5. 평단가 계산용 건물평수
+        # ------------------------------------------------------------
+        if building_py:
+
+            try:
+                area_py = float(
+                    building_py
+                )
+
+            except (ValueError, TypeError):
+                area_py = 0
+
         else:
-            building_m2 = building_py = land_m2 = land_py = ''
+
             area_py = 0
 
-        # 판매금액및 비율 정보 추출
+        # ============================================================
+        # 금액 정보 추출
+        # HTML 구조 변경으로 인해 줄 위치를 기준으로 찾지 않고
+        # 금액 형태(233,000,000 등)를 직접 추출
+        # ============================================================
+        appraisal_price = 0
+        min_price = 0
         sale_price = 0
-        min_percent = bid_rate
-        sale_percent = ''
+        try:
+            # 최소 6자리 이상의 콤마 포함 금액만 추출
+            # 예:
+            # 233,000,000
+            # 114,170,000
+            # 119,500,099
+            price_matches = re.findall(
+                r'(?<![\d.])(\d{1,3}(?:,\d{3}){2,})(?![\d.])',
+                row_text
+            )
+
+            prices = []
+
+            for price in price_matches:
+                try:
+                    value = int(price.replace(',', ''))
+
+                    # 중복 제거
+                    if value not in prices:
+                        prices.append(value)
+
+                except:
+                    pass
+
+            if len(prices) >= 1:
+                appraisal_price = prices[0]
+
+            if len(prices) >= 2:
+                min_price = prices[1]
+
+            if len(prices) >= 3:
+                sale_price = prices[2]
+
+        except Exception as e:
+            print(f"금액 파싱 오류 : {e}")
+
+
+        # 판매금액및 비율 정보 추출
+        percent_match = re.findall(r'\((\d+)%\)', row_text)
+        min_percent = percent_match[0] if len(percent_match) > 0 else ''
+        sale_percent = percent_match[1] if len(percent_match) > 1 else ''
+
+        # 매각일자 추출 (yyyy-mm-dd 형식 변환)
+        date_match = re.search(r'(\d{2}\.\d{2}\.\d{2})', row_text)
+        if date_match:
+            raw_date = date_match.group(1)
+            sales_date = f"20{raw_date[:2]}-{raw_date[3:5]}-{raw_date[6:]}"
+        else:
+            sales_date = ''
 
         # 기타 정보 추출
         extra_info = ', '.join([line for line in lines if '계' in line or '토지' in line or '건물' in line or '임차인' in line])
 
         # 평단가 계산
         if area_py != 0:
-            pydanga_appraisal = int(int(appraisal_price.replace(",", "")) / (area_py * 10000))
-            pydanga_min = int(int(min_price.replace(",", "")) / (area_py * 10000))
-            pydanga_sale = 0
+            pydanga_appraisal = int(appraisal_price / (area_py * 10000))
+            pydanga_min = int(min_price / (area_py * 10000))
+            pydanga_sale = int(sale_price / (area_py * 10000))
         else:
             pydanga_appraisal = pydanga_min = pydanga_sale = 0
 
         # 동,층정보 가져오기
         building, floor, dangi_name = extract_building_floor(address1)
 
-        #print(f"address1: {address1}, Building: {building}, Floor: {floor}, Dangi Name: {dangi_name}")
-
-        # 법정코드(시군구) 및 읍면동 가져오기
-        # lawd_cd=8자리, sido_code = 2자리,  sido_name/lawd_name: 경기도,
-        #lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong = extract_region_code(address1)
-        #
-        # 테이블에서 가져오는 방식으로 처리함
-        # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
-        # ---------------------------------------------------------
-        # 리턴 데이터 조립 및 필드 설명
-        # ---------------------------------------------------------
-        # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
-        # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
-        # 3. region/sido_name: 광역 지자체 이름 (예: 경기도, 경상북도)
-        # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
-        # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
-        # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
-        # ---------------------------------------------------------
-        lawd_cd, lawd_name, region, sigungu_code, sigungu_name, umd_name = extract_region_code(address1)
-        print(f"📌 주소에서 추출된 지역 정보: {lawd_cd}, {lawd_name}, {region}, {sigungu_code}, {sigungu_name}, {umd_name}")
-        #
-        # 위도, 경도 가져오기 (0이면 None로 키에러외 기타등등) - 괄호제거
-        lat_lng_address = address2.replace('(', '').replace(')', '')
-        #latitude, longitude = get_lat_lng(lat_lng_address, "road")
-        # 1. 유틸리티 인스턴스 생성
-        # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
-        geo_service = VWorldGeocoding(MAP_API_KEY)
-        latitude, longitude = geo_service.get_lat_lng(lat_lng_address, address_type="road")
-        # 위경도 주소고 다시한번 검증
-        is_valid, message = geo_service.validate_location(lat_lng_address,latitude,longitude)
-        if not is_valid:
-            latitude, longitude = 0.0, 0.0
-
-        print(f"주소: {is_valid}, {message}, {lat_lng_address}, 위도: {latitude}, 경도: {longitude}")
+        # 판매금액및 비율 정보 추출
+        # sale_price = 0
 
         # 임의경매신청자가 개인인경우(default N)
         # 한글 3자이며 '신협', '금고', '은행' 포함하지 않을 경우 'Y', 아니면 'N'
@@ -819,6 +955,101 @@ def extract_info(row_text, idx, npl_info):
             personal_status = 'Y'
         else:
             personal_status = 'N'
+
+
+        # ------------------------------------------------------------
+        # 11. 법정동 코드
+        region = ""
+        lawd_cd = ""
+        lawd_name = ""
+        sigungu_code = ""
+        sigungu_name = ""
+        umd_name = ""
+
+        # 필요시 다시 활성화
+        try:
+
+            # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
+            # ---------------------------------------------------------
+            # 리턴 데이터 조립 및 필드 설명
+            # ---------------------------------------------------------
+            # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
+            # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
+            # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
+            # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
+            # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
+            # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
+            # ---------------------------------------------------------
+            print(f"📌 주소로부터 지역 정보 추출 시도: {address1}")
+            row = get_lawd_by_name(address1)
+
+            lawd_cd = row.get("lawd_cd", "")
+            lawd_name = row.get("lawd_name", "")
+            region = row.get("region", "")
+            sigungu_code = row.get("sigungu_code", "")
+            sigungu_name = row.get("sigungu_name", "")
+            umd_name = row.get("umd_name", "")
+        except Exception as e:
+            print(f"법정동 코드 파싱 오류 : {e}")
+
+        # ------------------------------------------------------------
+        # 12. 위도 / 경도
+        latitude = "0"
+        longitude = "0"
+
+        # [기존 성공 로직 유지]
+        # 기존과 동일하게 address1 전체를 parcel로 먼저 조회한다.
+        # 이 조회가 성공하면 추가 보완 로직은 실행하지 않는다.
+        #-----------------------------------------------
+        try:
+            geo_service = VWorldGeocoding(MAP_API_KEY)
+
+            # ★ 기존 코드 그대로
+            latitude, longitude = geo_service.get_lat_lng(
+                address1,
+                "parcel"
+            )
+
+            # --------------------------------------------------------
+            # ★ 추가된 부분
+            #
+            # 기존 방식이 성공했으면 아무것도 하지 않음.
+            #
+            # CSV 실패건처럼
+            # latitude/longitude가 0인 경우에만
+            # 추가 주소 후보로 재조회
+            # --------------------------------------------------------
+            if not is_valid_latlng(
+                    latitude,
+                    longitude
+            ):
+                latitude, longitude = (
+                    retry_geocode_failed_address(
+                        geo_service=geo_service,
+                        case_number=case_number,
+                        address1=address1,
+                        address2=address2
+                    )
+                )
+
+        except Exception as e:
+            # ========================================================
+            # ★ 중요
+            #
+            # VWorld API 오류
+            # 네트워크 오류
+            # 주소변환 오류
+            # retry 함수 오류
+            #
+            # 어떤 예외가 발생해도
+            # 해당 경매 레코드를 버리지 않는다.
+            # ========================================================
+            latitude = "0"
+            longitude = "0"
+
+            print(
+                f"좌표 변환 오류: {e}"
+            )
 
         # 데이터 저장
         # data_entry = {
@@ -892,8 +1123,7 @@ def extract_info(row_text, idx, npl_info):
             "longitude": longitude,
             "tid": tid
         }
-        print("===== extract_info() ======= ")
-        print(data_entry)
+        #print(data_entry)
         #
         data_list.append(data_entry)
 
@@ -906,80 +1136,67 @@ def extract_info(row_text, idx, npl_info):
     except Exception as e:
         print("데이터 처리 오류:", e)
 
-# 시군구등 법정코드 json 데이타 로딩
-def load_json_data():
-    json_filepath = "region_codes.json"  # JSON 파일 경로
-    with open(json_filepath, 'r', encoding='utf-8') as file:
-        return json.load(file)
 
-# 시도,시군구,읍면동 파싱처리
-# 차후 public_data에 lawd_code 테이블에서 (법정동코드내역: lawd_cd, lawd_name)
-# public_land_lawd_code_db_utils.py에 get_lawd_by_name(lawd_name)을 호출하여 법정동코드(lawd_cd)를 가져오는 방식으로 변경할 수 있음
-def extract_region_code_old(address):
+# 임차권등기 대향력여부
+def determine_opposability_status(notice_text):
     """
-    주소에서 시도 코드, 시도 이름, 시군구 코드, 시군구 이름, 그리고 읍/면/동을 추출합니다.
-    시군구는 보다 구체적인(길이가 긴) 이름부터 매칭하여 처리합니다.
-    :param address: 분석할 주소 (예: "경기 고양시 일산서구 덕이동 731-5, 에이동 1층101호 (덕이동,일산파크뷰) 외 3필지")
-    :param json_data: 지역 정보를 담은 리스트 (JSON 데이터)
-    :return: (sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong) 튜플
-             해당 정보가 없으면 (None, None, None, None, None)을 반환.
+    notice_text 문자열 안에 '임차권등기' 또는 '대항력있는임차인'이 포함되어 있으면
+    opposability_status를 'Y'로, 그렇지 않으면 'N'으로 반환합니다.
     """
-    for region in json_data:
-        # "시도 이름"은 예: "경기,경기도"처럼 콤마로 구분되므로 리스트로 변환하고, 더 긴 이름을 사용 (예: "경기도")
-        sido_names = [name.strip() for name in region["시도 이름"].split(",")]
-        if any(sido in address for sido in sido_names):
-            sido_code = region["시도 코드"]
-            #sido_name = max(sido_names, key=len)
-            sido_name = sido_names[1]
-            # 시군구 리스트를 이름 길이 내림차순으로 정렬하여 더 구체적인 이름을 먼저 매칭
-            cities = sorted(region["시군구"], key=lambda x: len(x["시군구 이름"]), reverse=True)
-            for city in cities:
-                city_name = city["시군구 이름"]
-                # 주소에 city_name이 포함되어 있는지 검사 (단순 포함 검사)
-                if city_name in address:
-                    sigungu_code = city["시군구 코드"]   # 법정동코드개념
-                    sigungu_name = city_name
-                    # 시군구 이름이 나타난 위치 이후의 문자열에서 읍/면/동 추출
-                    city_index = address.find(city_name)
-                    if city_index != -1:
-                        sub_address = address[city_index + len(city_name):]
-                        # 시군구 뒤에 바로 나오는 읍/면/동 단어 추출 (예: "덕이동")
-                        match = re.search(r'\b([가-힣]+(?:읍|면|동))\b', sub_address)
-                        eub_myeon_dong = match.group(1) if match else None
-                    else:
-                        eub_myeon_dong = None
-                    lawd_cd = sigungu_code
+    keywords = ["임차권등기", "대항력있는임차인"]
+    for kw in keywords:
+        if kw in notice_text:
+            return 'Y'
+    return 'N'
 
-                    return lawd_cd, sido_code, sido_name, sigungu_code, sigungu_name, eub_myeon_dong
+# 날짜형식을 변환처리한다.
+def convert_to_iso(date_str):
+    """
+    "YY.MM.DD" 형식의 문자열을 받아 "YYYY-MM-DD" 형식으로 반환합니다.
+    예: "25.03.01" → "2025-03-01"
+    """
+    # "YY.MM.DD" 형식이 맞는지 간단히 확인
+    parts = date_str.split('.')
+    if len(parts) != 3:
+        raise ValueError(f"잘못된 형식: {date_str}")
 
-    return None, None, None, None, None
+    yy, mm, dd = parts
+    # 두 자리 연도를 네 자리로 변환 (2000년대 기준)
+    yyyy = f"20{yy}"
+    # 검증을 위해 datetime으로 파싱했다가 다시 포맷팅
+    try:
+        dt = datetime.strptime(f"{yyyy}-{mm}-{dd}", "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(f"날짜 변환 오류: {e}")
 
 
-def extract_region_code(address):
+# 금액만 추출 후 정수로 변환하고, 천 단위 콤마 포맷 적용
+def extract_and_format(text):
+    m = re.search(r'(\d[\d,]*)', text)
+    if not m:
+        return "0"
+    # 쉼표 제거 후 정수로 변환
+    value = int(m.group(1).replace(',', ''))
+    # 천 단위 콤마 추가
+    return f"{value:,}"
 
-    # 2. 주소로 법정동 코드 조회 로직 (실제 DB나 API 연동 필요)
-    # ---------------------------------------------------------
-    # 리턴 데이터 조립 및 필드 설명
-    # ---------------------------------------------------------
-    # 1. lawd_cd: 전체 법정동 코드 (예: 4157010300)
-    # 2. lawd_name: 전체 주소 명칭 (예: 경기도 수원시 권선구 호매실동)
-    # 3. region: 광역 지자체 이름 (예: 경기도, 경상북도)
-    # 4. sigungu_code: 법정동 코드 앞 5자리 (예: 41570)
-    # 5. sigungu_name: 기초 지자체 이름 (예: 수원시 권선구, 하동군)
-    # 6. umd_name: 가장 하위 행정구역 명칭 (예: 호매실동, 진교면)
-    # ---------------------------------------------------------
-    print(f"📌 주소로부터 지역 정보 추출 시도: {address}")
-    row = get_lawd_by_name(address)
 
-    lawd_cd = row.get("lawd_cd", "")
-    lawd_name = row.get("lawd_name", "")
-    region = row.get("region", "")
-    sigungu_code = row.get("sigungu_code", "")
-    sigungu_name = row.get("sigungu_name", "")
-    umd_name = row.get("umd_name", "")
+# npl여부를 체크: 최저낙찰가, 채권채고액, 채권청구액
+def evaluate_npl(lowest_price_str, max_claim_str, claim_amount_str):
+    # Remove commas and convert to integers
+    lowest_price = int(lowest_price_str.replace(',', '').strip())
+    max_claim = int(max_claim_str.replace(',', '').strip())
+    claim_amount = int(claim_amount_str.replace(',', '').strip())
 
-    return lawd_cd, lawd_name, region, sigungu_code, sigungu_name, umd_name
+    # If max_claim is zero, use claim_amount
+    if max_claim == 0:
+        max_claim = claim_amount
 
+    # Compare values
+    is_npl = max_claim > lowest_price
+
+    return is_npl
 
 # 1) 드라이버 초기화 함수
 def init_driver():
@@ -1034,26 +1251,64 @@ def safe_execute_script(driver, script):
         else:
             raise
 
+# 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
+def create_driver():
+    chrome_options = Options()
+
+    # 최신 Chrome 헤드리스 모드
+    chrome_options.add_argument("--headless=new")
+
+    # 헤드리스 기본 화면이 작으면 반응형 UI나 배너가 요소를 가릴 수 있음
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--force-device-scale-factor=1")
+
+    # 자동화 안정성
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--disable-popup-blocking")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-search-engine-choice-screen")
+
+    # 백그라운드 실행 시 타이머/렌더링 제한 완화
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+
+    # 네트워크 및 렌더링 안정화
+    chrome_options.add_argument("--disable-features=TranslateUI")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+
+    # 자동화 탐지 표시 일부 제거
+    chrome_options.add_experimental_option(
+        "excludeSwitches",
+        ["enable-automation", "enable-logging"]
+    )
+    chrome_options.add_experimental_option(
+        "useAutomationExtension",
+        False
+    )
+
+    # 페이지가 완전히 로딩될 때까지 기다림
+    chrome_options.page_load_strategy = "normal"
+
+    driver = webdriver.Chrome(options=chrome_options)
+
+    # 옵션과 별개로 실제 WebDriver 창 크기도 지정
+    driver.set_window_size(1920, 1080)
+
+    driver.set_page_load_timeout(60)
+    driver.set_script_timeout(60)
+
+    return driver
+
+
 def main():
-    global json_data, saved_count, data_list  # 전역 변수 사용
-    driver = init_driver()
+    global saved_count, data_list  # 전역 변수 사용
 
     # # 크롬드라이버 화면없이 동작하게 처리하는 방법(배치개념에 적용)
-    # chrome_options = Options()
-    # chrome_options.add_argument("--headless")
-    # chrome_options.add_argument("--disable-gpu")
-    # chrome_options.add_argument("--no-sandbox")
-    # chrome_options.add_argument("--disable-dev-shm-usage")
-    # chrome_options.add_argument("--remote-debugging-port=9222")  # 원격 디버깅 포트
-    # chrome_options.add_argument("--disable-background-timer-throttling")
-    # chrome_options.add_experimental_option("detach", True)  # 크롬 창을 셀레니움 종료 시 닫지 않음
-    # # 필요에 따라 추가 옵션 설정: --no-sandbox, --disable-dev-shm-usage 등
-    #
-    # driver = webdriver.Chrome()
+    driver = create_driver()
     try:
-        # 시군구등 법정코드 json 데이타 로딩
-        json_data = load_json_data()
-
         # driver = init_driver()
         driver = safe_get(driver, "https://www.tankauction.com/")
         driver.implicitly_wait(1)

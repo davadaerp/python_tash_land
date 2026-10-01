@@ -27,8 +27,9 @@
       border-radius:14px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.12);
       overflow:hidden;
-      min-width: 320px;
-      max-width: 480px;
+      width: 620px;   /* 기존 480px */
+      /*min-width: 320px;*/
+      /*max-width: 480px;*/
       z-index: 1000;
       animation: popIn 120ms ease-out;
     }
@@ -2446,6 +2447,28 @@
       bounds.extend(pos);
     }
 
+    /* [추가] 클립보드 복사 유틸 함수 (사건번호 등 텍스트 복사용) */
+    function copyTextToClipboard(text) {
+      if (!text) return Promise.resolve(false);
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text)
+          .then(() => true)
+          .catch(() => fallbackCopyText(text));
+      }
+      return Promise.resolve(fallbackCopyText(text));
+    }
+
+    /* [추가] 선택된 필터(all/real/auction)에 따라
+       테이블 3번째 컬럼(건축년도/사건번호) 헤더 텍스트를 반환 */
+    function getYearCaseHeaderText(selectedFilter) {
+      return selectedFilter === 'all'
+        ? '건축년도/사건번호'
+        : selectedFilter === 'real'
+          ? '건축년도'
+          : '사건번호';
+    }
+
     /* 행 HTML 생성 (선택 필터에 맞게) */
     function buildRowsHTML(itemsSorted, selectedFilter) {
       const filtered = itemsSorted.filter(it => {
@@ -2463,10 +2486,27 @@
         const pillClass = isReal ? 'pill-real' : 'pill-auction';
         const pillText = isReal ? '실거래' : '경매';
 
+        // [수정] 실거래는 건축년도, 경매는 사건번호 표시
+        const buildYearOrCaseNumber = isReal
+          ? (it.buildYear || it.year || it.raw?.buildYear || '-')
+          : (it.caseNumber || it.raw?.case_number || '-');
+
+        // [추가] '상가' 자산유형 + 경매(사건번호) 항목만 클릭-복사 셀로 렌더링
+        const isShopAssetType = String(getMapAssetTypeSelectValue() || '').trim() === '상가';
+        const yearCaseCellHTML = (!isReal && isShopAssetType && buildYearOrCaseNumber !== '-')
+          ? `<span class="case-copy-cell"
+                   data-case-number="${String(buildYearOrCaseNumber).replace(/"/g, '&quot;')}"
+                   title="클릭하면 사건번호가 복사됩니다"
+                   style="color:#1d4ed8; font-weight:800; text-decoration:underline; cursor:pointer;">
+               ${buildYearOrCaseNumber}
+             </span>`
+          : buildYearOrCaseNumber;
+
         return `
           <tr>
             <td style="font-weight:800;"><span class="pill ${pillClass}">${pillText}</span></td>
             <td>${date}</td>
+            <td>${yearCaseCellHTML}</td>
             <td>${floorText}</td>
             <td>${areaText}</td>
             <td class="price-per">${unitPrice}</td>
@@ -2544,6 +2584,10 @@
       // 초기 테이블 rows
       const initialRows = buildRowsHTML(itemsSorted, defaultFilter);
 
+      // 현재 선택된 데이터 종류에 따라 테이블 제목 설정
+      // 건축년도/사건번호 컬럼 헤더 텍스트를 반환하는 헬퍼 함수 사용
+      const initialYearCaseHeader = getYearCaseHeaderText(defaultFilter);
+
       return {
         html: `
           <div class="custom-popup ${meta.header}">
@@ -2563,6 +2607,7 @@
                     <tr>
                       <th>구분</th>
                       <th>거래일자</th>
+                      <th data-year-case-header>${initialYearCaseHeader}</th>
                       <th>층</th>
                       <th class="area-col">평수(계약)</th>
                       <th class="price-per">평당가</th>
@@ -2618,6 +2663,9 @@
         this._el.innerHTML = payload.html;
         this._container = this._el.firstElementChild;
 
+        // [추가] 건축년도/사건번호 헤더 엘리먼트 참조
+        const yearCaseHeaderEl = this._container.querySelector('[data-year-case-header]');
+
         // 추가: 자동 스크롤 헬퍼
         const tableWrap = this._container.querySelector('.table-wrap');
         const tbody = this._container.querySelector('[data-tbody]');
@@ -2655,6 +2703,11 @@
             btn.classList.add('selected');
             this._currentFilter = f;
 
+            // [추가] 필터 변경 시 건축년도/사건번호 헤더 텍스트 갱신
+            if (yearCaseHeaderEl) {
+              yearCaseHeaderEl.textContent = getYearCaseHeaderText(this._currentFilter);
+            }
+
             // 테이블 갱신
             tbody.innerHTML = buildRowsHTML(this._itemsSorted, this._currentFilter);
             // 정렬 상태 초기화 (필터 바꾸면 헤더 정렬도 초기화)
@@ -2663,6 +2716,29 @@
             applyAutoScroll(); // ▼▼▼ 추가: 필터로 행 수 변동 시 적용
           });
         }
+
+        // [추가] 사건번호(상가+경매 케이스만 렌더링됨) 클릭 시 클립보드 복사
+        if (tbody) {
+          tbody.addEventListener('click', async (e) => {
+            const cell = e.target.closest('.case-copy-cell');
+            if (!cell) return;
+
+            const caseNumber = cell.getAttribute('data-case-number') || '';
+            if (!caseNumber) return;
+
+            const copied = await copyTextToClipboard(caseNumber);
+
+            const originalText = cell.textContent;
+            cell.textContent = copied ? '복사됨!' : '복사 실패';
+            cell.style.color = copied ? '#16a34a' : '#dc2626';
+
+            setTimeout(() => {
+              cell.textContent = originalText;
+              cell.style.color = '#1d4ed8';
+            }, 1000);
+          });
+        }
+
         // 정렬(거래일자)
         // === "거래일자" 헤더 클릭 시 정렬 토글(+ 화살표 표시) ===
         this._dateSortDir = null; // null -> 'asc' -> 'desc' 토글 상태
@@ -8286,9 +8362,13 @@
       addresses = rows
         .map(item => ({
           type: item.type,
+          caseNumber: item.caseNumber || "",
           address: item.address || getNplRowAddress(currentNplDealAuctionBaseRow || {}),
           buildingName: item.buildingName || item.useText || "",
           date: item.date || "",
+          // [추가] 마크업 팝업 리스트 건축년도 표시용
+          // 실거래 상단 팝업에서 쓰는 buildYear 값을 그대로 전달
+          buildYear: item.buildYear || "",
           year: "",
           floor: item.floor ? `${item.floor}층` : "",
           area: item.area ? `${item.area}평` : "",
