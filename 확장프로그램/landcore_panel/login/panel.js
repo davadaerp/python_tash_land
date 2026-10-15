@@ -19,6 +19,7 @@ let imjangAnalysisMenu;
 let imjangAnalysisBtn;
 let nplBtn;
 let baehuBtn;
+let baehuMenu; // 추가
 let naverLandBtn;
 let guideBtn;
 let statusBar;
@@ -90,6 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     imjangAnalysisBtn = document.getElementById('imjang-analysis-btn');
     nplBtn = document.getElementById('npl-btn');
     baehuBtn = document.getElementById('baehu-btn');
+    baehuMenu = document.getElementById('baehu-menu');
     naverLandBtn = document.getElementById('naver-land-btn');
     guideBtn = document.getElementById('guide-btn');
     statusBar = document.getElementById('status-bar');
@@ -107,7 +109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     resetBtn?.addEventListener('click', resetPanel);
     realAuctionBtn?.addEventListener('click', toggleAnalysisMenu);
     calculatorBtn?.addEventListener('click', openCalculator);
-    baehuBtn?.addEventListener('click', openBaehu);
+    // baehuBtn?.addEventListener('click', openBaehu);
+    baehuBtn?.addEventListener('click', toggleBaehuMenu);
     smsBtn?.addEventListener('click', openSmsSendFromPanel);
     imjangAnalysisBtn?.addEventListener('click', toggleImjangAnalysisMenu);
     nplBtn?.addEventListener('click', openNplSearchFromPanel);
@@ -269,6 +272,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 네이버매물검색
                 openPropertySearchPopupFromPanel();
             }
+            return;
+        }
+
+        // 배후분석 드롭다운 메뉴 선택
+        const baehuMenuBtn = e.target.closest('[data-baehu-menu]');
+        if (baehuMenuBtn) {
+            const menuType = baehuMenuBtn.getAttribute('data-baehu-menu');
+
+            closeBaehuMenu();
+
+            if (menuType === 'baehu') {
+                openBaehu();
+            } else if (menuType === 'sangun') {
+                openSangunBaehu();
+            }
+
             return;
         }
 
@@ -539,7 +558,11 @@ async function loginForPanel() {
                     if (result.result === 'Success') {
                         return resolve({
                             ok: true,
-                            access_token: accessToken
+                            access_token: accessToken,
+
+                            // 서버에서 받은 배후분석 URL
+                            baehu_url: result.baehu_url || '',
+                            sangun_baehu_url: result.sangun_baehu_url || ''
                         });
                     }
 
@@ -866,20 +889,71 @@ async function openPropertySearchPopupFromPanel() {
     );
 }
 
+// 배후분석 드롭다운 열기/닫기
+function toggleBaehuMenu(e) {
+    e.stopPropagation();
+
+    if (!baehuMenu) return;
+
+    const willOpen = baehuMenu.classList.contains('hidden');
+
+    baehuMenu.classList.toggle('hidden', !willOpen);
+    baehuBtn?.setAttribute('aria-expanded', String(willOpen));
+
+    realAuctionMenu?.classList.add('hidden');
+    imjangAnalysisMenu?.classList.add('hidden');
+}
+
+// 배후분석 메뉴 닫기
+function closeBaehuMenu() {
+    baehuMenu?.classList.add('hidden');
+    baehuBtn?.setAttribute('aria-expanded', 'false');
+}
+
 /**
- * 배후분석 열기
+ * 마이프첼 배후분석 열기
  */
 async function openBaehu() {
     const auth = await loginValidForPanel();
     if (!auth.ok) return;
 
+        // 서버에서 전달받은 URL
+    const baehuUrl = auth.baehu_url;
+
+    if (!baehuUrl) {
+        alert('배후분석 URL이 서버에 설정되지 않았습니다.');
+        return;
+    }
+
     const popupWidth = 550;  // 원하는 팝업 너비
     const popupHeight= 950;  // 원하는 팝업 높이
     const left = (screen.width - popupWidth) / 2;
     const top = (screen.height - popupHeight) / 2;
-    window.open("https://myfranchise.kr/map", "analyzeCatchmentDemand",
-      `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    window.open(
+        baehuUrl,
+        "analyzeCatchmentDemand",
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
 }
+
+// 소상공인365 상권배후분석 새 탭 열기
+async function openSangunBaehu() {
+    const auth = await loginValidForPanel();
+    if (!auth.ok) return;
+
+    // 서버에서 전달받은 URL
+    const sangunUrl = auth.sangun_baehu_url;
+
+    if (!sangunUrl) {
+        alert('상권배후분석 URL이 서버에 설정되지 않았습니다.');
+        return;
+    }
+
+    chrome.tabs.create({
+        url: sangunUrl
+    });
+}
+
 /**
  * 수익률 계산기 실행 (토큰 및 구독 상태 체크 포함)
  */

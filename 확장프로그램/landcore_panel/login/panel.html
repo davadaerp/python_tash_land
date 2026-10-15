@@ -113,6 +113,9 @@
             <button type="button" class="site-shortcut-item" data-site-url="https://www.hometax.go.kr/">
               홈텍스(세무)
             </button>
+            <button type="button" class="site-shortcut-item" data-site-url="https://batoner.kr/">
+              대리입찰(바토너)
+            </button>
           </div>
         </div>
       </div>
@@ -131,9 +134,28 @@
           </div>
         </div>
 
-        <button id="baehu-btn" class="tool-btn tool-btn-baehu">
-          🧭 배후분석
-        </button>
+        <div class="tool-dropdown">
+          <button id="baehu-btn"
+                  class="tool-btn tool-btn-baehu"
+                  type="button"
+                  aria-expanded="false">
+            🧭 배후분석 ▼
+          </button>
+
+          <div id="baehu-menu" class="tool-dropdown-menu hidden">
+            <button type="button"
+                    class="tool-dropdown-item"
+                    data-baehu-menu="baehu">
+              🧭 입지배후
+            </button>
+
+            <button type="button"
+                    class="tool-dropdown-item"
+                    data-baehu-menu="sangun">
+              🏪 상권배후
+            </button>
+          </div>
+        </div>
 
         <button id="calculator-btn" class="tool-btn tool-btn-profit">
           📊 수익률분석

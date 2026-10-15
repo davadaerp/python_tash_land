@@ -164,7 +164,38 @@ function setLoggedInUI(profile) {
       const nickname = profile.nickname || "-";
       const smsCount = (profile.sms_count ?? 0).toString();
 
-      nicknameEl.textContent = nickname;
+      // =====================================================
+      // 닉네임 : 검정색
+      // 구독중 상태 : 파란색 Bold
+      // 미구독 상태 : 빨간색 Bold
+      // =====================================================
+      nicknameEl.textContent = "";
+
+      const nicknameSpan = document.createElement("span");
+      nicknameSpan.textContent = nickname;
+      nicknameSpan.style.color = "#000";
+      nicknameSpan.style.fontWeight = "normal";
+
+      const statusSpan = document.createElement("span");
+
+      if (profile.is_subscribed === "active") {
+        const planDate = profile.plan_date || "0일남음";
+
+        statusSpan.textContent = `-${planDate}`;
+        statusSpan.style.color = "#326CF9";
+        statusSpan.style.fontWeight = "700";
+
+      } else {
+        statusSpan.textContent = "-미구독";
+        statusSpan.style.color = "#d90429";
+        statusSpan.style.fontWeight = "700";
+      }
+
+      nicknameEl.appendChild(nicknameSpan);
+      nicknameEl.appendChild(statusSpan);
+
+
+      // ↓ 아래부터 기존 코드 그대로
       if (panelNicknameEl) {
         panelNicknameEl.textContent = nickname;
       }

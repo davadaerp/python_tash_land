@@ -29,6 +29,7 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from io import BytesIO
 
+from auction.auction_geocode_utils import retry_geocode_failed_address, is_valid_latlng
 # 상가및 아파트 크롤링데이타(예전PC)
 from common.vworld_utils import VWorldGeocoding
 from license.make_license import generate_fixed_key
@@ -808,6 +809,10 @@ def user_subscribe_approval():
     return jsonify({"success": "구독승인되었습니다."}), 200
 
 
+# 배후분석 URL 설정 (서버에서 관리)
+BAEHU_URL = "https://myfranchise.kr/map"
+SANGUN_BAEHU_URL = "https://bigdata.sbiz.or.kr/#/hotplace/gis"
+
 # 사용자 구독정보 체크(구독기간 만료 등)
 @app.route('/api/user/subscribe_check', methods=['POST'])
 @kakao_extool_auth_required
@@ -830,7 +835,10 @@ def user_subscribe_check(user_id):
     else:
         rtn_data = {
             'result': 'Success',
-            'message': '구독완료되었습니다.'
+            'message': '구독완료되었습니다.',
+            # 추가: 배후분석 URL
+            'baehu_url': BAEHU_URL,
+            'sangun_baehu_url': SANGUN_BAEHU_URL
         }
 
     return jsonify(rtn_data), 200
@@ -2137,9 +2145,23 @@ def forward_map():
     address = request.form.get('address', '')
     addressRoad = request.form.get('addressRoad', '')
     objectType = request.form.get('objectType', '근린상가')
-    appraisalPrice = request.form.get('appraisalPrice', '')
-    minimumPrice = request.form.get('minimumPrice', '')
-    assetType = objectType;
+    assetType = objectType
+
+    # ================================================
+    # 가격 숫자만 추출 (추가 수정 부분)
+    # ================================================
+    appraisalPrice = re.match(
+        r'^\s*([\d,]+)',
+        request.form.get('appraisalPrice', '')
+    )
+
+    minimumPrice = re.match(
+        r'^\s*([\d,]+)',
+        request.form.get('minimumPrice', '')
+    )
+
+    appraisalPrice = appraisalPrice.group(1).replace(',', '') if appraisalPrice else ''
+    minimumPrice = minimumPrice.group(1).replace(',', '') if minimumPrice else ''
 
     print(f"forward_map() received address: {address}, {addressRoad}, objectType: {objectType}, appraisalPrice: {appraisalPrice}, minimumPrice: {minimumPrice}")
 
@@ -2156,18 +2178,66 @@ def forward_map():
     lawd_cd = row.get("lawd_cd", "")
     lawd_name = row.get("lawd_name", "")
     umd_name = row.get("umd_name", "")
+    case_number = objectType
 
-    # 1. 유틸리티 인스턴스 생성
-    geo_service = VWorldGeocoding(MAP_API_KEY)
+    # ------------------------------------------------------------
+    # 12. 위도 / 경도
+    latitude = "0"
+    longitude = "0"
 
-    # 유틸리티 인스턴스 생성  주소 타입 ("parcel": 지번 [기본값], "road": 도로명)
-    latitude, longitude = geo_service.get_lat_lng(address, address_type="parcel")
-    # 지번주소 위경도 못찾으면 도로명주소로 찾음
-    # 더 파이썬스럽고(Pythonic) 안전한 작성 예시
-    if not latitude or not longitude:  # 0.0, None, 빈 값 등을 모두 체크
-        result = geo_service.get_lat_lng(addressRoad, address_type="road")
-        if result:  # 결과가 정상적으로 돌아왔을 때만 할당
-            latitude, longitude = result
+    # [기존 성공 로직 유지]
+    # 기존과 동일하게 address1 전체를 parcel로 먼저 조회한다.
+    # 이 조회가 성공하면 추가 보완 로직은 실행하지 않는다.
+    # -----------------------------------------------
+    try:
+        geo_service = VWorldGeocoding(MAP_API_KEY)
+
+        # ★ 기존 코드 그대로
+        latitude, longitude = geo_service.get_lat_lng(
+            address,
+            "parcel"
+        )
+
+        # --------------------------------------------------------
+        # ★ 추가된 부분
+        #
+        # 기존 방식이 성공했으면 아무것도 하지 않음.
+        #
+        # CSV 실패건처럼
+        # latitude/longitude가 0인 경우에만
+        # 추가 주소 후보로 재조회
+        # --------------------------------------------------------
+        if not is_valid_latlng(
+                latitude,
+                longitude
+        ):
+            latitude, longitude = (
+                retry_geocode_failed_address(
+                    geo_service=geo_service,
+                    case_number=case_number,
+                    address1=address,
+                    address2=address
+                )
+            )
+
+    except Exception as e:
+        # ========================================================
+        # ★ 중요
+        #
+        # VWorld API 오류
+        # 네트워크 오류
+        # 주소변환 오류
+        # retry 함수 오류
+        #
+        # 어떤 예외가 발생해도
+        # 해당 경매 레코드를 버리지 않는다.
+        # ========================================================
+        latitude = "0"
+        longitude = "0"
+
+        print(
+            f"좌표 변환 오류 : {e}"
+        )
 
     print(f"forward_map() 주소: {address}, 법정동코드: {lawd_cd}, 법정동명: {lawd_name},  읍면동: {umd_name}",  f"위도: {latitude}, 경도: {longitude}")
 
@@ -2187,6 +2257,9 @@ def forward_map():
         "longitude": longitude,
         "access_token": tk
     }
+
+    print("==== params_data: ", params_data)
+
     # 리다이렉트 대신, 자동으로 POST를 제출하는 템플릿으로 데이터 전달
     return render_template("extool_wishlist_map_popup.html", **params_data)
 
@@ -2223,6 +2296,66 @@ def sms_send():
         else:
             result = 'Failed'
             errmsg = '모두 MMS 전송에 실패했습니다.'
+
+    elif sendType == 'naver_sms':
+        # -------------------------------------------------------------
+        # 중계서버 모니터링에 사용되어짐.
+        # NAVER_SMS 발송 처리 (naver_sms.py 내 send_sms 활용)
+        # RECEIVER_PHONE="admin1:01087654321,admin22:01012345678"
+        # -------------------------------------------------------------
+        raw = data.get("phoneNumbers", "")
+        subject = data.get("title", "")
+        content = data.get("message", "")
+
+        # 📥 수신번호, 제목, 메시지를 한 번에 콘솔에 출력
+        print("==================================================")
+        print(f"📱 [NAVER_SMS 수신번호] : {raw}")
+        print(f"📌 [NAVER_SMS 제목]     : {subject}")
+        print(f"✉️ [NAVER_SMS 내용]     : {content}")
+
+        # 글자수(바이트)에 따라 SMS 또는 LMS 자동 분기 (네이버 SENS 규격 대응)
+        msg_type = 'LMS' if len(content.encode('utf-8')) > 80 else 'SMS'
+        print(f"📊 판별된 메시지 타입 : {msg_type} (바이트 길이: {len(content.encode('utf-8'))} bytes)")
+        print("==================================================")
+
+        # 번호 파싱 로직
+        entries = raw.split(",") if isinstance(raw, str) else raw
+        phone_numbers = []
+        for entry in entries:
+            entry = entry.strip()
+            if ":" in entry:
+                _, phone = entry.split(":", 1)
+            else:
+                phone = entry
+            phone = phone.strip().replace("-", "")
+            if phone:
+                phone_numbers.append(phone)
+
+        success_count = 0
+        fail_count = 0
+
+        for to_num in phone_numbers:
+            try:
+                # naver_sms.py에 정의된 send_sms 함수 호출
+                res = send_sms(to_num, content, subject=subject, msg_type=msg_type)
+                if res and res.status_code < 400:
+                    success_count += 1
+                else:
+                    fail_count += 1
+            except Exception as e:
+                print(f"❌ {to_num} 네이버 SMS 전송 중 예외:", e)
+                fail_count += 1
+
+        if success_count > 0 and fail_count == 0:
+            result = 'Success'
+            errmsg = 'Message Send Success.'
+        elif success_count > 0 and fail_count > 0:
+            result = 'PartialSuccess'
+            errmsg = f"Message {success_count} Success, {fail_count} Failed."
+        else:
+            result = 'Failed'
+            errmsg = 'All Message Send Failed.'
+
     else :
         # 일반문자 뿌리오 이용한 전송처리(크롬드라이버 이용)
         response_result = purio_sms_send(data)
@@ -3295,5 +3428,6 @@ if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5002)
     # app.run(host='0.0.0.0', port=8081)
     # app.run(host='localhost', port=8080, debug=True)
-    app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=False)
+    #app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
     #app.run(host='0.0.0.0', port=5001, debug=True)
